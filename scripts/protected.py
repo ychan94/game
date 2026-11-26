@@ -22,11 +22,11 @@ def patterns():
     p = ROOT / "PROTECTED.txt"
     if not p.exists():
         return []
-    return [l.strip() for l in p.read_text().splitlines() if l.strip() and not l.startswith("#")]
+    return [l.strip() for l in p.read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#")]
 
 
 def last_commit_by_user(path):
-    r = subprocess.run(["git", "log", "-1", "--format=%B", "--", path], cwd=ROOT, capture_output=True, text=True)
+    r = subprocess.run(["git", "log", "-1", "--format=%B", "--", path], cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
     body = r.stdout.strip()
     return bool(body) and not any(m in body for m in AGENT_MARKS)
 

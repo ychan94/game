@@ -23,7 +23,7 @@ ORDER = ["p0", "p1", "boss"]
 
 
 def git(*args):
-    r = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True)
+    r = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
     return [l for l in r.stdout.splitlines() if l.strip()] if r.returncode == 0 else []
 
 
@@ -38,7 +38,7 @@ def changed_files(staged):
 
 
 def pick_stages(files):
-    cfg = json.loads((ROOT / "test_map.json").read_text())
+    cfg = json.loads((ROOT / "test_map.json").read_text(encoding="utf-8"))
     stages, why = set(), {}
     for f in files:
         hit = None

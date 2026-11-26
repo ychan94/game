@@ -86,10 +86,10 @@ def main():
     stamp = dt.datetime.now().strftime("%Y-%m-%d_%H%M%S")
     out = ROOT / "reports" / "boss"
     out.mkdir(parents=True, exist_ok=True)
-    (out / f"{stamp}.json").write_text(json.dumps(rows, ensure_ascii=False, indent=2))
+    (out / f"{stamp}.json").write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
     hist = out / "history.csv"
     new = not hist.exists()
-    with hist.open("a", newline="") as f:
+    with hist.open("a", newline="", encoding="utf-8") as f:
         wr = csv.writer(f)
         if new:
             wr.writerow(["datetime", "boss", "seed", "cleared", "time_s", "hp_lost"])

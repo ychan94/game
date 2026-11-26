@@ -79,7 +79,7 @@ def cmd_baseline(_):
     _, _, hashes = run()
     BASELINE.parent.mkdir(parents=True, exist_ok=True)
     BASELINE.write_text(json.dumps({"saved": dt.datetime.now().isoformat(timespec="seconds"),
-                                    "commit": commit(), "hashes": hashes}, indent=1))
+                                    "commit": commit(), "hashes": hashes}, indent=1), encoding="utf-8")
     print(f"기준 저장: {BASELINE.relative_to(ROOT)} ({len(hashes)}개 지점)")
 
 
@@ -87,7 +87,7 @@ def cmd_compare(_):
     if not BASELINE.exists():
         print("기준이 없습니다. 고치기 전에 `python3 perf/bench.py baseline`을 먼저 돌리세요.")
         return 2
-    base = json.loads(BASELINE.read_text())["hashes"]
+    base = json.loads(BASELINE.read_text(encoding="utf-8"))["hashes"]
     _, _, now = run()
     for (f, h0, n0), (_, h1, n1) in zip(base, now):
         if h0 != h1:
@@ -102,7 +102,7 @@ def cmd_fps(a):
     avg = statistics.median(r[0] for r in runs)
     low = statistics.median(r[1] for r in runs)
     new = not RECORDS.exists()
-    with RECORDS.open("a", newline="") as f:
+    with RECORDS.open("a", newline="", encoding="utf-8") as f:
         wr = csv.writer(f)
         if new:
             wr.writerow(["date", "commit", "scene", "seed", "enemies", "frames", "repeat",
@@ -113,8 +113,8 @@ def cmd_fps(a):
 
 
 def commit():
-    r = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True)
-    dirty = subprocess.run(["git", "status", "--porcelain", "sim"], cwd=ROOT, capture_output=True, text=True).stdout
+    r = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    dirty = subprocess.run(["git", "status", "--porcelain", "sim"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
     return (r.stdout.strip() or "none") + ("+수정중" if dirty.strip() else "")
 
 

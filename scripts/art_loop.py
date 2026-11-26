@@ -21,7 +21,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-CFG = json.loads((ROOT / "art" / "loop_config.json").read_text())
+CFG = json.loads((ROOT / "art" / "loop_config.json").read_text(encoding="utf-8"))
 
 
 # ---------------- 셀 수 있는 것: 스크립트로 잰다 ----------------
@@ -114,11 +114,11 @@ def load(task):
     p = task_dir(task) / "loop.json"
     if not p.exists():
         sys.exit(f"루프가 없습니다: {task}. 먼저 start 하세요.")
-    return json.loads(p.read_text())
+    return json.loads(p.read_text(encoding="utf-8"))
 
 
 def save(task, st):
-    (task_dir(task) / "loop.json").write_text(json.dumps(st, ensure_ascii=False, indent=2))
+    (task_dir(task) / "loop.json").write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def cmd_start(a):
@@ -129,7 +129,7 @@ def cmd_start(a):
     save(a.task, st)
     notes = d / "NOTES.md"
     if not notes.exists():
-        notes.write_text(f"# art-{a.task} 작업 메모\n\n## 목표 (사용자 말 그대로)\n\n## 작업 중 새로 정한 것\n")
+        notes.write_text(f"# art-{a.task} 작업 메모\n\n## 목표 (사용자 말 그대로)\n\n## 작업 중 새로 정한 것\n", encoding="utf-8")
     print(f"루프 시작: {d.relative_to(ROOT)}  (최대 {a.max_rounds}회, {a.patience}회 연속 안 오르면 멈춤)")
 
 
@@ -156,7 +156,7 @@ def cmd_score(a):
     st = load(a.task)
     if not st["rounds"]:
         sys.exit("스냅샷이 없습니다.")
-    data = json.loads(pathlib.Path(a.file).read_text())
+    data = json.loads(pathlib.Path(a.file).read_text(encoding="utf-8"))
     for k in ("ai_tell", "style_fit"):
         if not 1 <= float(data[k]) <= 10:
             sys.exit(f"{k} 는 1~10 이어야 합니다.")

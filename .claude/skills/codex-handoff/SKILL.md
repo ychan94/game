@@ -19,9 +19,21 @@ description: 그림(스프라이트·일러스트·UI 그림·이펙트 이미�
 
 ## 2. Codex 실행
 
+파일을 만들거나 고치는 작업 (그림 작업):
+
 ```bash
-codex exec --full-auto -C "$(git rev-parse --show-toplevel)" - < work/<작업폴더>/handoff-<NN>.md | tee work/<작업폴더>/handoff-<NN>.report.md
+codex exec --sandbox workspace-write -C "$(git rev-parse --show-toplevel)" - < work/<작업폴더>/handoff-<NN>.md | tee work/<작업폴더>/handoff-<NN>.report.md
 ```
+
+읽기만 하는 작업 (시험·확인):
+
+```bash
+codex exec --sandbox read-only -C "$(git rev-parse --show-toplevel)" - < work/<작업폴더>/handoff-<NN>.md | tee work/<작업폴더>/handoff-<NN>.report.md
+```
+
+- `--sandbox workspace-write`: Codex는 저장소 폴더 안에만 쓸 수 있다. 밖으로 나가야 하면 실패로 끝난다 → 보고는 `못 돌림`.
+- `--full-auto` 는 Codex CLI 0.172 에서 없어졌다. `--approve-for-me` 는 승인을 Codex가 알아서 넘기므로 쓰지 않는다.
+- 옵션 오류(`unexpected argument`)가 나면 `codex exec --help` 로 현재 옵션을 확인하고, 다른 옵션으로 바꿔 돌리기 전에 사용자에게 먼저 묻는다.
 
 `codex` 명령이 없으면: 지시서 경로를 사용자에게 알려 주고 Codex에 붙여 넣어 달라고 한 뒤, 보고를 `handoff-<NN>.report.md`로 받아 저장한다.
 

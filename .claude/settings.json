@@ -4,7 +4,7 @@
       {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
-          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/after_edit.py\"" }
+          { "type": "command", "command": "PY=python3; \"$PY\" -c '' >/dev/null 2>&1 || PY=python; \"$PY\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/after_edit.py\"" }
         ]
       }
     ]

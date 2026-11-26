@@ -28,6 +28,11 @@
 - 코드·테스트·측정은 Claude가 직접 한다.
 - Codex는 커밋·푸시하지 않는다.
 
+## 실행 환경
+
+- 이 문서의 `python3` 명령은 Windows에서 `python3` 이 안 되면 `python` 으로 바꿔 실행한다 (같은 것).
+- Codex는 `codex exec` (Codex CLI)로 부른다. git 저장소 폴더 안에서만 실행한다.
+
 ## 자동 테스트
 
 | 단계 | 뜻 | 위치 |

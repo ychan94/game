@@ -1,3 +1,6 @@
 #!/bin/sh
 # 커밋하려는 파일에 맞는 테스트 단계만 돌린다. 전투 코드가 바뀌었으면 보스 봇도 돈다.
-exec python3 "$(git rev-parse --show-toplevel)/scripts/test.py" --staged
+# Windows에서는 python3 가 없거나 스토어 바로가기일 수 있어서, 실제로 실행되는 쪽을 고른다.
+PY=python3
+"$PY" -c "" >/dev/null 2>&1 || PY=python
+exec "$PY" "$(git rev-parse --show-toplevel)/scripts/test.py" --staged

@@ -1,0 +1,2 @@
+date,commit,scene,seed,enemies,frames,repeat,fps_avg,fps_1pct_low,machine,note
+2026-11-26T14:37,871af8d,max_enemies,42,400,600,3,107.0,52.2,vm,세팅 직후 첫 기록

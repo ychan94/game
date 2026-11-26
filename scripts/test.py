@@ -77,13 +77,13 @@ def write_boss_report(rows):
     print(f"  기록: reports/boss/{stamp}.json")
 
 
-def run_stage(stage):
+def run_stage(stage, record=True):
     t = time.time()
     print(f"\n[{stage}] 시작")
     code, lines, results = godot_cmd.run_script("res://tests/run_tests.gd", [stage])
     for line in lines:
         print(line)
-    if stage == "boss" and results:
+    if stage == "boss" and results and record:
         write_boss_report(results)
     ok = code == 0
     print(f"[{stage}] {'통과' if ok else '실패'} ({time.time() - t:.1f}초)")
@@ -108,7 +108,7 @@ def main():
             print(f"  {s}: {', '.join(why[s][:5])}{' …' if len(why[s]) > 5 else ''}")
     if a.dry_run or not stages:
         return 0
-    results = {s: run_stage(s) for s in stages}
+    results = {s: run_stage(s, record=not a.staged) for s in stages}  # 커밋 전 검사는 기록을 남기지 않는다
     print("\n결과: " + "  ".join(f"{s}={'통과' if v else '실패'}" for s, v in results.items()))
     return 0 if all(results.values()) else 1
 

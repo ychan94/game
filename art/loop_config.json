@@ -1,0 +1,10 @@
+{
+  "_설명": "그림 루프 기본값. speck_max_px: 이보다 작은 덩어리는 잡티. break_gap_px: 선 뼈대 끝점끼리 이 거리 안이면 끊긴 선(선 굵기만큼 끝이 깎이므로 실제 틈보다 크게 잡음).",
+  "max_rounds": 6,
+  "patience": 2,
+  "min_gain": 0.3,
+  "ink_threshold": 128,
+  "alpha_threshold": 32,
+  "speck_max_px": 6,
+  "break_gap_px": 8
+}

@@ -1,0 +1,17 @@
+{
+  "_설명": "바뀐 파일 경로(glob) → 돌릴 단계. 여러 규칙에 걸리면 단계를 합친다. 어디에도 안 걸리면 default.",
+  "rules": [
+    { "glob": "sim/combat.py",        "stages": ["p0", "p1", "boss"] },
+    { "glob": "sim/game.py",          "stages": ["p0", "p1", "boss"] },
+    { "glob": "sim/*",                "stages": ["p0", "p1"] },
+    { "glob": "tests/p0/*",           "stages": ["p0"] },
+    { "glob": "tests/p1/*",           "stages": ["p1"] },
+    { "glob": "tests/bosses/*",       "stages": ["boss"] },
+    { "glob": "perf/*",               "stages": [] },
+    { "glob": "art/*",                "stages": [] },
+    { "glob": "work/*",               "stages": [] },
+    { "glob": "reports/*",            "stages": [] },
+    { "glob": "*.md",                 "stages": [] }
+  ],
+  "default": ["p0"]
+}

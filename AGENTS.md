@@ -15,7 +15,7 @@
 - 그 안의 `NOTES.md` 에 작업 중 새로 정한 것을 **날짜와 사용자 말 그대로** 적는다.
   ```
   - 2026-11-26 "보스 체력은 지금보다 2할만 낮춰 줘"
-    → sim/game.py BOSSES 체력 조정
+    → src/core/data.gd ECHO_HP 조정
   ```
 - 작업 시작 때 `git status --porcelain` 결과를 NOTES.md 에 붙여 둔다 (이미 있던 사용자 변경을 구분하려고).
 - 작업 메모에 적은 것이 여러 작업에 계속 쓰일 규칙이면, 사용자에게 물어본 뒤 이 파일로 옮긴다.
@@ -30,9 +30,27 @@
 - Codex는 커밋·푸시하지 않는다.
 - Codex는 이 저장소의 Python 스크립트(검사·테스트·측정)를 돌리지 않는다. Windows의 Codex 쓰기 모드에서는 Python을 쓸 수 없다. 검사는 Claude가 Codex 작업 전후에 한다. Codex가 검사를 못 돌린 것만으로는 `못 돌림`이 아니다.
 
+## 프로젝트 구조
+
+게임: **AFTERSELF (가제)** — 기획서 `docs/기획서.md`. Godot 4.7, 위에서 내려다보는 2D 픽셀 아트(타일 32×32).
+
+| 위치 | 내용 |
+|---|---|
+| `src/core/` | 게임 규칙 (화면과 무관). `data.gd` 수치 · `world.gd` 방 하나의 전투 · `run.gd` 한 판 흐름 · `habits.gd` 습관 기록 · `echo.gd` 어제의 나 · `save.gd` 판 사이 저장 |
+| `src/game/` | 화면·입력 (`main.tscn`). 규칙을 읽어서 그리기만 한다 |
+| `assets/` | 게임에 들어가는 그림·글꼴 (글꼴: 갈무리, OFL) |
+| `tests/` | Godot 테스트 (`test_p0.gd`, `test_p1.gd`, `test_boss.gd`), 봇, 성능 측정(`bench.gd`), 스크린샷(`screens.gd`) |
+| `art/` | 그림 루프용 기준 그림·기준표 (게임에 안 들어감) |
+
+- 규칙은 `src/core/` 에만 쓴다. 화면 코드에서 규칙을 바꾸지 않는다 (테스트·봇이 화면 없이 규칙을 돌리기 때문).
+- 수치(밸런스)는 `src/core/data.gd` 한 곳에서만 바꾼다.
+- `work/`, `reports/`, `docs/`, `scripts/`, `perf/`, `art/` 에는 `.gdignore` 가 있어 Godot 가 읽지 않는다.
+
 ## 실행 환경
 
 - 이 문서의 `python3` 명령은 Windows에서 `python3` 이 안 되면 `python` 으로 바꿔 실행한다 (같은 것).
+- Godot: `scripts/godot_cmd.py` 가 찾는다 (환경 변수 `GODOT` → PATH 의 `godot` → Windows 기본 위치의 `*_console.exe`). 못 찾으면 환경 변수 `GODOT` 에 실행 파일 경로를 넣는다. Windows는 창 없는 실행을 위해 `_console.exe` 를 쓴다.
+- 화면 확인(스크린샷): `godot --path . --script res://tests/screens.gd -- <저장 폴더>` (화면이 있는 환경에서. 서버에서는 Xvfb 필요). 화면을 바꾸면 스크린샷을 직접 열어 확인한다.
 - Codex는 `codex exec` (Codex CLI)로 부른다. git 저장소 폴더 안에서만 실행한다.
   쓰기 작업은 `--sandbox workspace-write`, 읽기만 하면 `--sandbox read-only` (Codex CLI 0.172 기준. `--full-auto` 는 없음).
 
@@ -40,9 +58,9 @@
 
 | 단계 | 뜻 | 위치 |
 |---|---|---|
-| P0 | 깨지면 게임이 안 되는 것 (시작·이동·공격·죽음·같은 시드 같은 결과) | `tests/p0/` |
-| P1 | 게임 전반 (패턴·잡몹·구르기 등) | `tests/p1/` |
-| boss | 보스마다 봇이 플레이어 조작만으로 화면 없이 싸움 → 깼는지·걸린 시간·잃은 체력 | `tests/bosses/boss_bot.py` → `reports/boss/` |
+| P0 | 깨지면 게임이 안 되는 것 (시작·이동·공격·죽음→메아리·같은 시드 같은 결과) | `tests/test_p0.gd` |
+| P1 | 게임 전반 (능력 8개·적 패턴·보상·분석표·메아리 약점·봇 한 판) | `tests/test_p1.gd` |
+| boss | 어제의 나가 습관·빌드를 따라 하는지 + 분석표를 읽는 봇(`reader`)이 여러 어제의 나와 싸움 → 깼는지·걸린 시간·잃은 체력 | `tests/test_boss.gd` → `reports/boss/` |
 
 ```bash
 python3 scripts/test.py              # 바뀐 파일에 맞는 단계만
@@ -51,13 +69,14 @@ python3 scripts/test.py --stage all  # 전부
 ```
 
 - 파일 → 단계 연결은 `test_map.json`. 새 폴더·파일을 만들면 여기에 규칙을 추가한다.
-- 전투 코드(`sim/combat.py`, `sim/game.py`)를 고치면 보스 봇이 같이 돈다: Claude가 고친 직후(`.claude/hooks/after_edit.py`) + 커밋 전(`.githooks/pre-commit`).
-- 보스 봇은 `observe()`(화면에 보이는 정보)만 읽고 `step(inputs)`(이동·공격·구르기)만 쓴다. 게임 내부 값을 직접 바꾸지 않는다.
+- 게임 규칙(`src/core/*.gd`)을 고치면 boss 단계가 같이 돈다: Claude가 고친 직후(`.claude/hooks/after_edit.py`) + 커밋 전(`.githooks/pre-commit`).
+- 테스트 함수는 `test_` 로 시작하고, 끝까지 가면 `return true`. 확인은 `check(조건, "설명")`.
+- 봇과 어제의 나는 같은 두뇌(`echo.gd` 의 `Brain`)를 쓰고, 플레이어 조작(이동·조준·공격·구르기)만 낸다. 게임 내부 값을 직접 바꾸지 않는다.
 - 테스트를 통과시키려고 테스트나 봇 기준을 느슨하게 고치지 않는다. 고쳐야 하면 이유를 사용자에게 먼저 말한다.
 
 ## 성능 검사
 
-조건(장면 `max_enemies`, 시드 42, 적 400, 600프레임, 고정 입력)은 `perf/bench.py` 맨 위 상수로 고정한다.
+조건(적 120마리 + 어제의 나, 시드 42, 600프레임, 고정 입력)은 `tests/bench.gd` 맨 위 상수로 고정한다. 화면 그리기는 빼고 규칙 계산만 잰다.
 
 1. `python3 perf/bench.py profile` — 함수(시스템)별 프레임 시간, 병목 찾기
 2. 고치기 전: `python3 perf/bench.py baseline` — 결과 지문 저장
@@ -80,7 +99,3 @@ python3 scripts/test.py --stage all  # 전부
 - 커밋 전에 `python3 scripts/test.py` 가 통과해야 한다 (pre-commit 훅이 자동으로 돌림).
 - 처음 받은 저장소라면 `git config core.hooksPath .githooks` 를 한 번 실행한다.
 - 커밋 메시지에 무엇을 왜 바꿨는지, 돌린 검사와 결과를 적는다.
-
-## 실제 게임으로 바꿀 때
-
-`sim/` 은 세팅이 돌아가는지 확인하려고 넣은 예시 게임이다. 실제 게임으로 바꿀 때는 `sim/game.py` 맨 위에 적힌 공개 API(`World`, `step`, `observe`, `state_hash`, `SYSTEMS`)를 실제 게임에 맞춰 연결하고, `test_map.json` 의 전투 코드 경로와 `.claude/hooks/after_edit.py` 의 `COMBAT` 를 실제 경로로 바꾼다.

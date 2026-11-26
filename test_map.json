@@ -1,17 +1,23 @@
 {
-  "_설명": "바뀐 파일 경로(glob) → 돌릴 단계. 여러 규칙에 걸리면 단계를 합친다. 어디에도 안 걸리면 default.",
+  "_설명": "바뀐 파일 경로(glob) → 돌릴 단계. 위에 있는 규칙이 먼저 걸린다. 어디에도 안 걸리면 default.",
   "rules": [
-    { "glob": "sim/combat.py",        "stages": ["p0", "p1", "boss"] },
-    { "glob": "sim/game.py",          "stages": ["p0", "p1", "boss"] },
-    { "glob": "sim/*",                "stages": ["p0", "p1"] },
-    { "glob": "tests/p0/*",           "stages": ["p0"] },
-    { "glob": "tests/p1/*",           "stages": ["p1"] },
-    { "glob": "tests/bosses/*",       "stages": ["boss"] },
+    { "glob": "src/core/*",           "stages": ["p0", "p1", "boss"] },
+    { "glob": "src/game/*",           "stages": ["p0"] },
+    { "glob": "tests/bots/*",         "stages": ["boss"] },
+    { "glob": "tests/test_boss.gd",   "stages": ["boss"] },
+    { "glob": "tests/test_p1.gd",     "stages": ["p1"] },
+    { "glob": "tests/suite.gd",       "stages": ["p0", "p1", "boss"] },
+    { "glob": "tests/run_tests.gd",   "stages": ["p0", "p1", "boss"] },
+    { "glob": "tests/*",              "stages": ["p0"] },
+    { "glob": "project.godot",        "stages": ["p0"] },
+    { "glob": "assets/*",             "stages": [] },
     { "glob": "perf/*",               "stages": [] },
     { "glob": "art/*",                "stages": [] },
     { "glob": "work/*",               "stages": [] },
+    { "glob": "docs/*",               "stages": [] },
     { "glob": "reports/*",            "stages": [] },
-    { "glob": "*.md",                 "stages": [] }
+    { "glob": "*.md",                 "stages": [] },
+    { "glob": "*.txt",                "stages": [] }
   ],
   "default": ["p0"]
 }

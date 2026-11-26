@@ -3,3 +3,6 @@ __pycache__/
 
 # 보스 봇 날짜별 기록은 컴퓨터에만 남기고 git에는 안 올림 (요약은 history.csv)
 reports/boss/*.json
+
+# Godot 가 만드는 캐시
+.godot/

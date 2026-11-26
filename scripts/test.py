@@ -6,19 +6,23 @@
     python3 scripts/test.py --stage p0   # 단계 직접 지정 (p0, p1, boss, all)
     python3 scripts/test.py --dry-run    # 무엇을 돌릴지만 보여 준다
 
-단계: p0 = 깨지면 게임이 안 되는 것 / p1 = 게임 전반 / boss = 보스 봇 전투
+단계: p0 = 깨지면 게임이 안 되는 것 / p1 = 게임 전반 / boss = 어제의 나(따라 하기 검사 + 보스전)
+Godot 로 화면 없이 돌린다 (scripts/godot_cmd.py 가 Godot 를 찾는다. 못 찾으면 환경 변수 GODOT).
 """
 import argparse
 import fnmatch
-import importlib.util
+import csv
+import datetime as dt
 import json
 import pathlib
 import subprocess
 import sys
 import time
-import traceback
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+import godot_cmd  # noqa: E402
+
 ORDER = ["p0", "p1", "boss"]
 
 
@@ -54,32 +58,34 @@ def pick_stages(files):
     return [s for s in ORDER if s in stages], why
 
 
-def run_pytests(folder):
-    sys.path.insert(0, str(ROOT))
-    ok = fail = 0
-    for path in sorted((ROOT / "tests" / folder).glob("test_*.py")):
-        spec = importlib.util.spec_from_file_location(path.stem, path)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        for name in sorted(n for n in dir(mod) if n.startswith("test_")):
-            try:
-                getattr(mod, name)()
-                ok += 1
-            except Exception:
-                fail += 1
-                print(f"  실패: {path.name}::{name}")
-                traceback.print_exc(limit=2)
-    print(f"  {ok}개 통과, {fail}개 실패")
-    return fail == 0
+def write_boss_report(rows):
+    stamp = dt.datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    out = ROOT / "reports" / "boss"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / f"{stamp}.json").write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
+    hist = out / "history.csv"
+    new = not hist.exists()
+    with hist.open("a", newline="", encoding="utf-8") as f:
+        wr = csv.writer(f)
+        if new:
+            wr.writerow(["datetime", "boss", "seed", "cleared", "time_s", "hp_lost", "echo_hp_left"])
+        for r in rows:
+            wr.writerow([stamp, r["boss"], r["seed"], r["cleared"], r["time_s"], r["hp_lost"], r.get("echo_hp_left", "")])
+    for r in rows:
+        mark = "깸" if r["cleared"] else "못 깸"
+        print(f"  {r['boss']:<14} seed={r['seed']}  {mark:<4} {r['time_s']:>6}초  잃은 체력 {r['hp_lost']}")
+    print(f"  기록: reports/boss/{stamp}.json")
 
 
 def run_stage(stage):
     t = time.time()
     print(f"\n[{stage}] 시작")
-    if stage in ("p0", "p1"):
-        ok = run_pytests(stage)
-    else:
-        ok = subprocess.run([sys.executable, str(ROOT / "tests/bosses/boss_bot.py")], cwd=ROOT).returncode == 0
+    code, lines, results = godot_cmd.run_script("res://tests/run_tests.gd", [stage])
+    for line in lines:
+        print(line)
+    if stage == "boss" and results:
+        write_boss_report(results)
+    ok = code == 0
     print(f"[{stage}] {'통과' if ok else '실패'} ({time.time() - t:.1f}초)")
     return ok
 

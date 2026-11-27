@@ -38,11 +38,19 @@ def check(entry):
         if len(opaque) < len(px) * 0.05:
             problems.append("거의 비어 있음")
     semi = sum(1 for p in px if 20 < p[3] < 235)
-    if semi > len(px) * MAX_SEMI:
+    if not entry.get("fx") and semi > len(px) * MAX_SEMI:
         problems.append(f"흐린 가장자리 {semi * 100 // len(px)}% (픽셀 아트는 반투명이 거의 없어야)")
     colors = len({p[:3] for p in px if p[3] > 200})
-    if colors > MAX_COLORS:
-        problems.append(f"색 {colors}개 (최대 {MAX_COLORS})")
+    limit = entry.get("max_colors", MAX_COLORS)
+    if colors > limit:
+        problems.append(f"색 {colors}개 (최대 {limit})")
+    if entry.get("frames"):
+        fw, fh = entry["frame"]
+        for i in range(entry["frames"]):
+            box = img.crop((i * fw, 0, (i + 1) * fw, fh))
+            if box.getbbox() is None:
+                problems.append(f"{i + 1}번째 장면이 비어 있음")
+                break
     return problems, img
 
 

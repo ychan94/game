@@ -138,7 +138,7 @@ func _reveal_one(i: int) -> void:
 # ---------------- 그리기 ----------------
 func _draw() -> void:
 	buttons.clear()
-	draw_rect(Rect2(Vector2.ZERO, VIEW), C["bg"])
+	draw_screen_bg()
 	match state:
 		"prep":
 			_draw_prep()

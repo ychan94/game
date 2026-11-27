@@ -39,6 +39,9 @@ var corpses: Array = []          # 쓰러지는 유닛 [{pos, vel, t, life, ...}
 var lights: Array = []           # 순간 섬광 [{pos, radius, color, t, life}]
 var hitstop := 0                 # 큰 한 방에 전투를 잠깐 멈춘다 (손맛)
 var impacts: Array = []          # 맞는 순간의 십자 섬광 [{pos, t, life, size, color}]
+var wave_parts: Array = []       # 합동 기술 파도 입자 [{pos, vel, t, life, size, element}]
+var anims: Array = []            # 이펙트 애니메이션 [{name, pos, frame_t, scale, add, flip}]
+const FX_FPS := 20               # 이펙트 그림 한 장면당 3프레임 (초당 20장)
 
 
 func _ready() -> void:
@@ -58,9 +61,20 @@ func _ready() -> void:
 	grad.add_point(0.35, Color(1, 1, 1, 0.55))
 	g.gradient = grad
 	glow_tex = g
-	glow_layer = load("res://src/game/glow_layer.gd").new()
-	glow_layer.host = self
-	add_child(glow_layer)
+	# 고해상도로 그리기: 픽셀 그림은 또렷하게(가까운 점), 빛·안개·연기는 부드럽게 (층마다 따로)
+	# project.godot 대신 실행 중에 바꾼다 (컴퓨터 쪽 편집기 변경과 겹치지 않게)
+	var win := get_window()
+	if win != null:
+		win.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+		win.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
+	var Layer = load("res://src/game/glow_layer.gd")
+	for mode in ["bg", "back", "glow", "front"]:
+		var l: Node2D = Layer.new()
+		l.setup(self, mode)
+		add_child(l)
+		if mode == "glow":
+			glow_layer = l
+	_init_atmosphere()
 
 
 ## 부드러운 빛 한 점 (어느 층에든 그릴 수 있다)
@@ -68,20 +82,78 @@ func glow(ci: CanvasItem, pos: Vector2, radius: float, color: Color, squash := 1
 	ci.draw_texture_rect(glow_tex, Rect2(pos - Vector2(radius, radius * squash), Vector2(radius * 2.0, radius * 2.0 * squash)), false, color)
 
 
+## 이펙트 그림 (assets/sprites/fx/<이름>.png): 가로로 늘어선 정사각형 장면들. 있으면 재생하고 true, 없으면 false
+func fx_frames(name: String) -> int:
+	var tx := tex("fx/" + name)
+	if tx == null:
+		return 0
+	return maxi(1, int(tx.get_width() / tx.get_height()))
+
+
+func play_fx(name: String, pos: Vector2, scale_k := 1.0, add := true, flip := false) -> bool:
+	if fx_frames(name) == 0:
+		return false
+	anims.append({"name": name, "pos": pos, "frame_t": 0, "scale": scale_k, "add": add, "flip": flip})
+	return true
+
+
+func _draw_anims(ci: CanvasItem, o: Vector2, add: bool) -> void:
+	for a in anims:
+		if a["add"] != add:
+			continue
+		var tx := tex("fx/" + a["name"])
+		var n := fx_frames(a["name"])
+		var f: int = mini(n - 1, a["frame_t"] * FX_FPS / 60)
+		var fs: float = tx.get_height()
+		var sz: Vector2 = Vector2(fs, fs) * a["scale"]
+		var dst := Rect2(o + a["pos"] - sz / 2.0, sz)
+		if a["flip"]:
+			dst = Rect2(dst.position + Vector2(sz.x, 0), Vector2(-sz.x, sz.y))
+		ci.draw_texture_rect_region(tx, dst, Rect2(f * fs, 0, fs, fs))
+
+
+## 층마다 그릴 것
+func draw_layer(ci: CanvasItem, mode: String) -> void:
+	match mode:
+		"bg":
+			draw_background(ci)
+		"back":
+			draw_back(ci)
+		"glow":
+			draw_glow(ci)
+		"front":
+			draw_front(ci)
+
+
 ## 빛 층에 그릴 것: 장면마다 덮어써서 더한다 (super 호출)
 func draw_glow(ci: CanvasItem) -> void:
 	if battle == null:
 		return
 	var o := FIELD_OFFSET + _shake_now
+	_draw_ambient_lights(ci, o)
+	_draw_anims(ci, o, true)
 	for l in lights:
 		var c: Color = l["color"]
 		c.a *= float(l["t"]) / l["life"]
 		glow(ci, l["pos"] + o, l["radius"] * (1.2 - 0.4 * float(l["t"]) / l["life"]), c)
 	for w in battle.waves:
 		var gc: Color = C[w["element"]].lightened(0.3)
-		gc.a = 0.5
-		for y in range(10, 260, 26):
-			glow(ci, Vector2(w["x"], y) + o, 26.0, gc)
+		gc.a = 0.22
+		for y in range(10, 260, 30):
+			glow(ci, Vector2(w["x"], y) + o, 34.0, gc)
+	for wp in wave_parts:
+		var age: float = float(wp["t"]) / wp["life"]
+		var col: Color
+		match wp["element"]:
+			"fire":
+				col = Color(1.0, 0.95, 0.75).lerp(Color(1.0, 0.55, 0.15), minf(1.0, age * 2.0)).lerp(Color(0.7, 0.12, 0.04), maxf(0.0, age * 2.0 - 1.0))
+				col.a = (1.0 - age) * 0.8
+			"water":
+				col = Color(0.95, 1.0, 1.0).lerp(Color(0.4, 0.85, 0.8), age)
+				col.a = (1.0 - age) * 0.6
+			_:
+				col = Color(0.75, 0.6, 0.42, (1.0 - age) * 0.35)
+		glow(ci, wp["pos"] + o, wp["size"] * (1.0 - age * 0.4), col)
 	for im in impacts:
 		var kk: float = float(im["t"]) / im["life"]
 		var ip: Vector2 = im["pos"] + o
@@ -108,12 +180,187 @@ func draw_glow(ci: CanvasItem) -> void:
 		col.a = 0.55
 		glow(ci, p, 10.0, col)
 	for u in battle.units:
+		if u.team == "ally" and u.tier == "legend" and fx_frames("legend_aura") > 0:
+			var at := tex("fx/legend_aura")
+			var an := fx_frames("legend_aura")
+			var afs: float = at.get_height()
+			var asz := Vector2(afs, afs) * 1.6
+			ci.draw_texture_rect_region(at, Rect2(o + u.pos + Vector2(0, 14) - asz / 2.0, asz), Rect2((t / 3 % an) * afs, 0, afs, afs))
 		if u.team == "ally" and u.tier == "legend":
 			var lc: Color = C["accent"]
 			lc.a = 0.22 + 0.08 * sin(t * 0.12)
 			glow(ci, u.pos + o + Vector2(0, -8), 34.0, lc)
 		if u.burn_t > 0:
 			glow(ci, u.pos + o, 12.0, Color(1.0, 0.45, 0.15, 0.35))
+
+
+
+# ---------------- 전장 분위기 (HD-2D: 캐릭터는 픽셀, 배경·빛·공기는 실감 나게) ----------------
+var ground_tex: Texture2D        # 바닥 한 장 (Codex 배경 그림 field/battlefield 가 있으면 그걸 쓴다)
+var vignette_tex: Texture2D      # 가장자리 어둡게
+var fireflies: Array = []
+var fogs: Array = []
+
+
+func _init_atmosphere() -> void:
+	# 가장자리로 갈수록 어두워지는 원
+	var vg := GradientTexture2D.new()
+	vg.width = 128
+	vg.height = 128
+	vg.fill = GradientTexture2D.FILL_RADIAL
+	vg.fill_from = Vector2(0.5, 0.5)
+	vg.fill_to = Vector2(1.05, 0.5)
+	var vgrad := Gradient.new()
+	vgrad.set_color(0, Color(0, 0, 0, 0))
+	vgrad.set_color(1, Color(0, 0, 0, 0.75))
+	vgrad.add_point(0.55, Color(0, 0, 0, 0.0))
+	vg.gradient = vgrad
+	vignette_tex = vg
+	for i in 16:
+		fireflies.append({"pos": Vector2(randf_range(60, 620), randf_range(10, 250)), "vel": Vector2.ZERO, "ph": randf() * TAU})
+	for i in 6:
+		fogs.append({"pos": Vector2(randf_range(-100, 640), randf_range(150, 250)), "speed": randf_range(0.08, 0.2), "r": randf_range(80, 140)})
+
+
+## 바닥 한 장을 코드로 만든다: 밤 풀밭 + 마을로 이어지는 흙길 + 돌 + 풀 포기 (반 해상도 → 2배)
+func _make_ground() -> Texture2D:
+	var w := 320
+	var h := 130
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var nz := FastNoiseLite.new()
+	nz.seed = 7
+	nz.frequency = 0.06
+	var nz2 := FastNoiseLite.new()
+	nz2.seed = 11
+	nz2.frequency = 0.25
+	var grass := [Color("1b2a22"), Color("203227"), Color("26392b"), Color("2c4230")]
+	var dirt := [Color("3a3026"), Color("44382b"), Color("4e4131"), Color("5a4b38")]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	for y in h:
+		for x in w:
+			var n := (nz.get_noise_2d(x, y) + 1.0) * 0.5
+			var fine := (nz2.get_noise_2d(x, y) + 1.0) * 0.5
+			var path_y := 66.0 + sin(x * 0.025) * 9.0 + sin(x * 0.07) * 3.0
+			var path_w := 20.0 + 8.0 * (1.0 - x / float(w)) + nz.get_noise_2d(x * 3.0, 99.0) * 4.0
+			var d := absf(y - path_y)
+			var c: Color
+			if d < path_w:
+				c = dirt[clampi(int((n * 0.6 + fine * 0.4) * 4.0), 0, 3)]
+				if d > path_w - 3.0:
+					c = c.lerp(grass[1], 0.5)   # 길 가장자리
+				if fine > 0.82:
+					c = Color("6a5a45")          # 자갈
+			else:
+				c = grass[clampi(int((n * 0.7 + fine * 0.3) * 4.0), 0, 3)]
+				if fine > 0.86 and n > 0.4:
+					c = Color("3a5338")          # 풀 포기 밝은 끝
+			# 마을 쪽 다져진 마당
+			if x < 22:
+				c = c.lerp(dirt[1], 0.6)
+			img.set_pixel(x, y, c)
+	# 돌 몇 개
+	for i in 26:
+		var sx := rng.randi_range(30, w - 4)
+		var sy := rng.randi_range(2, h - 4)
+		img.set_pixel(sx, sy, Color("5c5a55"))
+		img.set_pixel(sx + 1, sy, Color("4a4844"))
+		img.set_pixel(sx, sy + 1, Color("3a3936"))
+	return ImageTexture.create_from_image(img)
+
+
+func _tick_atmosphere() -> void:
+	for f in fireflies:
+		f["ph"] += 0.05
+		f["vel"] = (f["vel"] + Vector2(randf_range(-0.05, 0.05), randf_range(-0.05, 0.05))).limit_length(0.5)
+		f["pos"] += f["vel"]
+		f["pos"].x = wrapf(f["pos"].x, 50, 630)
+		f["pos"].y = wrapf(f["pos"].y, 5, 255)
+	for g in fogs:
+		g["pos"].x += g["speed"]
+		if g["pos"].x - g["r"] > 640:
+			g["pos"].x = -g["r"]
+
+
+func _house_pos(i: int) -> Vector2:
+	return Vector2(8, 30 + i * 60) + Vector2(12, 14)
+
+
+## 화면 배경색: 전장이 보일 때는 바닥층이 그리므로 기본층은 칠하지 않는다
+func draw_screen_bg() -> void:
+	if battle == null:
+		draw_rect(Rect2(Vector2.ZERO, VIEW), C["bg"])
+
+
+## 바닥층: 화면 배경색 + 전장 한 장 + 마을 돌담
+func draw_background(ci: CanvasItem) -> void:
+	if battle == null:
+		return
+	ci.draw_rect(Rect2(Vector2.ZERO, VIEW), C["bg"])
+	var o := FIELD_OFFSET + _shake_now
+	var bf := tex("field/battlefield")
+	if bf != null:
+		ci.draw_texture_rect(bf, Rect2(o, Vector2(640, 260)), false)
+	else:
+		if ground_tex == null:
+			ground_tex = _make_ground()
+		ci.draw_texture_rect(ground_tex, Rect2(o, Vector2(640, 260)), false)
+	# 마을 돌담 (마을 경계)
+	for y in range(0, 260, 8):
+		var sx: float = 38.0 + (2.0 if (y / 8) % 2 == 0 else 0.0)
+		ci.draw_rect(Rect2(o + Vector2(sx, y), Vector2(6, 7)), Color("4b4842"))
+		ci.draw_rect(Rect2(o + Vector2(sx, y), Vector2(6, 1)), Color("67635b"))
+
+
+## 뒷층(부드럽게, 캐릭터 뒤): 달빛, 낮은 안개, 그림자, 병사 뒷빛
+func draw_back(ci: CanvasItem) -> void:
+	if battle == null:
+		return
+	var o := FIELD_OFFSET + _shake_now
+	glow(ci, o + Vector2(560, -40), 260.0, Color(0.55, 0.65, 0.95, 0.10))   # 달빛
+	for g in fogs:
+		glow(ci, o + g["pos"], g["r"], Color(0.7, 0.78, 0.9, 0.07), 0.35)
+	for u in battle.units:
+		var mo := _motion(u)
+		if u.team == "ally":
+			glow(ci, o + u.pos + Vector2(0, 22), 20.0, Color(0, 0, 0, 0.55), 0.3)
+			var bl: Color = C[u.element].lightened(0.55)
+			bl.a = 0.28
+			glow(ci, o + u.pos + mo["off"] + Vector2(0, -6), 30.0, bl)
+		else:
+			var look := _enemy_look(u)
+			var tx := tex(look[0])
+			var h: float = (tx.get_height() if tx != null else 20.0) * look[1]
+			glow(ci, o + u.pos + Vector2(0, h * 0.36), h * 0.38, Color(0, 0, 0, 0.5), 0.3)
+
+
+## 앞층(부드럽게, 캐릭터 앞): 앞 안개 자락, 밤 색감, 가장자리 어둡게
+func draw_front(ci: CanvasItem) -> void:
+	if battle == null:
+		return
+	var o := FIELD_OFFSET + _shake_now
+	for i in 3:
+		var fx_x: float = fmod(t * (0.25 + i * 0.1) + i * 230.0, 900.0) - 130.0
+		glow(ci, o + Vector2(fx_x, 245 - i * 8), 120.0, Color(0.75, 0.82, 0.95, 0.06), 0.25)
+	ci.draw_rect(Rect2(o, Vector2(640, 260)), Color(0.08, 0.12, 0.3, 0.12))   # 푸른 밤
+	ci.draw_texture_rect(vignette_tex, Rect2(o + Vector2(-40, -30), Vector2(720, 320)), false)
+
+
+## 빛층에 더하는 것: 마을 등불, 반딧불
+func _draw_ambient_lights(ci: CanvasItem, o: Vector2) -> void:
+	var vk: float = battle.village_hp / PD.VILLAGE_HP
+	for i in 4:
+		if vk <= i * 0.25:
+			continue
+		var fl := 0.85 + 0.15 * sin(t * 0.21 + i * 1.7) + 0.06 * sin(t * 0.67 + i)
+		var hp := _house_pos(i) + o + Vector2(8, 2)
+		glow(ci, hp, 34.0 * fl, Color(1.0, 0.62, 0.25, 0.28 * fl))
+		glow(ci, hp, 8.0, Color(1.0, 0.8, 0.45, 0.6 * fl))
+	for f in fireflies:
+		var a: float = maxf(0.0, sin(f["ph"]))
+		if a > 0.05:
+			glow(ci, o + f["pos"], 6.0, Color(0.75, 1.0, 0.45, 0.55 * a))
+			ci.draw_rect(Rect2(o + f["pos"], Vector2(1, 1)), Color(0.9, 1.0, 0.7, a))
 
 
 # ---------------- 입력 ----------------
@@ -171,6 +418,7 @@ var _shake_now := Vector2.ZERO
 
 func tick_fx() -> void:
 	t += 1
+	_tick_atmosphere()
 	shake = maxf(0.0, shake * 0.85 - 0.05)
 	_shake_now = shake_offset()
 	for id in uv:
@@ -196,6 +444,15 @@ func tick_fx() -> void:
 	for im in impacts:
 		im["t"] -= 1
 	impacts = impacts.filter(func(im): return im["t"] > 0)
+	for a in anims:
+		a["frame_t"] += 1
+	anims = anims.filter(func(a): return a["frame_t"] * FX_FPS / 60 < fx_frames(a["name"]))
+	for wp in wave_parts:
+		wp["pos"] += wp["vel"]
+		if wp["element"] != "fire":
+			wp["vel"].y += 0.18
+		wp["t"] += 1
+	wave_parts = wave_parts.filter(func(wp): return wp["t"] < wp["life"])
 	for p in fx:
 		p["pos"] += p["vel"]
 		p["vel"] *= 0.93
@@ -231,6 +488,10 @@ func light(pos: Vector2, radius: float, color: Color, life := 10) -> void:
 
 
 func _element_hit_fx(pos: Vector2, element: String, dir: Vector2, big: bool) -> void:
+	var sheet: String = {"fire": "fire_burst", "water": "splash", "earth": "dust"}.get(element, "hit_spark")
+	if play_fx(sheet, pos, 1.5 if big else 1.0, element != "earth", dir.x < 0.0):
+		light(pos, 22.0 if big else 14.0, Color(C.get(element, C["text"]).r, C.get(element, C["text"]).g, C.get(element, C["text"]).b, 0.5), 10)
+		return
 	var sp := pos + FIELD_OFFSET
 	match element:
 		"fire":
@@ -259,12 +520,27 @@ func step_battle() -> void:
 		hitstop -= 1
 		return
 	battle.step()
-	# 합동 기술 파도 앞에서 튀는 입자
+	# 합동 기술 파도: 벽 그림(fx/fire_wall·water_wave·earth_crack)이 있으면 세로로 이어 재생, 없으면 입자
 	for w in battle.waves:
-		var wc: Color = C[w["element"]].lightened(0.4)
-		for i in 4:
-			fx.append({"pos": Vector2(w["x"], randf_range(0, 260)) + FIELD_OFFSET, "vel": Vector2(randf_range(0.5, 2.5), randf_range(-2.0, 0.5)),
-				"t": 20, "life": 20, "color": wc, "size": 3.0 if w["element"] == "earth" else 2.0})
+		var el: String = w["element"]
+		var wall: String = {"fire": "fire_wall", "water": "water_wave", "earth": "earth_crack"}[el]
+		if fx_frames(wall) > 0:
+			if battle.frame % 3 == 0:
+				for y in range(16, 260, 40):
+					play_fx(wall, Vector2(w["x"], y), 1.0, el != "earth")
+			continue
+		for i in (14 if el == "fire" else 10):
+			var y := randf_range(0.0, 260.0)
+			match el:
+				"fire":
+					wave_parts.append({"pos": Vector2(w["x"] + randf_range(-8, 4), y), "vel": Vector2(randf_range(2.0, 4.0), -randf_range(1.0, 2.6)),
+						"t": 0, "life": randi_range(10, 18), "size": randf_range(8.0, 14.0), "element": el})
+				"water":
+					wave_parts.append({"pos": Vector2(w["x"] + randf_range(-4, 4), y), "vel": Vector2(randf_range(1.0, 3.5), randf_range(-2.5, 0.5)),
+						"t": 0, "life": randi_range(14, 26), "size": randf_range(5.0, 10.0), "element": el})
+				"earth":
+					wave_parts.append({"pos": Vector2(w["x"] + randf_range(-6, 6), y), "vel": Vector2(randf_range(-0.5, 0.8), -randf_range(1.5, 3.5)),
+						"t": 0, "life": randi_range(16, 28), "size": randf_range(6.0, 12.0), "element": el})
 	# 걷기: 움직인 만큼 걸음 단계를 올린다
 	for u in battle.units:
 		var m := _mv(u.id)
@@ -278,7 +554,8 @@ func step_battle() -> void:
 				var m := _mv(e["unit"])
 				m["lunge"] = 10
 				m["dir"] = (e["to"] - e["pos"]).normalized()
-				swooshes.append({"pos": e["pos"], "to": e["to"], "dir": m["dir"], "t": 9, "life": 9, "role": e.get("role", ""), "element": e["element"], "team": e["team"]})
+				if not play_fx("slash", e["to"] - m["dir"] * 6.0, 1.2 if e["team"] == "ally" else 0.9, true, m["dir"].x < 0.0):
+					swooshes.append({"pos": e["pos"], "to": e["to"], "dir": m["dir"], "t": 9, "life": 9, "role": e.get("role", ""), "element": e["element"], "team": e["team"]})
 			"shot":
 				var m2 := _mv(e["unit"])
 				m2["lunge"] = 8
@@ -307,7 +584,8 @@ func step_battle() -> void:
 				var who: String = e.get("who", "")
 				corpses.append({"pos": e["pos"], "vel": Vector2(randf_range(1.0, 2.0) * (1.0 if e["team"] == "enemy" else -1.0), -3.5),
 					"t": 22, "life": 22, "team": e["team"], "who": who, "element": e.get("element", ""), "id": e["unit"]})
-				burst(e["pos"] + FIELD_OFFSET, C["accent"] if e["team"] == "enemy" else C["dim"], 16 if e["big"] else 9, 3.2)
+				if not (e["team"] == "enemy" and play_fx("death_poof", e["pos"], 2.0 if e["big"] else 1.4, true)):
+					burst(e["pos"] + FIELD_OFFSET, C["accent"] if e["team"] == "enemy" else C["dim"], 16 if e["big"] else 9, 3.2)
 				light(e["pos"], 30.0 if e["big"] else 18.0, Color(1.0, 0.85, 0.5, 0.6), 12)
 				if e["big"]:
 					shake = maxf(shake, 6.0)
@@ -570,9 +848,6 @@ func draw_enemy_shape(u, base := Vector2.ZERO) -> void:
 	if mo["white"]:
 		col = Color.WHITE
 	var r: float = u.radius
-	draw_set_transform(base + u.pos + Vector2(0, h * 0.36), 0.0, Vector2(1.0, 0.3))
-	draw_circle(Vector2.ZERO, h * 0.32, Color(0, 0, 0, 0.35))
-	draw_set_transform(base)
 	var etint: Color = Color(2.5, 2.5, 2.5) if mo["white"] else look[2]
 	if tx != null:
 		_draw_unit_sprite(look[0], base, p, sc, mo["sq"], etint)
@@ -645,15 +920,7 @@ func _draw_enemy_status(u, p: Vector2, r: float, h := 20.0) -> void:
 func draw_battle() -> void:
 	var base := FIELD_OFFSET + _shake_now
 	draw_set_transform(base)
-	var ga := tex("field/grass_a")
-	var gb := tex("field/grass_b")
-	for x in 20:
-		for y in 9:
-			var g: Texture2D = ga if (x + y) % 2 == 0 else (gb if gb != null else ga)
-			if g != null:
-				draw_texture_rect(g, Rect2(x * 32, y * 32, 32, 32), false)
-			else:
-				draw_rect(Rect2(x * 32, y * 32, 32, 32), C["grass_a"] if (x + y) % 2 == 0 else C["grass_b"])
+	# 바닥·그림자·뒷빛은 층(bg/back)이 그린다
 	# 마을
 	var vk: float = battle.village_hp / PD.VILLAGE_HP if battle != null else 1.0
 	for i in 4:
@@ -666,7 +933,6 @@ func draw_battle() -> void:
 			continue
 		draw_rect(Rect2(hpos, Vector2(24, 18)), C["village"] if hp_ok else C["village"].darkened(0.6))
 		draw_colored_polygon(PackedVector2Array([hpos + Vector2(-3, 0), hpos + Vector2(27, 0), hpos + Vector2(12, -12)]), C["roof"] if hp_ok else C["roof"].darkened(0.6))
-	draw_line(Vector2(40, 0), Vector2(40, 260), Color(1, 1, 1, 0.08), 1.0)
 	if battle == null:
 		draw_set_transform(Vector2.ZERO)
 		return
@@ -679,6 +945,7 @@ func draw_battle() -> void:
 		else:
 			draw_enemy_shape(u, base)
 	_draw_waves()
+	_draw_anims(self, Vector2.ZERO, false)
 	_draw_corpses(base)
 	_draw_swooshes()
 	_draw_arrows()
@@ -690,7 +957,6 @@ func _draw_ally_in_battle(u, base: Vector2) -> void:
 	var p: Vector2 = u.pos + mo["off"]
 	var sname := ("kiln/soldier_%s_%s" if view_style == "kiln" else "nest/creature_%s_%s") % [u.kind, u.element]
 	if tex(sname) != null:
-		draw_backlight(u.pos, u.element, ALLY_SCALE * 0.8, base)
 		_draw_unit_sprite(sname, base, p, ALLY_SCALE, mo["sq"], Color(2.5, 2.5, 2.5) if mo["white"] else Color.WHITE)
 		_draw_tier_aura(p + Vector2(0, -6), u.tier, ALLY_SCALE * 0.9)
 	else:
@@ -700,31 +966,24 @@ func _draw_ally_in_battle(u, base: Vector2) -> void:
 		draw_rect(Rect2(u.pos + Vector2(-14, 26), Vector2(28 * u.hp / u.max_hp, 3)), C["good"])
 
 
-## 합동 기술 파도: 불의 벽 / 물결 / 갈라지는 땅
+## 합동 기술 파도의 형태 (빛·입자는 빛층): 물은 하얀 물마루, 땅은 갈라진 줄과 돌조각
 func _draw_waves() -> void:
 	for w in battle.waves:
 		var x: float = w["x"]
-		var col: Color = C[w["element"]]
 		match w["element"]:
-			"fire":
-				for y in range(0, 260, 10):
-					var hgt := 10.0 + 6.0 * sin(t * 0.5 + y * 0.3)
-					draw_colored_polygon(PackedVector2Array([Vector2(x - 8, y + 10), Vector2(x + 4, y + 10), Vector2(x - 2 + sin(y + t * 0.4) * 3.0, y + 10 - hgt)]), Color(1.0, 0.55, 0.15, 0.85))
-				var tail := col
-				tail.a = 0.25
-				draw_rect(Rect2(x - 60, 0, 52, 260), tail)
 			"water":
-				var tail2 := col
-				tail2.a = 0.3
-				draw_rect(Rect2(x - 70, 0, 66, 260), tail2)
-				for y in range(0, 260, 18):
-					draw_arc(Vector2(x - 4, y + 9), 9.0, -PI / 2.0, PI / 2.0, 8, Color(0.92, 0.98, 1.0, 0.9), 3.0)
+				for y in range(0, 260, 16):
+					draw_arc(Vector2(x - 3, y + 8), 8.0, -PI / 2.0, PI / 2.0, 8, Color(0.92, 0.98, 1.0, 0.75), 2.0)
 			"earth":
 				var pts := PackedVector2Array()
-				for y in range(0, 270, 12):
-					pts.append(Vector2(x + (6.0 if (y / 12) % 2 == 0 else -6.0), y))
-				draw_polyline(pts, Color(0.2, 0.14, 0.1), 4.0)
-				draw_polyline(pts, Color(0.85, 0.65, 0.4, 0.8), 1.0)
+				for y in range(0, 270, 10):
+					pts.append(Vector2(x - 8 + (5.0 if (y / 10) % 2 == 0 else -5.0), y))
+				draw_polyline(pts, Color(0.12, 0.08, 0.06), 3.0)
+				draw_polyline(pts, Color(0.9, 0.6, 0.3, 0.6), 1.0)
+	for wp in wave_parts:
+		if wp["element"] == "earth" and wp["size"] > 10.0:
+			var a: float = 1.0 - float(wp["t"]) / wp["life"]
+			draw_rect(Rect2(wp["pos"] - Vector2(2, 2), Vector2(4, 4)), Color(0.35, 0.28, 0.22, a))
 
 
 func _draw_corpses(base: Vector2) -> void:

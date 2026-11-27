@@ -82,7 +82,7 @@ func _start_hatch() -> void:
 # ---------------- 그리기 ----------------
 func _draw() -> void:
 	buttons.clear()
-	draw_rect(Rect2(Vector2.ZERO, VIEW), C["bg"])
+	draw_screen_bg()
 	match state:
 		"egg":
 			_draw_egg_screen()

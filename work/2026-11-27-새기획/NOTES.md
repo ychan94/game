@@ -19,3 +19,16 @@
   https://store.steampowered.com/app/1443100/RogueSlide/ , https://en.wikipedia.org/wiki/10000000_(video_game)
 - 괴물 몸속이 던전인 로그라이트: 작은 게임잼 작품만 (Innards Exterminator, Giant's Heart)
   https://niblet.itch.io/innards-exterminator , https://sqqqwer.itch.io/giants-heart
+
+## 사용자 말 (이어서)
+- 2026-11-27 "게임마다 도파민을 느끼거나 성장으로 인해 강해진 것을 체험할 때, 좋은 아이템을 운이 좋게 가지게 되었을때, 내가 원하는대로 성장해갈 때 너무 좋았던 것 같아. 그래서 내가 볼 때 게임하는 사람이 긴장감을 느끼고 통쾌함도 느끼고 성장을 경험하면 좋겠어. 통쾌함도 더해지면 좋지."
+- 2026-11-27 "손놀림보다 결정과 공개의 순간이 느껴지는 도파민 같은 게 좋은 것 같아."
+- 2026-11-27 "이건 너무 운이라 짜증났던 순간도 있었어. 내가 과금을 하며 게임했지만 과금하지 않은 무과금 캐릭터가 더 강할 때가 있었지. 그런 경우는 너무 억울하고 짜증이 나긴 했어."
+- 2026-11-27 "여러 기획안을 보고 비교할 필요성이 있을 것 같아. 2가지 정도 더 깊이 고민해보고 ... 3가지를 기획안으로 만들어줘."
+  → docs/기획안-비교.md (A 알을 품는 성 / B 가마의 병사 / C 심해 인양선, 공통 규칙: 억울하지 않은 운)
+
+## 검색 (이어서)
+- 도자기 로그라이트: 못 찾음. Kiln(Double Fine 2026)은 도자기 난투 게임 https://store.steampowered.com/app/1165990/Kiln/
+- 경매 로그라이트: Myriad Auction 이 핵심 같음 → 경매장 구상 버림 https://store.steampowered.com/app/5282040
+- 인양: Sol Cesto, Sector Scavengers https://store.steampowered.com/app/4541430/Sector_Scavengers_Signal__Salvage/
+- 알 품기: Birb, Defend The Nest https://store.steampowered.com/app/4663670/Defend_The_Nest

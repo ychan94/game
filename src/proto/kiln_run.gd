@@ -27,13 +27,18 @@ var myth_shards := 0             # 전설을 뽑을 때마다 1, 3개면 다음 
 var draws := 0                   # 지금까지 뽑은 횟수
 var tickets := 0                 # 뽑기권 (1장 = 뽑기 1번, 흙 없이)
 var inventory: Array = []        # 안 낀 장비 [{id, type, level}]
-var last_loot := {}              # 방금 밤의 전리품 (화면용) {tickets, clay, equip: [..], chapter_clay}
+var last_loot := {}              # 방금 밤의 전리품 (화면용) {tickets, clay, pearls, equip: [..], chapter_clay}
+var pearls := 0                  # 진주 (사냥으로 얻고 상점에서 쓴다)
+var shop: Array = []             # 오늘 아침 진열 (상점 물건 이름, 산 칸은 "")
+var bet_busts := 0               # 내기 꽝 횟수 (3번이면 다음 내기 대박 확정)
+var last_bet := {}               # 방금 내기 결과 (화면용) {key, name, desc, ids}
 var last_draw := {}              # 방금 뽑은 것 (화면용)
 
 
 func _init(seed_value: int) -> void:
 	rng.seed = seed_value
 	kiln = Kiln.new(seed_value + 7)
+	restock()
 
 
 # ---------------- 자리·찾기 ----------------
@@ -209,11 +214,20 @@ func merge(ids: Array) -> Dictionary:
 			element = p["element"]
 	army = army.filter(func(s): return not ids.has(s["id"]))
 	var m := _add_soldier(a["role"], element, D.TIERS[best], a["star"] + 1)
+	# 상점 강화는 합쳐진다 (한도 안에서), 전직·자리는 먼저 것
+	for p in parts:
+		for k in p.get("upg", {}):
+			m["upg"][k] = minf(_upg_cap(k), m["upg"].get(k, 0.0) + p["upg"][k])
+		if m["promo"] == "" and p.get("promo", "") != "":
+			m["promo"] = p["promo"]
+			m["name"] = promo_name(m["role"], m["promo"], m["element"])
+	m["home"] = a.get("home", null)
 	return m
 
 
 func _add_soldier(role: String, element: String, tier: String, star := 1) -> Dictionary:
-	var s := {"id": _next_id, "role": role, "element": element, "tier": tier, "star": star, "name": soldier_name(role, element), "equip": {}}
+	var s := {"id": _next_id, "role": role, "element": element, "tier": tier, "star": star, "name": soldier_name(role, element),
+		"equip": {}, "upg": {}, "promo": "", "home": null}
 	_next_id += 1
 	army.append(s)
 	return s
@@ -221,10 +235,12 @@ func _add_soldier(role: String, element: String, tier: String, star := 1) -> Dic
 
 # ---------------- 가마 ----------------
 ## 가마를 연다. 새 병사는 군대에 들어오고, 다시 구운 병사는 등급이 오르거나 그대로 (불 5 이상이면 깨질 수 있다)
-func fire() -> Array:
+func fire(bet := false) -> Array:
 	results = []
+	last_bet = {}
 	if queue.is_empty():
 		return results
+	var new_ids: Array = []
 	var o: Dictionary = kiln.odds()
 	var guarantee: bool = kiln.guaranteed_legend()
 	if guarantee:
@@ -236,7 +252,9 @@ func fire() -> Array:
 			"lucky": guarantee and i == 0, "refire": q["kind"] == "refire", "name": soldier_name(q["role"], q["element"])}
 		if q["kind"] == "new":
 			if not rr["cracked"]:
-				_add_soldier(q["role"], q["element"], rr["tier"])
+				var ns := _add_soldier(q["role"], q["element"], rr["tier"])
+				new_ids.append(ns["id"])
+				r["id"] = ns["id"]
 		else:
 			var s := soldier(q["id"])
 			r["before"] = s["tier"]
@@ -249,7 +267,63 @@ func fire() -> Array:
 		results.append(r)
 	queue = []
 	kiln.heat = 0
+	if bet:
+		_bet(new_ids)
 	return results
+
+
+# ---------------- 가마신과 내기 ----------------
+func bet_odds() -> Array:
+	return D.BET_ODDS
+
+
+## 내기: 확률표대로 하나. 꽝이 BET_PITY 번이면 다음은 대박 확정
+func _bet(new_ids: Array) -> void:
+	var key := ""
+	if bet_busts >= D.BET_PITY:
+		key = "jackpot"
+		bet_busts = 0
+	else:
+		var x := rng.randf()
+		for o in D.BET_ODDS:
+			x -= o[2]
+			key = o[0]
+			if x < 0.0:
+				break
+	if new_ids.is_empty() and key != "pearls":
+		key = "pearls"   # 새 병사가 없으면 진주로 대신
+	var ids: Array = []
+	match key:
+		"jackpot":
+			for id in new_ids:
+				var s := soldier(id)
+				if not s.is_empty():
+					s["star"] = mini(D.MAX_STAR, s["star"] + 1)
+					ids.append(id)
+		"twin":
+			var s2 := soldier(new_ids[rng.randi() % new_ids.size()])
+			if army.size() < cap():
+				var c := _add_soldier(s2["role"], s2["element"], s2["tier"], s2["star"])
+				ids = [s2["id"], c["id"]]
+			else:
+				pearls += 4   # 자리가 없으면 진주로
+				key = "pearls"
+		"gold":
+			var s3 := soldier(new_ids[rng.randi() % new_ids.size()])
+			s3["tier"] = "legend"
+			ids = [s3["id"]]
+		"pearls":
+			pearls += 4
+		"bust":
+			var id4: int = new_ids[rng.randi() % new_ids.size()]
+			ids = [id4]
+			army = army.filter(func(x): return x["id"] != id4)
+			kiln.shards += 1
+			bet_busts += 1
+	if key == "jackpot":
+		bet_busts = 0
+	var row: Array = D.BET_ODDS.filter(func(o): return o[0] == key)[0]
+	last_bet = {"key": key, "name": row[1], "desc": row[3], "ids": ids}
 
 
 # ---------------- 밤 ----------------
@@ -257,9 +331,152 @@ func start_night():
 	var b = Battle.new(rng.randi(), D.wave_plan(night, true, chapter))
 	b.village_hp = village_hp
 	for s in army:
-		b.add_ally(s["role"], s["element"], s["tier"], s["name"], D.STAR_MUL[s["star"]], D.equip_mods(s.get("equip", {})))
+		var home = s.get("home", null)
+		b.add_ally(s["role"], s["element"], s["tier"], s["name"], D.STAR_MUL[s["star"]], soldier_mods(s), home if home is Vector2 else Vector2.INF)
 	state = "night"
 	return b
+
+
+## 병사 한 명이 전투에 가져가는 배율: 장비 + 상점 강화 + 진영 시너지 + 전직
+func soldier_mods(s: Dictionary) -> Dictionary:
+	var m: Dictionary = D.equip_mods(s.get("equip", {}))
+	for k in s.get("upg", {}):
+		if k != "ticket":
+			m[k] = m.get(k, 0.0) + s["upg"][k]
+	var lv := faction_levels()
+	for f in lv:
+		var ti: int = lv[f]
+		if ti < 0:
+			continue
+		var fd: Dictionary = D.FACTIONS[f]
+		var v: float = fd["vals"][ti]
+		match fd["kind"]:
+			"all_atk":
+				m["atk"] = m.get("atk", 0.0) + v
+			_:
+				if s["role"] in fd["roles"]:
+					m[fd["kind"]] = m.get(fd["kind"], 0.0) + v
+	if s.get("promo", "") != "":
+		m["skills"] = [s["promo"]]
+		m["atk"] = m.get("atk", 0.0) + D.PROMO_BONUS
+		m["hp"] = m.get("hp", 0.0) + D.PROMO_BONUS
+	m["star"] = s["star"]
+	return m
+
+
+# ---------------- 진영 시너지 ----------------
+## 진영마다 군대에 있는 '서로 다른' 병사 종류 수
+func faction_counts() -> Dictionary:
+	var c := {}
+	for f in D.FACTIONS:
+		var kinds := {}
+		for s in army:
+			if s["role"] in D.FACTIONS[f]["roles"]:
+				kinds[s["role"]] = true
+		c[f] = kinds.size()
+	return c
+
+
+## 진영마다 켜진 단계 (-1 = 아직 없음)
+func faction_levels() -> Dictionary:
+	var c := faction_counts()
+	var out := {}
+	for f in D.FACTIONS:
+		var tiers: Array = D.FACTIONS[f]["tiers"]
+		var ti := -1
+		for i in tiers.size():
+			if c[f] >= tiers[i]:
+				ti = i
+		out[f] = ti
+	return out
+
+
+# ---------------- 전직 ----------------
+static func promo_name(role: String, promo: String, element: String) -> String:
+	return "%s %s %s" % [D.GLAZE_NAME[element], D.PROMO_ADJ[promo], D.ROLE_NAME_KILN[role]]
+
+
+## base(★3 이상, 아직 전직 안 함)에 ing(같은 진영 다른 병사)를 합쳐 전직할 수 있나
+func can_promote(base_id: int, ing_id: int) -> bool:
+	var a := soldier(base_id)
+	var b := soldier(ing_id)
+	if state != "prep" or a.is_empty() or b.is_empty() or base_id == ing_id:
+		return false
+	return a["star"] >= D.PROMO_STAR and a.get("promo", "") == "" and b["role"] != a["role"] \
+		and D.faction_of(a["role"]) == D.faction_of(b["role"]) and not is_queued(base_id) and not is_queued(ing_id)
+
+
+## base 와 전직할 수 있는 재료 병사들
+func promo_partners(base_id: int) -> Array:
+	return army.filter(func(o): return can_promote(base_id, o["id"])).map(func(o): return o["id"])
+
+
+func promote(base_id: int, ing_id: int) -> Dictionary:
+	if not can_promote(base_id, ing_id):
+		return {}
+	var a := soldier(base_id)
+	var b := soldier(ing_id)
+	if not b.get("equip", {}).is_empty():
+		inventory.append(b["equip"])
+	a["promo"] = b["role"]
+	a["name"] = promo_name(a["role"], b["role"], a["element"])
+	army = army.filter(func(o): return o["id"] != ing_id)
+	return a
+
+
+# ---------------- 진주 상점 ----------------
+func restock() -> void:
+	var keys: Array = D.SHOP_ITEMS.keys()
+	shop = []
+	for i in D.SHOP_SLOTS:
+		shop.append(keys[rng.randi() % keys.size()])
+
+
+func reroll_shop() -> bool:
+	if pearls < D.SHOP_REROLL or state != "prep":
+		return false
+	pearls -= D.SHOP_REROLL
+	restock()
+	return true
+
+
+static func _upg_cap(k: String) -> float:
+	return 0.5 if k == "cdr" else D.UPG_MAX
+
+
+## 진열 칸 slot 의 물건을 산다. 병사 강화는 soldier_id 에게 (뽑기권은 병사 필요 없음)
+func buy(slot: int, soldier_id := -1) -> bool:
+	if state != "prep" or slot < 0 or slot >= shop.size() or shop[slot] == "":
+		return false
+	var it: Dictionary = D.SHOP_ITEMS[shop[slot]]
+	if pearls < it["price"]:
+		return false
+	if it["stat"] == "ticket":
+		tickets += 1
+	else:
+		var s := soldier(soldier_id)
+		if s.is_empty():
+			return false
+		var cur: float = s["upg"].get(it["stat"], 0.0)
+		if cur >= _upg_cap(it["stat"]):
+			return false
+		s["upg"][it["stat"]] = minf(_upg_cap(it["stat"]), cur + it["val"])
+	pearls -= it["price"]
+	shop[slot] = ""
+	return true
+
+
+# ---------------- 자유 배치 ----------------
+## 병사를 둘 자리 (전장 좌표). 둘 수 있는 곳 밖이면 안쪽으로 당긴다. null 이면 자동 대열
+func set_home(id: int, pos) -> void:
+	var s := soldier(id)
+	if s.is_empty():
+		return
+	if pos == null:
+		s["home"] = null
+		return
+	var r: Rect2 = Battle.DEPLOY
+	s["home"] = Vector2(clampf(pos.x, r.position.x, r.end.x), clampf(pos.y, r.position.y, r.end.y))
 
 
 func end_night(b) -> void:
@@ -279,7 +496,10 @@ func end_night(b) -> void:
 		for i in (D.EQUIP_BOSS if boss_night else D.EQUIP_PER_NIGHT):
 			got.append(_roll_equip(boss_night and i == 0))
 	inventory.append_array(got)
-	last_loot = {"tickets": tk, "clay": D.CLAY_PER_NIGHT, "equip": got, "chapter_clay": 0, "boss": boss_night}
+	var pr: int = last_kills / D.PEARL_PER_KILLS + (D.PEARL_BOSS if boss_night else 0)
+	pearls += pr
+	restock()
+	last_loot = {"tickets": tk, "clay": D.CLAY_PER_NIGHT, "pearls": pr, "equip": got, "chapter_clay": 0, "boss": boss_night}
 	night += 1
 	chapter_cleared = false
 	if night > D.KILN_NIGHTS:

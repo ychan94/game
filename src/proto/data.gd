@@ -20,20 +20,21 @@ const TIER_NAME_NEST := {"normal": "보통", "fine": "희귀", "legend": "전설
 const ROLES := ["spear", "archer", "shield"]
 ## 가마의 병사 15종 (등급 6단계). 뒤로 갈수록 드물고 강하다
 const KILN_ROLES := ["spear", "archer", "shield", "axe", "cavalry", "slinger", "healer", "cannon", "twin",
-	"general", "sniper", "haetae", "cheoyong", "dragon", "bulgasari"]
+	"general", "sniper", "haetae", "cheoyong", "dragon", "baekho", "jujak", "hyeonmu"]
 const ROLE_NAME_KILN := {"spear": "창병", "archer": "궁수", "shield": "방패병",
 	"axe": "도끼병", "cavalry": "기마병", "slinger": "투석병",
 	"healer": "무당", "cannon": "화차", "twin": "쌍검무사",
 	"general": "장수", "sniper": "신궁",
 	"haetae": "해치", "cheoyong": "처용",
-	"dragon": "청룡", "bulgasari": "불가사리"}
+	"dragon": "청룡", "baekho": "백호", "jujak": "주작", "hyeonmu": "현무"}
 const ROLE_DESC := {
 	"spear": "앞에서 찌른다", "archer": "멀리서 쏜다", "shield": "도깨비를 끌어 막는다",
 	"axe": "휘둘러 주변을 함께 벤다", "cavalry": "빠르게 달려들어 끊는다", "slinger": "돌을 던져 밀어낸다",
 	"healer": "다친 병사를 고친다", "cannon": "아주 멀리 터지는 불화살", "twin": "두 칼로 아주 빠르게 벤다",
 	"general": "곁의 병사 공격력 +30%", "sniper": "가장 강한 적을 끝에서 저격",
 	"haetae": "불을 뿜는 수호 짐승, 적을 모두 끌어당긴다", "cheoyong": "춤으로 주변 적을 모두 느리게",
-	"dragon": "한 줄의 적을 모두 꿰뚫는 물기둥", "bulgasari": "적을 쓰러뜨릴수록 커지고 강해진다",
+	"dragon": "한 줄의 적을 모두 꿰뚫는 물기둥",
+	"baekho": "번개처럼 달려드는 흰 범", "jujak": "불꽃 깃털을 쏘는 붉은 새", "hyeonmu": "뱀을 두른 거북, 모든 공격을 받아 낸다",
 }
 const ROLE_NAME_NEST := {"spear": "공격형", "archer": "원거리형", "shield": "수비형"}
 const ROLE_STATS := {
@@ -51,7 +52,9 @@ const ROLE_STATS := {
 	"haetae": {"hp": 520.0, "atk": 20.0, "range": 30.0, "cd": 50, "speed": 0.8},
 	"cheoyong": {"hp": 240.0, "atk": 14.0, "range": 26.0, "cd": 36, "speed": 1.0},
 	"dragon": {"hp": 380.0, "atk": 70.0, "range": 420.0, "cd": 96, "speed": 0.0},
-	"bulgasari": {"hp": 560.0, "atk": 24.0, "range": 30.0, "cd": 40, "speed": 1.0},
+	"baekho": {"hp": 420.0, "atk": 34.0, "range": 26.0, "cd": 26, "speed": 2.0},
+	"jujak": {"hp": 280.0, "atk": 30.0, "range": 300.0, "cd": 48, "speed": 0.0},
+	"hyeonmu": {"hp": 950.0, "atk": 16.0, "range": 30.0, "cd": 50, "speed": 0.6},
 }
 const SLING_PUSH := 8.0          # 투석병: 맞은 적을 조금 밀어낸다
 const GENERAL_AURA := 100.0      # 장수 곁 이 거리 안의 병사는
@@ -60,8 +63,9 @@ const HAETAE_TAUNT := 160.0      # 해치: 이 거리 안 적은 해치를 노�
 const HAETAE_BREATH := 0.5       # 해치: 맞은 적 주변(44px) 50% 불 피해
 const CHEOYONG_AURA := 110.0     # 처용: 이 거리 안 적은 늘 느려진다
 const DRAGON_LINE := 28.0        # 청룡: 앞쪽, 위아래 이 폭 안의 적을 모두 꿰뚫는다
-const BULGASARI_GROW := 0.04     # 불가사리: 처치마다 공격·체력 +4%
-const BULGASARI_MAX := 3.0       #   최대 3배
+const HYEONMU_TAUNT := 180.0     # 현무: 이 거리 안 적은 현무를 노린다
+const HYEONMU_REDUCE := 0.3      # 현무: 받는 피해 -30%
+const JUJAK_SPLASH := 0.5        # 주작: 맞은 적 주변(36px) 50% 불 피해 + 화상
 const AXE_CLEAVE := 0.6          # 도끼: 맞은 적 주변(34px)도 60% 피해
 const CANNON_SPLASH := 0.7       # 화차: 터진 자리 주변(44px) 70% 피해
 const HEAL_AMOUNT := 10.0        # 무당: 한 번에 회복
@@ -79,7 +83,7 @@ const ROLE_GRADE := {"spear": "common", "archer": "common", "shield": "common",
 	"healer": "rare", "cannon": "rare", "twin": "rare",
 	"general": "hero", "sniper": "hero",
 	"haetae": "legendary", "cheoyong": "legendary",
-	"dragon": "mythic", "bulgasari": "mythic"}
+	"dragon": "mythic", "baekho": "mythic", "jujak": "mythic", "hyeonmu": "mythic"}
 ## 천장: 이 등급 이상이 이만큼 안 나오면 다음 뽑기는 그 등급 확정 (높은 천장이 먼저)
 const PITY := {"rare": 20, "hero": 50, "legendary": 100}   # 사용자: "희귀 20번, 영웅은 50번, 전설은 100번"
 const MYTH_SHARDS := 5            # 전설 5번 → 신화 확정 (사용자: "신화는 전설 5번 뽑으면 천장")
@@ -97,9 +101,91 @@ static func draw_odds() -> Dictionary:
 		var g: String = ROLE_GRADE[r]
 		by[r] = GRADE_ODDS[g] / grade_roles(g).size()
 	return by
+# ---------- 고유 스킬 (병사마다 하나, 별 ★3·★4·★5 에서 강화) ----------
+## cd: 재사용 프레임. lv: ★1~2 = 0, ★3 = 1, ★4 = 2, ★5 = 3. 위력 배율 = 1 + 0.5 × lv
+## up: ★3/★4/★5 에서 무엇이 더 세지나 (화면 안내)
+const SKILLS := {
+	"spear": {"name": "돌격 찌르기", "cd": 300, "desc": "적에게 뛰어들어 공격력 ×2.5", "up": ["위력 ×1.5", "위력 ×2", "찌른 적 1초 기절"]},
+	"archer": {"name": "연사", "cd": 330, "desc": "가까운 적 3명에게 화살 (공격력 ×1.5)", "up": ["화살 4발", "화살 5발", "화살 6발 · 위력 ×2.5"]},
+	"shield": {"name": "방패 벽", "cd": 420, "desc": "주변 아군 4초간 받는 피해 -40%", "up": ["범위 넓게", "더 넓게", "적을 모두 끌어당김"]},
+	"axe": {"name": "회오리 베기", "cd": 330, "desc": "주변 적 모두 공격력 ×2", "up": ["위력 ×1.5", "범위·위력 ↑", "위력 ×2.5"]},
+	"cavalry": {"name": "돌파", "cd": 360, "desc": "앞으로 내달려 지나는 적 모두 공격력 ×2", "up": ["위력 ×1.5", "더 멀리", "지나간 적 밀쳐냄"]},
+	"slinger": {"name": "바윗돌", "cd": 300, "desc": "큰 돌로 공격력 ×2.5 + 기절", "up": ["기절 길게", "주변까지 맞힘", "위력 ×2.5"]},
+	"healer": {"name": "큰 굿", "cd": 420, "desc": "주변 아군 모두 회복", "up": ["회복 ×1.5", "회복 ×2", "보호막까지"]},
+	"cannon": {"name": "신기전 일제 사격", "cd": 420, "desc": "적 4명에게 불화살 (공격력 ×1.2, 폭발)", "up": ["5발", "6발", "7발 · 위력 ×2.5"]},
+	"twin": {"name": "칼춤", "cd": 300, "desc": "주변 적을 6번 벤다 (공격력 ×0.8)", "up": ["7번", "8번", "9번 · 위력 ×2.5"]},
+	"general": {"name": "진군의 북", "cd": 480, "desc": "모든 아군 5초간 공격력 +30%", "up": ["+40%", "+50%", "+60% · 공격 속도도"]},
+	"sniper": {"name": "관통 화살", "cd": 360, "desc": "한 줄을 꿰뚫는 화살 (공격력 ×3)", "up": ["위력 ×1.5", "위력 ×2", "위력 ×2.5"]},
+	"haetae": {"name": "화염 숨결", "cd": 360, "desc": "앞쪽 적 모두 불태움 (공격력 ×1.5 + 화상)", "up": ["위력 ×1.5", "더 멀리", "화상 두 배"]},
+	"cheoyong": {"name": "역신 쫓는 춤", "cd": 480, "desc": "주변 적 모두 1초 기절", "up": ["기절 길게", "범위 넓게", "기절 2초"]},
+	"dragon": {"name": "용오름", "cd": 540, "desc": "모든 적에게 물기둥 (공격력 ×1.2 + 느리게)", "up": ["위력 ×1.5", "위력 ×2", "위력 ×2.5"]},
+	"baekho": {"name": "범의 포효", "cd": 420, "desc": "가장 강한 적에게 덮쳐 공격력 ×5, 주변 기절", "up": ["위력 ×1.5", "위력 ×2", "위력 ×2.5 · 기절 길게"]},
+	"jujak": {"name": "불새 강림", "cd": 480, "desc": "불꽃 깃털 8개가 쏟아진다 (공격력 ×1 + 화상)", "up": ["10개", "12개", "14개 · 위력 ×2.5"]},
+	"hyeonmu": {"name": "거북 등딱지", "cd": 540, "desc": "모든 아군에게 보호막 (최대 체력 20%)", "up": ["25%", "30%", "35%"]},
+}
+const SKILL_FIRST := 0.5          # 첫 스킬은 재사용 시간의 절반 뒤
+
+
+static func skill_level(star: int) -> int:
+	return clampi(star - 2, 0, 3)
+
+
+# ---------- 진영 시너지 (같은 진영 '서로 다른' 병사 수) ----------
+## kind: shield 보호막(최대 체력 비율) · atk 공격력 · haste 공격 속도 · cdr 스킬 재사용 단축 · all_atk 모든 아군 공격력
+const FACTIONS := {
+	"gwangun": {"name": "관군", "roles": ["spear", "shield", "cavalry", "general"], "tiers": [2, 3, 4], "kind": "shield", "vals": [0.1, 0.2, 0.35], "desc": "전투 시작 때 관군에게 보호막 (최대 체력 %d%%)"},
+	"sasu": {"name": "명사수", "roles": ["archer", "sniper", "cannon"], "tiers": [2, 3], "kind": "atk", "vals": [0.15, 0.35], "desc": "명사수 공격력 +%d%%"},
+	"uibyeong": {"name": "의병", "roles": ["axe", "twin", "slinger"], "tiers": [2, 3], "kind": "haste", "vals": [0.2, 0.4], "desc": "의병 공격 속도 +%d%%"},
+	"musok": {"name": "무속", "roles": ["healer", "cheoyong", "haetae"], "tiers": [2, 3], "kind": "cdr", "vals": [0.2, 0.4], "desc": "무속 스킬 재사용 -%d%%"},
+	"sasin": {"name": "사신", "roles": ["dragon", "baekho", "jujak", "hyeonmu"], "tiers": [2, 3, 4], "kind": "all_atk", "vals": [0.1, 0.25, 0.5], "desc": "모든 아군 공격력 +%d%%"},
+}
+
+
+static func faction_of(role: String) -> String:
+	for f in FACTIONS:
+		if role in FACTIONS[f]["roles"]:
+			return f
+	return ""
+
+
+# ---------- 전직 (★3 이상 + 같은 진영의 다른 병사 → 그 병사의 스킬을 흡수) ----------
+const PROMO_STAR := 3
+const PROMO_BONUS := 0.2          # 전직하면 체력·공격력 +20%
+const PROMO_ADJ := {"spear": "창술", "shield": "철벽", "cavalry": "질풍", "general": "지휘", "archer": "속사", "sniper": "백발백중",
+	"cannon": "화포", "axe": "광전", "twin": "쌍검", "slinger": "투석", "healer": "치유", "cheoyong": "춤꾼", "haetae": "화염",
+	"dragon": "청룡의", "baekho": "백호의", "jujak": "주작의", "hyeonmu": "현무의"}
+
+
+# ---------- 진주와 상점 ----------
+const PEARL_PER_KILLS := 6        # 처치 6마리마다 진주 1
+const PEARL_BOSS := 5             # 대장을 쓰러뜨리면 진주 5
+const SHOP_SLOTS := 4             # 아침마다 진열 4개
+const SHOP_REROLL := 1            # 진열 다시 굴리기 진주 1
+const SHOP_ITEMS := {
+	"whetstone": {"name": "숫돌", "price": 3, "desc": "공격력 +15%", "stat": "atk", "val": 0.15},
+	"scale": {"name": "쇠비늘", "price": 3, "desc": "체력 +20%", "stat": "hp", "val": 0.2},
+	"scroll": {"name": "비급서", "price": 4, "desc": "스킬 위력 +25%", "stat": "skill", "val": 0.25},
+	"bell": {"name": "신령 방울", "price": 4, "desc": "스킬 재사용 -15%", "stat": "cdr", "val": 0.15},
+	"ticket": {"name": "뽑기권", "price": 2, "desc": "뽑기 1번", "stat": "ticket", "val": 1.0},
+}
+const UPG_MAX := 1.0              # 한 병사의 같은 강화는 +100% 까지 (재사용 단축은 50%)
+
+
+# ---------- 가마신과 내기 (가마를 열 때 걸 수 있다) ----------
+## 억울하지 않은 운: 확률은 화면에 그대로 · 꽝 3번이면 다음 내기는 대박 확정
+const BET_ODDS := [
+	["jackpot", "대박", 0.15, "가마 안 새 병사 모두 별 +1"],
+	["twin", "쌍둥이", 0.2, "새 병사 하나가 둘로"],
+	["gold", "금빛", 0.15, "새 병사 하나가 요변으로"],
+	["pearls", "진주 비", 0.2, "진주 +4"],
+	["bust", "꽝", 0.3, "새 병사 하나가 깨진다 (파편 +1)"],
+]
+const BET_PITY := 3
+
 const VILLAGE_LINE := 112.0     # 마을 담장 선 (왼쪽 마을 구역 끝). 도깨비가 여기 닿으면 마을이 맞는다
 const ALLY_AGGRO := 210.0       # 창병·방패병이 도깨비를 알아채고 마주 나가는 거리
 const ALLY_LEASH := 170.0       # 제자리에서 이만큼 넘게는 쫓지 않는다 (대열이 무너지지 않게)
+const ALLY_LINGER := 45          # 적이 없어도 이만큼(프레임) 기다렸다가 제자리로 (앞뒤로 오가지 않게)
 const SHIELD_TAUNT := 90.0       # 방패 근처 적은 방패를 먼저 노린다
 const SHIELD_REDUCE := 0.4       # 방패는 받는 피해 -40%
 const NEST_STAT_MUL := 1.45      # 괴수는 3마리라 한 마리가 더 강하다

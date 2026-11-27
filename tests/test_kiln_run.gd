@@ -213,18 +213,13 @@ func test_new_roles() -> bool:
 			row[j].pos = Vector2(dr.pos.x + 100.0 + j * 60.0, dr.pos.y)
 		b3.step()
 	check(row.all(func(e): return e.hp < 500.0), "청룡은 한 줄의 적을 모두 맞힌다")
-	# 불가사리: 처치하면 커진다
+	# 현무: 받는 피해가 줄고, 적을 끌어당긴다
 	var b4 = Battle.new(1, [])
-	var bg = b4.add_ally("bulgasari", "earth", "normal", "불가사리")
+	var hm = b4.add_ally("hyeonmu", "earth", "normal", "현무")
 	b4.spawn_queue = []
-	var atk0: float = bg.atk
-	for i in 3:
-		var e = b4.add_enemy("goblin", 100.0)
-		e.hp = 1.0
-		e.pos = bg.pos + Vector2(20, 0)
-	for i in 200:
-		b4.step()
-	check(bg.atk > atk0, "불가사리는 처치할수록 강해진다: %.1f → %.1f" % [atk0, bg.atk])
+	var hh0: float = hm.hp
+	b4._hurt(hm, 100.0, null, false)
+	check(hh0 - hm.hp < 100.0, "현무는 피해를 덜 받는다")
 	# 장수: 곁의 병사 공격력 +30%
 	var b5 = Battle.new(1, [])
 	var sp5 = b5.add_ally("spear", "fire", "normal", "창")
@@ -404,4 +399,180 @@ func test_balance_chapters() -> bool:
 	check(ch1 >= 4, "챕터 1은 대체로 넘긴다 (억울함 방지): %d/6" % ch1)
 	check(all_clear == 0, "안전하게만 해서 끝까지 다 깨면 긴장이 없다: %d/6" % all_clear)
 	check(avg >= 2.0 and avg <= 4.0, "평균 챕터 2~4 (챕터마다 어려워진다): %.2f" % avg)
+	return true
+
+
+## 고유 스킬: 17종 모두 스킬이 있고 실제로 쓰며, ★3·★4·★5 에서 세진다
+func test_skills_all_roles_and_star_levels() -> bool:
+	check(PD.KILN_ROLES.size() == 17 and not PD.KILN_ROLES.has("bulgasari"), "병사 17종, 불가사리 없음")
+	check(PD.grade_roles("mythic") == ["dragon", "baekho", "jujak", "hyeonmu"], "신화 = 청룡·백호·주작·현무")
+	for r in PD.KILN_ROLES:
+		check(PD.SKILLS.has(r) and PD.SKILLS[r]["up"].size() == 3, "%s 스킬과 ★3·★4·★5 강화" % r)
+		check(PD.faction_of(r) != "", "%s 은(는) 진영이 있다" % r)
+	check([1, 2, 3, 4, 5].map(func(st): return PD.skill_level(st)) == [0, 0, 1, 2, 3], "스킬 단계: ★1·2 기본, ★3·4·5 강화")
+	for r in PD.KILN_ROLES:
+		var b = Battle.new(3, [])
+		var u = b.add_ally(r, "fire", "normal", r, 1.0, {"star": 1})
+		b.spawn_queue = []
+		for i in 4:
+			var e = b.add_enemy("goblin", u.pos.y + i * 6.0)
+			e.hp = 9999.0
+			e.pos = u.pos + Vector2(30 + i * 8, i * 4)
+		u.max_hp = 1000000.0   # 스킬을 쓰기 전에 쓰러지지 않게
+		u.hp = u.max_hp * 0.5
+		var used := false
+		for f in PD.SKILLS[r]["cd"] + 30:
+			for e in b.units.filter(func(o): return o.team == "enemy"):
+				e.pos.x = maxf(e.pos.x, u.pos.x + 20.0)
+			b.step()
+			if b.events.any(func(ev): return ev["kind"] == "skill" and ev["unit"] == u.id):
+				used = true
+				break
+		check(used, "%s 이(가) 스킬을 쓴다" % r)
+	# 별이 오르면 더 세다 (도끼 회오리 피해 비교)
+	var dmg := []
+	for st in [1, 3, 5]:
+		var b2 = Battle.new(5, [])
+		var a2 = b2.add_ally("axe", "earth", "normal", "도끼", 1.0, {"star": st})
+		b2.spawn_queue = []
+		var e2 = b2.add_enemy("goblin", a2.pos.y)
+		e2.hp = 99999.0
+		e2.pos = a2.pos + Vector2(20, 0)
+		b2._skill(a2, "axe")
+		dmg.append(99999.0 - e2.hp)
+	check(dmg[1] > dmg[0] and dmg[2] > dmg[1], "★3·★5 스킬이 더 세다: %s" % [dmg])
+	return true
+
+
+## 진영 시너지: 같은 진영 '서로 다른' 병사 수로 단계가 켜지고, 전투 능력치에 들어간다
+func test_factions() -> bool:
+	var run = KilnRun.new(11)
+	run.chapter = 9
+	run._add_soldier("archer", "fire", "normal")
+	run._add_soldier("archer", "water", "normal")
+	check(run.faction_levels()["sasu"] == -1, "같은 병사 둘은 1종 → 시너지 없음")
+	run._add_soldier("sniper", "fire", "normal")
+	check(run.faction_counts()["sasu"] == 2 and run.faction_levels()["sasu"] == 0, "명사수 2종 → 1단계")
+	var b = run.start_night()
+	var ar = b.units.filter(func(u): return u.kind == "archer")[0]
+	check(absf(ar.atk / (PD.ROLE_STATS["archer"]["atk"]) - (1.0 + PD.FACTIONS["sasu"]["vals"][0])) < 0.01, "명사수 공격력 +15%%: %.2f" % ar.atk)
+	run.state = "prep"
+	run._add_soldier("spear", "fire", "normal")
+	run._add_soldier("shield", "fire", "normal")
+	var b2 = run.start_night()
+	var sp = b2.units.filter(func(u): return u.kind == "spear")[0]
+	check(sp.shield_hp > 0.0, "관군 2종 → 보호막")
+	return true
+
+
+## 전직: ★3 이상 + 같은 진영의 다른 병사 → 그 병사의 스킬을 흡수 (스킬 2개)
+func test_promotion() -> bool:
+	var run = KilnRun.new(12)
+	run.chapter = 9
+	var a: Dictionary = run._add_soldier("spear", "fire", "normal", 2)
+	var c: Dictionary = run._add_soldier("cavalry", "water", "normal")
+	var x: Dictionary = run._add_soldier("archer", "water", "normal")
+	check(not run.can_promote(a["id"], c["id"]), "★2 는 아직 전직 못 한다")
+	a["star"] = 3
+	check(not run.can_promote(a["id"], x["id"]), "다른 진영(명사수)과는 전직 못 한다")
+	check(run.promo_partners(a["id"]) == [c["id"]], "같은 진영 기마병과 전직할 수 있다")
+	var m: Dictionary = run.promote(a["id"], c["id"])
+	check(m["promo"] == "cavalry" and run.soldier(c["id"]).is_empty(), "기마병을 흡수했다")
+	check(m["name"].contains("질풍"), "이름이 바뀐다: %s" % m["name"])
+	var b = run.start_night()
+	var u = b.units.filter(func(o): return o.kind == "spear")[0]
+	check(u.skills == ["spear", "cavalry"], "스킬 2개: %s" % [u.skills])
+	return true
+
+
+## 진주 상점: 사냥으로 진주, 진열 4개, 병사 강화는 실제 능력치로, 다시 굴리기
+func test_pearl_shop() -> bool:
+	var run = KilnRun.new(13)
+	check(run.shop.size() == PD.SHOP_SLOTS, "진열 %d개" % PD.SHOP_SLOTS)
+	var s: Dictionary = run._add_soldier("spear", "fire", "normal")
+	run.pearls = 0
+	run.shop[0] = "whetstone"
+	check(not run.buy(0, s["id"]), "진주가 없으면 못 산다")
+	run.pearls = 10
+	check(run.buy(0, s["id"]) and run.pearls == 10 - PD.SHOP_ITEMS["whetstone"]["price"], "숫돌을 산다")
+	check(run.shop[0] == "", "산 칸은 빈다")
+	var b = run.start_night()
+	var u = b.units[0]
+	check(u.atk > PD.ROLE_STATS["spear"]["atk"] * 1.1, "숫돌 → 공격력 ↑")
+	run.state = "prep"
+	var p0: int = run.pearls
+	check(run.reroll_shop() and run.pearls == p0 - PD.SHOP_REROLL and not run.shop.has(""), "다시 굴리기")
+	# 밤을 넘기면 진주
+	var r2 = KilnRun.new(14)
+	var b2 = r2.start_night()
+	b2.units = []
+	b2.spawn_queue = []
+	b2.stats["kills"] = PD.PEARL_PER_KILLS * 2
+	b2.step()
+	r2.end_night(b2)
+	check(r2.pearls == 2 and r2.last_loot["pearls"] == 2, "처치 %d마리 → 진주 2" % (PD.PEARL_PER_KILLS * 2))
+	return true
+
+
+## 가마신과 내기: 확률 합 1, 결과가 실제로 반영, 꽝 3번이면 대박 확정
+func test_kiln_bet() -> bool:
+	var tot := 0.0
+	for o in PD.BET_ODDS:
+		tot += o[2]
+	check(absf(tot - 1.0) < 0.001, "내기 확률 합 100%%: %.2f" % tot)
+	var seen := {}
+	for sd in 60:
+		var run = KilnRun.new(700 + sd)
+		run.chapter = 9
+		run.draw("spear", "fire")
+		run.draw("archer", "fire")
+		run.kiln.heat = 0
+		run.bet_busts = 0
+		run.fire(true)
+		seen[run.last_bet["key"]] = true
+	check(seen.size() == PD.BET_ODDS.size(), "다섯 결과가 다 나온다: %s" % [seen.keys()])
+	var r2 = KilnRun.new(5)
+	r2.chapter = 9
+	r2.draw("spear", "fire")
+	r2.bet_busts = PD.BET_PITY
+	r2.kiln.heat = 0
+	r2.fire(true)
+	check(r2.last_bet["key"] == "jackpot" and r2.army[0]["star"] == 2, "꽝 %d번 뒤에는 대박 확정 (별 +1)" % PD.BET_PITY)
+	return true
+
+
+## 자유 배치: 둔 자리에서 시작하고, 둘 수 있는 곳 밖은 안으로 당긴다
+func test_free_placement() -> bool:
+	var run = KilnRun.new(15)
+	var s: Dictionary = run._add_soldier("archer", "fire", "normal")
+	run.set_home(s["id"], Vector2(200, 40))
+	var b = run.start_night()
+	check(b.units[0].pos == Vector2(200, 40), "둔 자리에서 시작")
+	run.state = "prep"
+	run.set_home(s["id"], Vector2(9999, -50))
+	check(Battle.DEPLOY.has_point(run.soldier(s["id"])["home"]) or Battle.DEPLOY.grow(0.5).has_point(run.soldier(s["id"])["home"]), "밖은 안으로 당긴다")
+	return true
+
+
+## 앞뒤로 오가지 않기: 싸우는 동안 창병이 제자리로 갔다 왔다 하지 않는다
+func test_no_back_and_forth() -> bool:
+	var b = Battle.new(21, PD.wave_plan(2, true, 1))
+	for i in 3:
+		b.add_ally("spear", "fire", "normal", "창")
+	var sp = b.units[0]
+	var flips := 0
+	var last_dir := 0
+	var prev: Vector2 = sp.pos
+	for f in 900:
+		b.step()
+		if not sp.alive:
+			break
+		var dx: float = sp.pos.x - prev.x
+		prev = sp.pos
+		var d := 0 if absf(dx) < 0.3 else (1 if dx > 0 else -1)
+		if d != 0 and last_dir != 0 and d != last_dir:
+			flips += 1
+		if d != 0:
+			last_dir = d
+	check(flips <= 12, "방향을 자꾸 바꾸지 않는다: %d번" % flips)
 	return true

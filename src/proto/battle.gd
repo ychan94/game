@@ -37,9 +37,26 @@ class U:
 	var summon_kind := ""    # 적 대장: 부하를 부른다
 	var summon_every := 0
 	var summon_t := 0
-	var grow := 1.0          # 불가사리: 처치할수록 커진다
+	var grow := 1.0
 	var base_atk := 0.0
 	var base_hp := 0.0
+	# 스킬 (병사: 제 스킬 + 전직으로 흡수한 스킬)
+	var skills: Array = []        # 역할 이름들
+	var skill_t: Array = []
+	var skill_lv := 0
+	var skill_pow := 1.0          # 비급서 등
+	var cdr := 0.0                # 스킬 재사용 단축
+	# 잠깐 걸리는 효과
+	var guard_t := 0              # 방패 벽: 받는 피해 -40%
+	var buff_t := 0               # 진군의 북: 공격력 ↑
+	var buff_val := 0.0
+	var haste_t := 0              # 진군의 북 ★5: 공격 속도 ↑
+	var taunt_t := 0              # 방패 벽 ★5: 적을 끌어당김
+	var shield_hp := 0.0          # 보호막 (먼저 깎인다)
+	# 목표 붙잡기 (앞뒤로 오가지 않게)
+	var tgt = null
+	var idle_t := 0
+	var fixed_home := false       # 사용자가 직접 배치한 자리
 	var hit_flash := 0
 	var alive := true
 
@@ -66,8 +83,9 @@ func _init(seed_value: int, plan: Array = []) -> void:
 
 
 # ---------------- 만들기 ----------------
-## mods: 장비 배율 {atk, hp, haste, regen}
-func add_ally(role: String, element: String, tier: String, name: String, stat_mul := 1.0, mods := {}) -> U:
+## mods: 장비·상점·진영·전직 배율 {atk, hp, haste, regen, shield, cdr, skill, skills(추가 스킬), star}
+## home: 사용자가 배치한 자리 (없으면 대열에 맞춰 자동)
+func add_ally(role: String, element: String, tier: String, name: String, stat_mul := 1.0, mods := {}, home := Vector2.INF) -> U:
 	var s: Dictionary = D.ROLE_STATS[role]
 	var u := U.new()
 	u.id = _next_id
@@ -86,25 +104,45 @@ func add_ally(role: String, element: String, tier: String, name: String, stat_mu
 	u.range = s["range"]
 	u.cd_max = maxi(6, roundi(s["cd"] / (1.0 + mods.get("haste", 0.0))))
 	u.speed = s["speed"]
-	u.radius = 9.0 + (3.0 if tier == "legend" else 0.0) + (5.0 if role in ["haetae", "dragon", "bulgasari"] else 0.0)
+	u.radius = 9.0 + (3.0 if tier == "legend" else 0.0) + (5.0 if role in ["haetae", "dragon", "baekho", "jujak", "hyeonmu"] else 0.0)
 	u.base_atk = u.atk
 	u.base_hp = u.max_hp
 	u.special_t = D.SPECIAL_EVERY / 2
+	u.shield_hp = u.max_hp * mods.get("shield", 0.0)
+	# 고유 스킬은 가마의 병사(챕터 한 판)에만: kiln_run 이 별(star)을 넘겨줄 때. 1분 시험판·둥지 괴수는 스킬 없음
+	u.skills = ([role] + mods.get("skills", [])) if mods.has("star") and D.SKILLS.has(role) else []
+	u.skill_lv = D.skill_level(mods.get("star", 1))
+	u.skill_pow = 1.0 + mods.get("skill", 0.0)
+	u.cdr = clampf(mods.get("cdr", 0.0), 0.0, 0.6)
+	for r in u.skills:
+		u.skill_t.append(roundi(D.SKILLS[r]["cd"] * D.SKILL_FIRST * (1.0 - u.cdr)))
 	units.append(u)
+	if home != Vector2.INF:
+		u.home = home
+		u.pos = home
+		u.fixed_home = true
 	_arrange()
 	return u
 
 
-## 아군 대열: 방패 앞, 창 가운데, 궁수 뒤
-func _arrange() -> void:
-	var line_of := {"shield": "front", "cavalry": "front", "haetae": "front", "bulgasari": "front",
+static func default_line() -> Dictionary:
+	return {"shield": "front", "cavalry": "front", "haetae": "front", "hyeonmu": "front", "baekho": "front",
 		"spear": "mid", "axe": "mid", "twin": "mid", "general": "mid", "cheoyong": "mid",
 		"archer": "back", "slinger": "back", "sniper": "back",
-		"healer": "rear", "cannon": "rear", "dragon": "rear"}
+		"healer": "rear", "cannon": "rear", "dragon": "rear", "jujak": "rear"}
+
+
+## 병사를 둘 수 있는 곳 (마을 담장 앞 ~ 전장 가운데)
+const DEPLOY := Rect2(VILLAGE_X + 12.0, 16.0, 250.0, 228.0)
+
+
+## 아군 대열: 방패 앞, 창 가운데, 궁수 뒤 (직접 배치한 병사는 그대로)
+func _arrange() -> void:
+	var line_of := default_line()
 	var col := {"front": VILLAGE_X + 160.0, "mid": VILLAGE_X + 118.0, "back": VILLAGE_X + 62.0, "rear": VILLAGE_X + 26.0}
 	var by_line := {"front": [], "mid": [], "back": [], "rear": []}
 	for u in units:
-		if u.team == "ally":
+		if u.team == "ally" and not u.fixed_home:
 			by_line[line_of.get(u.kind, "mid")].append(u)
 	for line in by_line:
 		var list: Array = by_line[line]
@@ -189,6 +227,10 @@ func _act(u: U) -> void:
 	u.hit_flash = maxi(0, u.hit_flash - 1)
 	u.cd = maxi(0, u.cd - 1)
 	u.slow_t = maxi(0, u.slow_t - 1)
+	u.guard_t = maxi(0, u.guard_t - 1)
+	u.buff_t = maxi(0, u.buff_t - 1)
+	u.haste_t = maxi(0, u.haste_t - 1)
+	u.taunt_t = maxi(0, u.taunt_t - 1)
 	if u.burn_t > 0:
 		u.burn_t -= 1
 		_hurt(u, D.BURN_DPS / D.FPS, null, false)
@@ -217,6 +259,7 @@ func _act(u: U) -> void:
 			u.special_t = D.SPECIAL_EVERY
 			_special(u)
 	if u.team == "ally" and u.kind == "healer":
+		_tick_skills(u)
 		_heal(u)
 		return
 	var target = _pick_target(u)
@@ -232,17 +275,24 @@ func _act(u: U) -> void:
 				u.alive = false
 				events.append({"kind": "village_hit", "pos": u.pos, "amount": u.village_dmg, "unit": u.id})
 		return
-	# 아군
+	# 아군: 목표를 붙잡고, 적이 정말 없을 때만 잠깐 기다렸다가 제자리로 (앞뒤로 오가지 않게)
+	_tick_skills(u)
+	if not u.alive:
+		return
 	if target != null:
 		var d: float = u.pos.distance_to(target.pos)
 		if d <= u.range + target.radius + u.radius:
+			u.idle_t = 0
 			_attack(u, target)
-		elif spd > 0.0 and d < D.ALLY_AGGRO and target.pos.distance_to(u.home) < D.ALLY_LEASH + D.ALLY_AGGRO * 0.5:
+		elif spd > 0.0 and target.pos.distance_to(u.home) < D.ALLY_LEASH + D.ALLY_AGGRO:
+			u.idle_t = 0
 			u.pos += (target.pos - u.pos).normalized() * spd
-		elif spd > 0.0 and u.pos.distance_to(u.home) > 2.0:
-			u.pos += (u.home - u.pos).normalized() * minf(spd, u.pos.distance_to(u.home))
-	elif spd > 0.0 and u.pos.distance_to(u.home) > 2.0:
-		u.pos += (u.home - u.pos).normalized() * minf(spd, u.pos.distance_to(u.home))
+		else:
+			u.idle_t += 1
+	else:
+		u.idle_t += 1
+	if u.idle_t > D.ALLY_LINGER and spd > 0.0 and u.pos.distance_to(u.home) > 2.0:
+		u.pos += (u.home - u.pos).normalized() * minf(spd * 0.8, u.pos.distance_to(u.home))
 
 
 ## 아군: 가장 가까운 적 (신궁은 사거리 안 가장 강한 적). 적: 근처 방패·해치 → 바로 옆 아군 → 없으면 null (마을로 행진)
@@ -264,12 +314,18 @@ func _pick_target(u: U):
 			sh = t.hp
 			strong = t
 		if u.team == "enemy":
-			var taunt: float = D.SHIELD_TAUNT if t.kind == "shield" else (D.HAETAE_TAUNT if t.kind == "haetae" else 0.0)
+			var taunt: float = D.SHIELD_TAUNT if t.kind == "shield" else (D.HAETAE_TAUNT if t.kind == "haetae" else (D.HYEONMU_TAUNT if t.kind == "hyeonmu" else 0.0))
+			if t.taunt_t > 0:
+				taunt = maxf(taunt, 150.0)
 			if taunt > 0.0 and d <= taunt and d < sd:
 				sd = d
 				shield = t
 	if u.team == "ally":
-		return strong if strong != null else best
+		# 붙잡은 목표가 살아 있고 너무 멀어지지 않았으면 그대로 (신궁은 사거리 안 가장 강한 적)
+		if u.kind != "sniper" and u.tgt != null and u.tgt.alive and u.pos.distance_to(u.tgt.pos) <= maxf(u.range + 40.0, D.ALLY_AGGRO * 1.3):
+			return u.tgt
+		u.tgt = strong if strong != null else (best if best != null and bd <= maxf(u.range + 40.0, D.ALLY_AGGRO * 1.3) else null)
+		return u.tgt
 	if shield != null:
 		return shield
 	if best != null and bd <= 40.0 + u.range:
@@ -280,8 +336,8 @@ func _pick_target(u: U):
 func _attack(u: U, t: U) -> void:
 	if u.cd > 0:
 		return
-	u.cd = u.cd_max
-	var atk: float = u.atk * (_general_buff(u) if u.team == "ally" else 1.0)
+	u.cd = roundi(u.cd_max * (0.7 if u.haste_t > 0 else 1.0))
+	var atk: float = u.atk * (_general_buff(u) * (1.0 + (u.buff_val if u.buff_t > 0 else 0.0)) if u.team == "ally" else 1.0)
 	if u.team == "ally" and u.kind == "dragon":
 		# 청룡: 앞쪽 한 줄을 모두 꿰뚫는다
 		events.append({"kind": "beam", "from": u.pos, "to": Vector2(FIELD.size.x, t.pos.y), "element": u.element, "unit": u.id, "team": u.team})
@@ -294,13 +350,13 @@ func _attack(u: U, t: U) -> void:
 	else:
 		events.append({"kind": "swing", "pos": u.pos, "to": t.pos, "team": u.team, "element": u.element, "unit": u.id, "target": t.id, "role": u.kind})
 	_hurt(t, atk, u, true)
-	if u.team == "ally" and u.kind in ["axe", "cannon", "haetae"]:
+	if u.team == "ally" and u.kind in ["axe", "cannon", "haetae", "jujak"]:
 		var r := 34.0 if u.kind == "axe" else 44.0
-		var k: float = {"axe": D.AXE_CLEAVE, "cannon": D.CANNON_SPLASH, "haetae": D.HAETAE_BREATH}[u.kind]
+		var k: float = {"axe": D.AXE_CLEAVE, "cannon": D.CANNON_SPLASH, "haetae": D.HAETAE_BREATH, "jujak": D.JUJAK_SPLASH}[u.kind]
 		for o in units:
 			if o.alive and o.team != u.team and o != t and o.pos.distance_to(t.pos) < r:
 				_hurt(o, atk * k, u, true)
-				if u.kind == "haetae":
+				if u.kind in ["haetae", "jujak"]:
 					o.burn_t = D.BURN_FRAMES
 	if u.team == "ally" and u.kind == "slinger":
 		_push(t, D.SLING_PUSH)
@@ -359,6 +415,15 @@ func _hurt(t: U, amount: float, src, show: bool) -> void:
 		a *= 1.0 - D.SHIELD_REDUCE
 	if t.armor > 0.0:
 		a = maxf(a * 0.25, a - t.armor)   # 갑옷: 약한 공격은 덜 들어간다 (최소 25%)
+	if t.team == "ally":
+		if t.kind == "hyeonmu":
+			a *= 1.0 - D.HYEONMU_REDUCE
+		if t.guard_t > 0:
+			a *= 0.6
+		if t.shield_hp > 0.0:
+			var ab: float = minf(t.shield_hp, a)
+			t.shield_hp -= ab
+			a -= ab
 	t.hp -= a
 	if t.team == "enemy":
 		stats["damage"] += a
@@ -371,12 +436,6 @@ func _hurt(t: U, amount: float, src, show: bool) -> void:
 		events.append({"kind": "death", "pos": t.pos, "team": t.team, "big": t.kind in ["brute", "giant"] or t.kind in D.BOSSES or t.tier == "legend", "unit": t.id, "who": t.kind, "element": t.element})
 		if t.team == "enemy":
 			stats["kills"] += 1
-			if src != null and src.kind == "bulgasari" and src.grow < D.BULGASARI_MAX:
-				src.grow = minf(D.BULGASARI_MAX, src.grow + D.BULGASARI_GROW)
-				src.atk = src.base_atk * src.grow
-				var nh: float = src.base_hp * src.grow
-				src.hp += nh - src.max_hp
-				src.max_hp = nh
 
 
 ## 요변·전설 하나가 혼자 쓰는 특수기 (주변 70px)
@@ -461,3 +520,167 @@ func state_hash() -> String:
 	for u in units:
 		parts.append("%s:%.2f,%.2f,%.2f" % [u.kind, u.pos.x, u.pos.y, u.hp])
 	return ",".join(parts).md5_text().substr(0, 16)
+
+
+# ---------------- 고유 스킬 ----------------
+func _tick_skills(u: U) -> void:
+	if _count("enemy") == 0:
+		return
+	for i in u.skills.size():
+		u.skill_t[i] -= 1
+		if u.skill_t[i] <= 0:
+			var role: String = u.skills[i]
+			if role == "healer" and not units.any(func(o): return o.alive and o.team == "ally" and o.hp < o.max_hp * 0.9):
+				u.skill_t[i] = 30
+				continue
+			u.skill_t[i] = roundi(D.SKILLS[role]["cd"] * (1.0 - u.cdr))
+			_skill(u, role)
+
+
+func _enemies() -> Array:
+	return units.filter(func(o): return o.alive and o.team == "enemy")
+
+
+func _allies() -> Array:
+	return units.filter(func(o): return o.alive and o.team == "ally")
+
+
+func _nearest_enemies(p: Vector2, n: int, max_d := INF) -> Array:
+	var es: Array = _enemies().filter(func(o): return o.pos.distance_to(p) <= max_d)
+	es.sort_custom(func(a, b): return a.pos.distance_to(p) < b.pos.distance_to(p))
+	return es.slice(0, n)
+
+
+## 스킬 한 번. lv: ★3 = 1, ★4 = 2, ★5 = 3. 위력 = 1 + 0.5 × lv (비급서는 따로 곱한다)
+func _skill(u: U, role: String) -> void:
+	var lv: int = u.skill_lv
+	var pw: float = (1.0 + 0.5 * lv) * u.skill_pow
+	var atk: float = u.atk * _general_buff(u)
+	var hits: Array = []
+	match role:
+		"spear":
+			var t = _nearest_enemies(u.pos, 1, 180.0)
+			if not t.is_empty():
+				u.pos = t[0].pos - Vector2(t[0].radius + u.radius, 0)
+				_hurt(t[0], atk * 2.5 * pw, u, true)
+				if lv >= 3:
+					t[0].stun_t = maxi(t[0].stun_t, 60)
+				hits = t
+		"archer":
+			hits = _nearest_enemies(u.pos, 3 + lv, u.range + 60.0)
+			for t in hits:
+				_hurt(t, atk * 1.5 * pw, u, true)
+		"shield":
+			for o in _allies():
+				if o.pos.distance_to(u.pos) <= 70.0 + 30.0 * lv:
+					o.guard_t = 240
+			if lv >= 3:
+				u.taunt_t = 240
+		"axe":
+			hits = _nearest_enemies(u.pos, 99, 45.0 + 8.0 * lv)
+			for t in hits:
+				_hurt(t, atk * 2.0 * pw, u, true)
+		"cavalry":
+			var x0: float = u.pos.x
+			var x1: float = minf(FIELD.size.x - 10.0, x0 + 110.0 + 30.0 * lv)
+			for t in _enemies():
+				if t.pos.x >= x0 - 10.0 and t.pos.x <= x1 and absf(t.pos.y - u.pos.y) < 26.0:
+					_hurt(t, atk * 2.0 * pw, u, true)
+					if lv >= 3:
+						_push(t, 30.0)
+					hits.append(t)
+			u.pos.x = x1
+		"slinger":
+			var t2 = _nearest_enemies(u.pos, 1, u.range + 60.0)
+			if not t2.is_empty():
+				_hurt(t2[0], atk * 2.5 * pw, u, true)
+				t2[0].stun_t = maxi(t2[0].stun_t, 50 + 20 * lv)
+				hits = t2
+				if lv >= 2:
+					for o in _nearest_enemies(t2[0].pos, 99, 36.0):
+						if o != t2[0]:
+							_hurt(o, atk * 1.2 * pw, u, true)
+		"healer":
+			for o in _allies():
+				if o.pos.distance_to(u.pos) <= u.range + 30.0:
+					var amt: float = minf(o.max_hp - o.hp, u.heal * 1.5 * (1.0 + 0.5 * lv) * u.skill_pow)
+					o.hp += amt
+					if lv >= 3:
+						o.shield_hp += o.max_hp * 0.1
+					events.append({"kind": "heal", "pos": o.pos, "from": u.pos, "amount": amt, "unit": u.id, "target": o.id, "element": u.element})
+		"cannon":
+			var es: Array = _enemies()
+			for i in (4 + lv):
+				if es.is_empty():
+					break
+				var t3 = es[rng.randi() % es.size()]
+				_hurt(t3, atk * 1.2 * pw, u, true)
+				for o in _nearest_enemies(t3.pos, 99, 30.0):
+					if o != t3:
+						_hurt(o, atk * 0.6 * pw, u, true)
+				hits.append(t3)
+		"twin":
+			for i in (6 + lv):
+				var near: Array = _nearest_enemies(u.pos, 3, 46.0)
+				if near.is_empty():
+					break
+				var t4 = near[i % near.size()]
+				_hurt(t4, atk * 0.8 * pw, u, true)
+				hits.append(t4)
+		"general":
+			for o in _allies():
+				o.buff_t = 300
+				o.buff_val = 0.3 + 0.1 * lv
+				if lv >= 3:
+					o.haste_t = 300
+		"sniper":
+			var t5 = _nearest_enemies(u.pos, 1, u.range + 40.0)
+			if not t5.is_empty():
+				var dir: Vector2 = (t5[0].pos - u.pos).normalized()
+				for o in _enemies():
+					var rel: Vector2 = o.pos - u.pos
+					if rel.dot(dir) > 0.0 and absf(rel.cross(dir)) < 16.0:
+						_hurt(o, atk * 3.0 * pw, u, true)
+						hits.append(o)
+		"haetae":
+			for o in _enemies():
+				if o.pos.x > u.pos.x - 10.0 and o.pos.distance_to(u.pos) < 90.0 + 30.0 * lv:
+					_hurt(o, atk * 1.5 * pw, u, true)
+					o.burn_t = D.BURN_FRAMES * (2 if lv >= 3 else 1)
+					hits.append(o)
+		"cheoyong":
+			for o in _nearest_enemies(u.pos, 99, 120.0 + 25.0 * lv):
+				_hurt(o, atk * 1.0 * pw, u, true)
+				o.stun_t = maxi(o.stun_t, 60 + 20 * lv)
+				hits.append(o)
+		"dragon":
+			for o in _enemies():
+				_hurt(o, atk * 1.2 * pw, u, true)
+				o.slow_t = maxi(o.slow_t, 180)
+				hits.append(o)
+		"baekho":
+			var best = null
+			for o in _enemies():
+				if best == null or o.hp > best.hp:
+					best = o
+			if best != null:
+				u.pos = best.pos - Vector2(best.radius + u.radius, 0)
+				_hurt(best, atk * 5.0 * pw, u, true)
+				for o in _nearest_enemies(best.pos, 99, 50.0):
+					o.stun_t = maxi(o.stun_t, 45 + (30 if lv >= 3 else 0))
+				hits = [best]
+		"jujak":
+			var es2: Array = _enemies()
+			for i in (8 + 2 * lv):
+				if es2.is_empty():
+					break
+				var t6 = es2[rng.randi() % es2.size()]
+				_hurt(t6, atk * 1.0 * pw, u, true)
+				t6.burn_t = D.BURN_FRAMES
+				hits.append(t6)
+		"hyeonmu":
+			for o in _allies():
+				o.shield_hp += o.max_hp * (0.2 + 0.05 * lv) * u.skill_pow
+	stats["skills"] = stats.get("skills", 0) + 1
+	events.append({"kind": "skill", "role": role, "unit": u.id, "pos": u.pos, "lv": lv, "element": u.element,
+		"name": D.SKILLS[role]["name"], "targets": hits.map(func(o): return o.pos)})

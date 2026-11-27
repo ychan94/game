@@ -13,6 +13,7 @@ var selected := -1       # 고른 병사 id
 var draw_flash := 0      # 방금 뽑은 칸 반짝임
 var fought := Vector2i(1, 1)   # 방금 싸운 (챕터, 밤) — 밤 결과 화면용
 var show_help := false   # 별·등급 안내 창
+var right_tab := "draw"  # 오른쪽 칸: draw 뽑기 / equip 장비 (챕터 3부터)
 # 튜토리얼 (처음 한 번씩만): draw 뽑기 → fire 가마 → star 별 올리기 → full 자리 꽉 참
 const TUT_FILE := "user://kiln_tutorial.cfg"
 var tut_seen := {}
@@ -52,6 +53,8 @@ func _tut_pick() -> String:
 		return "star"
 	if not tut_seen.has("full") and run.army.size() >= run.cap() and run.queue.is_empty():
 		return "full"
+	if not tut_seen.has("equip") and run.equip_unlocked() and not run.inventory.is_empty() and right_tab != "equip":
+		return "equip"
 	return ""
 
 
@@ -125,6 +128,19 @@ func _prep_input() -> void:
 	if tut_now != "" and clicked("tut_ok"):
 		_tut_done(tut_now)
 		return
+	if clicked("tab_draw"):
+		right_tab = "draw"
+	if clicked("tab_equip"):
+		right_tab = "equip"
+		_tut_done("equip")
+	if right_tab == "equip" and selected >= 0:
+		if clicked("uneq"):
+			run.unequip(selected)
+		for i in run.inventory.size():
+			if clicked("eq%d" % i):
+				run.equip(selected, run.inventory[i]["id"])
+				shake = 2.0
+				break
 	for s in run.army:
 		if clicked("card%d" % s["id"]):
 			selected = s["id"] if selected != s["id"] else -1
@@ -258,17 +274,21 @@ func _power(s: Dictionary) -> float:
 
 func _draw_prep() -> void:
 	var ci: Dictionary = run.chapter_info()
-	text(Vector2(10, 14), "챕터 %d · %s" % [run.chapter, ci["name"]], C["dim"])
-	text(Vector2(10, 32), "아침 %d / %d" % [run.night, PD.KILN_NIGHTS], C["accent"], 18)
-	text(Vector2(190, 36), "병사 %d/%d" % [run.army.size(), run.cap()], C["text"])
+	text(Vector2(10, 13), "챕터 %d · %s" % [run.chapter, ci["name"]], C["dim"])
+	text(Vector2(10, 38), "아침 %d / %d" % [run.night, PD.KILN_NIGHTS], C["accent"], 24)
 	text(Vector2(190, 16), "마을", C["dim"])
 	draw_rect(Rect2(222, 8, 110, 8), Color("3a2430"))
 	draw_rect(Rect2(222, 8, 110 * run.village_hp / PD.VILLAGE_HP, 8), C["good"])
-	text(Vector2(262, 36), "흙 %d" % run.clay, C["clay"].lightened(0.35), 12)
-	text(Vector2(316, 36), "파편 %d/%d" % [kiln.shards, PD.SHARDS_FOR_LEGEND], C["dim"])
 	var boss_night: bool = run.night >= PD.KILN_NIGHTS
-	text(Vector2(350, 16), "오늘 밤: 도깨비 ×%.1f%s" % [ci["hp"] * (1.0 + PD.NIGHT_HP_GROWTH * (run.night - 1)), " · %s 출현!" % PD.ENEMIES[ci["boss"]]["name"] if boss_night else ""], C["danger"] if boss_night else C["dim"])
-	button(Rect2(604, 22, 28, 18), "?", "help", C["accent"])
+	text(Vector2(344, 16), "오늘 밤: 도깨비 ×%.1f%s" % [ci["hp"] * (1.0 + PD.NIGHT_HP_GROWTH * (run.night - 1)), " · %s 출현!" % PD.ENEMIES[ci["boss"]]["name"] if boss_night else ""], C["danger"] if boss_night else C["dim"])
+	# 자원 줄: 병사 · 뽑기권 · 흙 · 파편
+	text(Vector2(190, 38), "병사 %d/%d" % [run.army.size(), run.cap()], C["text"])
+	draw_icon("ticket", Vector2(264, 32), 1.0)
+	text(Vector2(278, 38), "×%d" % run.tickets, C["accent"])
+	draw_icon("clay", Vector2(318, 32), 1.0)
+	text(Vector2(330, 38), "%d" % run.clay, C["clay"].lightened(0.35))
+	text(Vector2(362, 38), "파편 %d/%d" % [kiln.shards, PD.SHARDS_FOR_LEGEND], C["dim"])
+	button(Rect2(604, 24, 28, 18), "?", "help", C["accent"])
 	# 군대 (6칸 × 3줄)
 	var cw := 64.0
 	var ch := 76.0
@@ -286,15 +306,21 @@ func _draw_prep() -> void:
 		var rc: Color = GRADE_COL[PD.ROLE_GRADE[s["role"]]]
 		draw_rect(r, C["card"].lightened(0.06 if r.has_point(get_local_mouse_position()) else 0.0))
 		draw_rect(Rect2(x, y, cw, 3), rc.darkened(0.2))
+		if s["tier"] == "legend":
+			glow(self, Vector2(x + cw / 2.0, y + 32), 30.0, Color(1.0, 0.95, 0.8, 0.12))
 		draw_rect(r, C["accent"] if selected == s["id"] else C["dim"], false, 2.0 if selected == s["id"] else 1.0)
-		draw_ally_shape(Vector2(x + cw / 2.0, y + 34), s["role"], s["element"], s["tier"], 1.25)
+		var stx := tex(soldier_sprite(s["role"], s["element"]))
+		var sk: float = 1.25 if stx == null else minf(1.25, 42.0 / stx.get_height())
+		draw_ally_shape(Vector2(x + cw / 2.0, y + 50 - 12.8 * sk), s["role"], s["element"], s["tier"], sk)
 		if s["tier"] != "normal":
-			text(Vector2(x + 3, y + 14), PD.TIER_NAME_KILN[s["tier"]], C["accent"] if s["tier"] == "legend" else C["text"])
-		text(Vector2(x, y + ch - 14), PD.ROLE_NAME_KILN[s["role"]], rc, 12, cw, HORIZONTAL_ALIGNMENT_CENTER)
-		text(Vector2(x, y + ch - 2), "★".repeat(s["star"]), C["accent"], 12, cw, HORIZONTAL_ALIGNMENT_CENTER)
-		var same := _same_count(s)
-		if s["star"] < PD.MAX_STAR and same >= 2:
-			text(Vector2(x + cw - 26, y + 14), "%d/%d" % [mini(same, PD.MERGE_COUNT), PD.MERGE_COUNT], C["good"] if same >= PD.MERGE_COUNT else C["dim"])
+			text(Vector2(x + 3, y + 15), PD.TIER_NAME_KILN[s["tier"]], C["accent"] if s["tier"] == "legend" else C["text"])
+		var mp: Vector2i = run.merge_progress(s)
+		if s["star"] < PD.MAX_STAR and mp.x >= 2:
+			text(Vector2(x + cw - 30, y + 15), "%d/%d" % [mini(mp.x, mp.y), mp.y], C["good"] if mp.x >= mp.y else C["dim"])
+		if not s.get("equip", {}).is_empty():
+			draw_icon(s["equip"]["type"], Vector2(x + 4, y + 48), 1.0)
+		text(Vector2(x, y + ch - 15), PD.ROLE_NAME_KILN[s["role"]], rc, 12, cw, HORIZONTAL_ALIGNMENT_CENTER)
+		_draw_stars(Vector2(x + cw / 2.0, y + ch - 6), s["star"])
 		if queued:
 			draw_rect(r, Color(0.05, 0.03, 0.02, 0.6))
 			text(Vector2(x, y + 44), "가마 안", C["fire"].lightened(0.3), 12, cw, HORIZONTAL_ALIGNMENT_CENTER)
@@ -302,69 +328,175 @@ func _draw_prep() -> void:
 	var info_y := 306.0
 	var sel: Dictionary = run.soldier(selected) if selected >= 0 else {}
 	if not sel.is_empty():
-		text(Vector2(12, info_y - 14), "%s [%s] %s · %s · 힘 ×%.1f — %s" % [sel["name"], PD.GRADE_NAME[PD.ROLE_GRADE[sel["role"]]], "★".repeat(sel["star"]), PD.TIER_NAME_KILN[sel["tier"]], _power(sel), PD.ROLE_DESC[sel["role"]]], GRADE_COL[PD.ROLE_GRADE[sel["role"]]])
+		text(Vector2(12, info_y - 15), fit("%s [%s] ★%d · %s · 힘 ×%.1f — %s" % [sel["name"], PD.GRADE_NAME[PD.ROLE_GRADE[sel["role"]]], sel["star"], PD.TIER_NAME_KILN[sel["tier"]], _power(sel), PD.ROLE_DESC[sel["role"]]], 388.0), GRADE_COL[PD.ROLE_GRADE[sel["role"]]])
 		if sel["star"] < PD.MAX_STAR:
-			text(Vector2(12, info_y), "별 올리기: %s %s 3명 → %s (힘 ×%.1f) · 지금 %d/3 (유약 상관없음)" % [PD.ROLE_NAME_KILN[sel["role"]], "★".repeat(sel["star"]), "★".repeat(sel["star"] + 1), PD.STAR_MUL[sel["star"] + 1], mini(3, _same_count(sel))], C["dim"])
+			var mp2: Vector2i = run.merge_progress(sel)
+			text(Vector2(12, info_y), fit("별 올리기: 같은 %s ★%d%s %d명 → ★%d (힘 ×%.1f) · 지금 %d/%d" % [PD.ROLE_NAME_KILN[sel["role"]], sel["star"], " 요변" if sel["tier"] == "legend" else "", mp2.y, sel["star"] + 1, PD.STAR_MUL[sel["star"] + 1], mini(mp2.x, mp2.y), mp2.y], 388.0), C["dim"])
 		else:
-			text(Vector2(12, info_y), "별 최고 (★★★)", C["accent"])
+			text(Vector2(12, info_y), "별 최고 (★5)", C["accent"])
 		var why := "" if run.can_refire(selected) else ("요변은 더 오를 데가 없음" if sel["tier"] == "legend" else ("이미 가마 안" if run.is_queued(selected) else ("흙 부족" if run.clay < PD.CLAY_REFIRE else "가마가 가득 참")))
 		button(Rect2(10, info_y + 8, 190, 24), "다시 굽기 · 흙 %d" % PD.CLAY_REFIRE if why == "" else why, "refire", C["fire"].lightened(0.3), why == "")
 	else:
-		text(Vector2(12, info_y), "병사를 누르면 다시 굽기 (요변을 노린다 · 등급은 안 내려감)", C["dim"])
+		text(Vector2(12, info_y), "병사를 누르면: 별 올리기 안내 · 다시 굽기 · 장비", C["dim"])
 	var groups: Array = run.merge_groups()
 	for i in mini(groups.size(), 2):
 		var g: Dictionary = run.soldier(groups[i][0])
-		button(Rect2(206 + i * 98, info_y + 8, 96, 24), "%s %s" % [PD.ROLE_NAME_KILN[g["role"]], "★".repeat(g["star"] + 1)], "merge%d" % i, C["accent"])
-	if groups.is_empty():
-		text(Vector2(206, info_y + 24), "같은 병사 3명 → 별 +1 (확정)", C["dim"])
-	# 뽑기
+		button(Rect2(206 + i * 98, info_y + 8, 96, 24), "%s ★%d" % [PD.ROLE_NAME_KILN[g["role"]], g["star"] + 1], "merge%d" % i, C["accent"])
+	# 오른쪽: 뽑기 / 장비
 	panel(Rect2(406, 46, 226, 290))
-	text(Vector2(416, 62), "병사 뽑기 · 흙 %d" % PD.CLAY_DRAW, C["accent"])
-	var ry := 76.0
-	for g in PD.GRADES:
-		var names: Array = PD.grade_roles(g).map(func(r2): return PD.ROLE_NAME_KILN[r2])
-		var pct: float = PD.GRADE_ODDS[g] * 100.0
-		text(Vector2(416, ry), PD.GRADE_NAME[g], GRADE_COL[g])
-		text(Vector2(446, ry), ("%.1f%%" % pct) if pct < 10.0 else ("%d%%" % roundi(pct)), GRADE_COL[g])
-		text(Vector2(486, ry), "·".join(names), C["text"] if g != "common" else C["dim"])
-		ry += 12.0
-	# 천장·신화 조각
-	var pg: String = run.pity_grade()
-	if pg != "":
-		text(Vector2(416, 152), "다음 뽑기 %s 확정!" % PD.GRADE_NAME[pg], GRADE_COL[pg])
+	var y0 := 50.0
+	if run.equip_unlocked():
+		button(Rect2(410, 50, 108, 18), "병사 뽑기", "tab_draw", C["accent"] if right_tab == "draw" else C["dim"])
+		button(Rect2(520, 50, 108, 18), "장비 (%d)" % run.inventory.size(), "tab_equip", C["accent"] if right_tab == "equip" else C["dim"])
+		y0 = 72.0
+	if right_tab == "equip" and run.equip_unlocked():
+		_draw_equip_panel(sel, y0)
 	else:
-		text(Vector2(416, 152), "확정까지  희귀 %d · 영웅 %d · 전설 %d" % [run.pity_left("rare"), run.pity_left("hero"), run.pity_left("legendary")], C["dim"])
-	text(Vector2(416, 166), "신화 조각", GRADE_COL["mythic"])
-	for i in PD.MYTH_SHARDS:
-		var dp := Vector2(482 + i * 12, 162)
-		var on: bool = i < run.myth_shards
-		draw_colored_polygon(PackedVector2Array([dp + Vector2(0, -5), dp + Vector2(5, 0), dp + Vector2(0, 5), dp + Vector2(-5, 0)]), GRADE_COL["mythic"] if on else Color("3a2a36"))
-	text(Vector2(524, 166), "전설 3번 → 신화", C["dim"])
-	var dwhy := "" if run.can_draw() else ("흙 부족" if run.clay < PD.CLAY_DRAW else ("자리 없음 — 합치기!" if run.army.size() + run.queued_new() >= run.cap() else "가마가 가득 참"))
-	button(Rect2(414, 172, 104, 24), "뽑기" if dwhy == "" else dwhy, "draw1", C["accent"], dwhy == "")
-	button(Rect2(522, 172, 102, 24), "5번 뽑기", "draw5", C["accent"], dwhy == "")
-	# 가마
-	text(Vector2(416, 210), "가마 (%d / %d)" % [run.queue.size(), PD.KILN_SLOTS], C["fire"].lightened(0.3))
-	for i in PD.KILN_SLOTS:
-		var qy: float = 214.0 + i * 13.0
-		if i >= run.queue.size():
-			draw_rect(Rect2(414, qy, 210, 12), C["card"].darkened(0.3))
-			continue
-		var q: Dictionary = run.queue[i]
-		var fresh: bool = draw_flash > 0 and i == run.queue.size() - 1 and q["kind"] == "new"
-		draw_rect(Rect2(414, qy, 210, 12), C["card"].lightened(0.25 * draw_flash / 30.0) if fresh else C["card"])
-		draw_rect(Rect2(417, qy + 2, 8, 8), C[q["element"]])
-		var qc: Color = GRADE_COL[PD.ROLE_GRADE[q["role"]]] if q["kind"] == "new" else C["text"]
-		text(Vector2(430, qy + 10), "%s · %s" % [KilnRun.soldier_name(q["role"], q["element"]), PD.GRADE_NAME[PD.ROLE_GRADE[q["role"]]] if q["kind"] == "new" else "다시 굽기"], qc)
-		button(Rect2(606, qy, 16, 12), "×", "uq%d" % i, C["dim"])
+		_draw_draw_panel(y0)
 	# 진행
 	button(Rect2(10, 344, 300, 30), "가마에 불 지피기  (스페이스)", "fire_go", C["fire"].lightened(0.3), not run.queue.is_empty())
 	button(Rect2(330, 344, 300, 30), "밤 맞이하기  (Enter)" if run.queue.is_empty() else "가마를 먼저 여세요", "night_go", C["accent"], run.queue.is_empty() and not run.army.is_empty())
-	text(Vector2(0, 392), "× = 부수기(흙 %d 돌려받음) · 같은 병사 3명 → 별 +1 (확정) · ? = 별·등급 안내" % PD.CLAY_SMASH_BACK, C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+	text(Vector2(0, 392), "× = 부수기(흙 %d) · 같은 병사·같은 별끼리 합쳐 별 +1 (요변은 요변끼리) · ? = 안내" % PD.CLAY_SMASH_BACK, C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
 	if show_help:
 		_draw_help()
 	elif tut_now != "":
 		_draw_tutorial(tut_now)
+
+
+func _draw_stars(c: Vector2, n: int) -> void:
+	var w := 7.0
+	for i in n:
+		var p := c + Vector2((i - (n - 1) / 2.0) * w, 0)
+		draw_colored_polygon(PackedVector2Array([p + Vector2(0, -3.5), p + Vector2(1, -1), p + Vector2(3.5, -1), p + Vector2(1.5, 0.8),
+			p + Vector2(2.2, 3.5), p + Vector2(0, 2), p + Vector2(-2.2, 3.5), p + Vector2(-1.5, 0.8), p + Vector2(-3.5, -1), p + Vector2(-1, -1)]), C["accent"])
+
+
+func _draw_draw_panel(y0: float) -> void:
+	var y := y0 + 12.0
+	text(Vector2(416, y), "병사 뽑기", C["accent"])
+	text(Vector2(416, y), "뽑기권 1장 또는 흙 %d" % PD.CLAY_DRAW, C["dim"], 12, 208.0, HORIZONTAL_ALIGNMENT_RIGHT)
+	y += 16.0
+	for g in PD.GRADES:
+		var names: Array = PD.grade_roles(g).map(func(r2): return PD.ROLE_NAME_KILN[r2])
+		var pct: float = PD.GRADE_ODDS[g] * 100.0
+		text(Vector2(416, y), PD.GRADE_NAME[g], GRADE_COL[g])
+		text(Vector2(448, y), ("%.1f%%" % pct) if pct < 10.0 else ("%d%%" % roundi(pct)), GRADE_COL[g])
+		text(Vector2(490, y), "·".join(names), C["text"] if g != "common" else C["dim"])
+		y += 14.0
+	y += 2.0
+	var pg: String = run.pity_grade()
+	if pg != "":
+		text(Vector2(416, y), "다음 뽑기 %s 확정!" % PD.GRADE_NAME[pg], GRADE_COL[pg])
+	else:
+		text(Vector2(416, y), "확정까지 희귀 %d·영웅 %d·전설 %d" % [run.pity_left("rare"), run.pity_left("hero"), run.pity_left("legendary")], C["dim"])
+	y += 15.0
+	text(Vector2(416, y), "신화 조각", GRADE_COL["mythic"])
+	for i in PD.MYTH_SHARDS:
+		var dp := Vector2(474 + i * 10, y - 4)
+		var on: bool = i < run.myth_shards
+		draw_colored_polygon(PackedVector2Array([dp + Vector2(0, -4), dp + Vector2(4, 0), dp + Vector2(0, 4), dp + Vector2(-4, 0)]), GRADE_COL["mythic"] if on else Color("3a2a36"))
+	text(Vector2(416, y), "전설 %d번 → 신화" % PD.MYTH_SHARDS, C["dim"], 12, 208.0, HORIZONTAL_ALIGNMENT_RIGHT)
+	y += 8.0
+	var dwhy := "" if run.can_draw() else ("흙·뽑기권 부족" if run.clay < PD.CLAY_DRAW and run.tickets == 0 else ("자리 없음 — 합치기!" if run.army.size() + run.queued_new() >= run.cap() else "가마가 가득 참"))
+	var l1 := "뽑기 (뽑기권)" if run.tickets > 0 else "뽑기 (흙 %d)" % PD.CLAY_DRAW
+	button(Rect2(414, y, 104, 24), l1 if dwhy == "" else dwhy, "draw1", C["accent"], dwhy == "")
+	button(Rect2(522, y, 102, 24), "5번 뽑기", "draw5", C["accent"], dwhy == "")
+	y += 40.0
+	# 가마: 2줄 × 4칸
+	text(Vector2(416, y), "가마 (%d / %d)" % [run.queue.size(), PD.KILN_SLOTS], C["fire"].lightened(0.3))
+	y += 4.0
+	for i in PD.KILN_SLOTS:
+		var qx: float = 414.0 + (i % 2) * 106.0
+		var qy: float = y + (i / 2) * 15.0
+		var r := Rect2(qx, qy, 104, 14)
+		if i >= run.queue.size():
+			draw_rect(r, C["card"].darkened(0.3))
+			continue
+		var q: Dictionary = run.queue[i]
+		var fresh: bool = draw_flash > 0 and i == run.queue.size() - 1 and q["kind"] == "new"
+		draw_rect(r, C["card"].lightened(0.25 * draw_flash / 30.0) if fresh else C["card"])
+		draw_rect(Rect2(qx + 3, qy + 3, 8, 8), C[q["element"]])
+		var qc: Color = GRADE_COL[PD.ROLE_GRADE[q["role"]]] if q["kind"] == "new" else C["text"]
+		text(Vector2(qx + 14, qy + 12), PD.ROLE_NAME_KILN[q["role"]] + ("" if q["kind"] == "new" else " 재"), qc)
+		button(Rect2(qx + 88, qy + 1, 14, 12), "×", "uq%d" % i, C["dim"])
+
+
+func _draw_equip_panel(sel: Dictionary, y0: float) -> void:
+	var y := y0 + 12.0
+	text(Vector2(416, y), "장비 (병사 한 명에 하나)", C["accent"])
+	y += 16.0
+	if sel.is_empty():
+		text(Vector2(416, y), "왼쪽에서 병사를 먼저 고르세요", C["dim"])
+	else:
+		var it: Dictionary = sel.get("equip", {})
+		text(Vector2(416, y), fit(sel["name"], 160.0), GRADE_COL[PD.ROLE_GRADE[sel["role"]]])
+		if not it.is_empty():
+			button(Rect2(584, y - 11, 40, 15), "빼기", "uneq", C["dim"])
+		y += 16.0
+		if it.is_empty():
+			text(Vector2(416, y), "끼운 장비 없음", C["dim"])
+		else:
+			draw_icon(it["type"], Vector2(416, y - 11), 1.0)
+			text(Vector2(432, y), fit("%s · %s" % [KilnRun.equip_name(it), _equip_effect(it)], 190.0), C["text"])
+	y += 18.0
+	text(Vector2(416, y), "가방 — 눌러서 끼우기", C["dim"])
+	y += 4.0
+	for i in mini(run.inventory.size(), 12):
+		var it2: Dictionary = run.inventory[i]
+		var r := Rect2(414, y + i * 16, 210, 15)
+		draw_rect(r, C["card"])
+		draw_icon(it2["type"], r.position + Vector2(3, 2), 1.0)
+		text(r.position + Vector2(20, 12), fit("%s  %s" % [KilnRun.equip_name(it2), _equip_effect(it2)], 186.0), C["text"] if not sel.is_empty() else C["dim"])
+		buttons.append({"rect": r, "id": "eq%d" % i})
+	if run.inventory.is_empty():
+		text(Vector2(416, y + 14), "밤을 넘기면 전리품으로 얻습니다", C["dim"])
+
+
+func _equip_effect(it: Dictionary) -> String:
+	var m: Dictionary = PD.equip_mods(it)
+	var e: Dictionary = PD.EQUIPS[it["type"]]
+	var v: float = m.values()[0]
+	if e.has("regen"):
+		return "%s %.1f%%" % [e["desc"], v * 100.0]
+	return "%s +%d%%" % [e["desc"], roundi(v * 100.0)]
+
+
+## 작은 도트 아이콘: 뽑기권·흙·장비 4종. pos = 왼쪽 위, k = 배율 (1 = 12px 안팎)
+func draw_icon(kind: String, pos: Vector2, k: float) -> void:
+	var o := Color("282322")
+	match kind:
+		"ticket":
+			draw_rect(Rect2(pos + Vector2(0, 1) * k, Vector2(13, 9) * k), o)
+			draw_rect(Rect2(pos + Vector2(1, 2) * k, Vector2(11, 7) * k), Color("e8c35a"))
+			draw_rect(Rect2(pos + Vector2(4, 2) * k, Vector2(1, 7) * k), Color("a8862e"))
+			draw_rect(Rect2(pos + Vector2(6, 4) * k, Vector2(5, 3) * k), Color("b8463a"))
+			draw_rect(Rect2(pos + Vector2(0, 5) * k, Vector2(1, 1) * k), Color(0, 0, 0, 0))
+			draw_rect(Rect2(pos + Vector2(2, 3) * k, Vector2(1, 1) * k), Color("fff3c4"))
+		"clay":
+			draw_circle(pos + Vector2(6, 7) * k, 5.5 * k, o)
+			draw_circle(pos + Vector2(6, 7) * k, 4.5 * k, C["clay"])
+			draw_rect(Rect2(pos + Vector2(4, 4) * k, Vector2(2, 2) * k), C["clay"].lightened(0.35))
+		"blade":
+			draw_line(pos + Vector2(2, 11) * k, pos + Vector2(11, 2) * k, o, 3.0 * k)
+			draw_line(pos + Vector2(3, 10) * k, pos + Vector2(11, 2) * k, Color("dcdad2"), 1.5 * k)
+			draw_line(pos + Vector2(2, 7) * k, pos + Vector2(6, 11) * k, Color("e8c35a"), 1.5 * k)
+		"armor":
+			draw_rect(Rect2(pos + Vector2(1, 1) * k, Vector2(11, 11) * k), o)
+			draw_rect(Rect2(pos + Vector2(2, 2) * k, Vector2(9, 9) * k), Color("8f8a80"))
+			for i in 3:
+				draw_rect(Rect2(pos + Vector2(3, 3 + i * 3) * k, Vector2(7, 1) * k), Color("c9c4b8"))
+		"charm":
+			draw_rect(Rect2(pos + Vector2(3, 0) * k, Vector2(7, 13) * k), o)
+			draw_rect(Rect2(pos + Vector2(4, 1) * k, Vector2(5, 11) * k), Color("f0d36a"))
+			draw_rect(Rect2(pos + Vector2(5, 3) * k, Vector2(3, 1) * k), Color("b8463a"))
+			draw_rect(Rect2(pos + Vector2(6, 4) * k, Vector2(1, 6) * k), Color("b8463a"))
+		"gourd":
+			draw_circle(pos + Vector2(6, 9) * k, 4.5 * k, o)
+			draw_circle(pos + Vector2(6, 4) * k, 3.0 * k, o)
+			draw_circle(pos + Vector2(6, 9) * k, 3.5 * k, Color("c98a3a"))
+			draw_circle(pos + Vector2(6, 4) * k, 2.0 * k, Color("c98a3a"))
+			draw_rect(Rect2(pos + Vector2(5, 0) * k, Vector2(2, 2) * k), Color("6b4a32"))
+			draw_rect(Rect2(pos + Vector2(4, 7) * k, Vector2(1, 2) * k), Color("f2d49a"))
 
 
 func _same_count(s: Dictionary) -> int:
@@ -375,8 +507,9 @@ func _same_count(s: Dictionary) -> int:
 const TUT := {
 	"draw": ["병사 뽑기", "아침에는 흙으로 병사를 뽑습니다.\n등급은 6단계 — 일반부터 신화까지, 오른쪽 확률 그대로.\n천장이 있어서 운이 나빠도 정해진 횟수 안에 반드시 나옵니다.", Rect2(410, 168, 218, 32)],
 	"fire": ["가마에 굽기", "뽑은 병사는 가마에서 구워야 군대에 들어옵니다.\n불을 세게 올릴수록 상품·요변(힘 ×1.5·×2.6)이 잘 나오고,\n불 4까지는 절대 깨지지 않습니다.", Rect2(6, 340, 308, 38)],
-	"star": ["별 올리기", "같은 병사 3명이 모였습니다! (유약은 달라도 됩니다)\n합치면 별이 하나 오릅니다 — 운 없이 확정.\n★ 힘 ×1.0 → ★★ ×1.8 → ★★★ ×3.0  (★★ 3명 = ★★★)", Rect2(202, 304, 200, 32)],
-	"full": ["자리가 꽉 찼습니다", "이제부터는 숫자보다 '키우기'입니다.\n· 같은 병사 3명 합치기 → 별 +1   · 다시 굽기 → 요변을 노림\n카드 오른쪽 위 2/3 표시가 합치기까지 남은 수입니다.", Rect2(6, 42, 400, 240)],
+	"star": ["별 올리기", "같은 병사·같은 별끼리 합치면 별이 오릅니다 (확정).\n★→★★ 2명 · ★★→★★★ 3명 · →★4 4명 · →★5 5명\n유약은 달라도 되지만, 요변은 요변끼리만 합칩니다.", Rect2(202, 310, 200, 32)],
+	"full": ["자리가 꽉 찼습니다", "이제부터는 숫자보다 '키우기'입니다.\n· 같은 병사 3명 합치기 → 별 +1   · 다시 굽기 → 요변을 노림\n카드 오른쪽 위 1/2 표시가 합치기까지 모인 수입니다.", Rect2(6, 42, 400, 240)],
+	"equip": ["장비", "챕터 3부터 밤을 넘기면 장비를 얻습니다.\n병사를 고르고 '장비' 칸에서 눌러 끼우세요.\n칼날 공격력 · 갑옷 체력 · 부적 공격 속도 · 호리병 회복", Rect2(518, 48, 112, 22)],
 }
 
 
@@ -416,15 +549,14 @@ func _draw_help() -> void:
 	panel(r)
 	draw_rect(r, C["accent"], false, 1.0)
 	text(Vector2(84, 32), "별 올리기 (운 없이 확정)", C["accent"])
-	var rows := [["★", "뽑으면 ★", "힘 ×1.0"], ["★★", "같은 병사 ★ 3명", "힘 ×1.8"], ["★★★", "같은 병사 ★★ 3명 (★ 9명)", "힘 ×3.0"]]
 	var y := 48.0
-	for row in rows:
-		text(Vector2(90, y), row[0], C["accent"])
-		text(Vector2(150, y), row[1], C["text"])
-		text(Vector2(360, y), row[2], C["good"])
-		y += 16.0
-	text(Vector2(90, y), "유약이 달라도 됩니다 — 합친 병사는 가장 좋은 품질(요변>상품>보통)의 유약을 따릅니다.", C["dim"], 12, 470.0)
-	y += 28.0
+	for st in range(1, PD.MAX_STAR + 1):
+		_draw_stars(Vector2(110, y - 4), st)
+		text(Vector2(150, y), "뽑으면 ★1" if st == 1 else "같은 병사 ★%d %d명" % [st - 1, PD.merge_need(st - 1)], C["text"])
+		text(Vector2(360, y), "힘 ×%.1f" % PD.STAR_MUL[st], C["good"])
+		y += 15.0
+	text(Vector2(90, y), "유약은 달라도 됩니다. 요변은 요변끼리만 합칩니다.", C["dim"])
+	y += 18.0
 	text(Vector2(84, y), "등급 (뽑기 확률 · 병사)", C["accent"])
 	y += 16.0
 	for g in PD.GRADES:
@@ -433,50 +565,49 @@ func _draw_help() -> void:
 		for r2 in PD.grade_roles(g):
 			text(Vector2(180, y), PD.ROLE_NAME_KILN[r2], C["text"])
 			text(Vector2(250, y), PD.ROLE_DESC[r2], C["dim"])
-			y += 14.0
-		y += 2.0
-	text(Vector2(84, 378), "천장: 희귀↑ %d번 · 영웅↑ %d번 · 전설↑ %d번 안에 반드시 · 전설 3번 → 신화 확정" % [PD.PITY["rare"], PD.PITY["hero"], PD.PITY["legendary"]], C["dim"])
+			y += 2.0
+	text(Vector2(84, 378), "천장: 희귀↑ %d번 · 영웅↑ %d번 · 전설↑ %d번 안에 반드시 · 전설 %d번 → 신화" % [PD.PITY["rare"], PD.PITY["hero"], PD.PITY["legendary"], PD.MYTH_SHARDS], C["dim"])
 	button(Rect2(r.end.x - 82, r.position.y + 6, 76, 20), "닫기", "help_close", C["accent"])
 
 
+## 밤 결과: 제목(챕터·밤 클리어)과 전리품 아이콘만 (사용자: "어떤 적을 잡았는지는 안 중요")
 func _draw_night_end() -> void:
-	panel(Rect2(110, 70, 420, 260))
-	var won_night: bool = run.state != "lost"
+	panel(Rect2(130, 90, 380, 220))
+	draw_rect(Rect2(130, 90, 380, 220), C["accent"] if run.state != "lost" else C["danger"], false, 1.0)
 	var title := ""
-	var tc: Color = C["good"]
+	var sub := ""
+	var tc: Color = C["accent"]
 	if run.state == "won":
 		title = "모든 챕터를 지켰다!"
-		tc = C["accent"]
+	elif run.state == "lost":
+		title = "마을이 무너졌다"
+		sub = "챕터 %d · 밤 %d 에서" % [fought.x, fought.y]
+		tc = C["danger"]
 	elif run.chapter_cleared:
 		title = "챕터 %d 클리어!" % fought.x
-		tc = C["accent"]
-	elif won_night:
-		title = "챕터 %d · %d번째 밤을 지켰다!" % [fought.x, fought.y]
+		sub = "다음: 챕터 %d · %s" % [run.chapter, run.chapter_info()["name"]]
 	else:
-		title = "마을이 무너졌다 — 챕터 %d · 밤 %d" % [fought.x, fought.y]
-		tc = C["danger"]
-	text(Vector2(110, 108), title, tc, 24, 420.0, HORIZONTAL_ALIGNMENT_CENTER)
-	var lines := [
-		"처치 %d · 합동 기술 %d번 · 요변 특수기 %d번" % [battle.stats["kills"], battle.stats["synergies"], battle.stats["specials"]],
-		"남은 마을 체력 %d%%" % roundi(100.0 * battle.village_hp / PD.VILLAGE_HP),
-	]
-	if run.state == "prep":
-		lines.append("흙 +%d  (기본 %d + 처치 %d마리당 1)" % [run.last_reward, PD.CLAY_PER_NIGHT, PD.CLAY_PER_KILLS])
-		if run.chapter_cleared:
-			var ci: Dictionary = run.chapter_info()
-			lines.append("챕터 보너스 흙 +%d · 마을 완전 복구" % PD.CLAY_PER_CHAPTER)
-			lines.append("다음: 챕터 %d · %s" % [run.chapter, ci["name"]])
-			lines.append("새 적 %s · 대장 %s · 도깨비 ×%.1f" % [PD.ENEMIES[ci["new"]]["name"] if ci["new"] != "" else "-", PD.ENEMIES[ci["boss"]]["name"], ci["hp"]])
-		else:
-			lines.append("마을 수리 +%d · 병사 자리 %d" % [roundi(PD.VILLAGE_REPAIR), run.cap()])
-			lines.append("다음 밤: 도깨비가 더 강해진다" + (" · %s 출현!" % PD.ENEMIES[run.chapter_info()["boss"]]["name"] if run.night >= PD.KILN_NIGHTS else ""))
-	elif run.state == "lost":
-		lines.append("도달: 챕터 %d / %d" % [fought.x, PD.CHAPTERS.size()])
-	var y := 146.0
-	for l in lines:
-		text(Vector2(110, y), l, C["text"], 12, 420.0, HORIZONTAL_ALIGNMENT_CENTER)
-		y += 22.0
-	button(Rect2(220, 292, 200, 28), ("다음 챕터로  (Enter)" if run.chapter_cleared else "다음 아침  (Enter)") if run.state == "prep" else "처음부터  (Enter)", "next")
+		title = "챕터 %d · 밤 %d 클리어" % [fought.x, fought.y]
+	text(Vector2(130, 130), title, tc, 24, 380.0, HORIZONTAL_ALIGNMENT_CENTER)
+	if sub != "":
+		text(Vector2(130, 150), sub, C["dim"], 12, 380.0, HORIZONTAL_ALIGNMENT_CENTER)
+	if run.state != "lost" and not run.last_loot.is_empty():
+		text(Vector2(130, 178), "전리품", C["dim"], 12, 380.0, HORIZONTAL_ALIGNMENT_CENTER)
+		var items: Array = [["ticket", "뽑기권", run.last_loot["tickets"]], ["clay", "흙", run.last_loot["clay"] + run.last_loot.get("chapter_clay", 0)]]
+		for it in run.last_loot["equip"]:
+			items.append([it["type"], KilnRun.equip_name(it), 1])
+		var w := 74.0
+		var x0: float = 320.0 - items.size() * w / 2.0
+		for i in items.size():
+			var cx: float = x0 + i * w + w / 2.0
+			var pop: float = clampf((t % 100000) * 0.0 + 1.0, 0.0, 1.0)
+			draw_rect(Rect2(cx - 22, 188, 44, 44), C["card"])
+			draw_rect(Rect2(cx - 22, 188, 44, 44), C["accent"].darkened(0.3), false, 1.0)
+			draw_icon(items[i][0], Vector2(cx - 13, 197), 2.0 * pop)
+			text(Vector2(cx - 37, 248), items[i][1], C["text"], 12, 74.0, HORIZONTAL_ALIGNMENT_CENTER)
+			if items[i][2] > 1:
+				text(Vector2(cx + 6, 230), "×%d" % items[i][2], C["accent"])
+	button(Rect2(220, 272, 200, 28), ("다음 챕터로  (Enter)" if run.chapter_cleared else "다음 아침  (Enter)") if run.state == "prep" else "처음부터  (Enter)", "next")
 
 
 func _kiln_glow() -> Color:

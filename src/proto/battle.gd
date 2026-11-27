@@ -31,6 +31,7 @@ class U:
 	var stun_t := 0
 	var special_t := 0
 	var heal := 0.0
+	var regen := 0.0         # 장비(약 호리병): 초당 최대 체력의 몇 할을 회복
 	var armor := 0.0         # 적: 한 대마다 이만큼 피해를 깎는다
 	var heavy := false       # 적: 밀리지 않는다 (대장·거인·원귀)
 	var summon_kind := ""    # 적 대장: 부하를 부른다
@@ -65,7 +66,8 @@ func _init(seed_value: int, plan: Array = []) -> void:
 
 
 # ---------------- 만들기 ----------------
-func add_ally(role: String, element: String, tier: String, name: String, stat_mul := 1.0) -> U:
+## mods: 장비 배율 {atk, hp, haste, regen}
+func add_ally(role: String, element: String, tier: String, name: String, stat_mul := 1.0, mods := {}) -> U:
 	var s: Dictionary = D.ROLE_STATS[role]
 	var u := U.new()
 	u.id = _next_id
@@ -76,12 +78,13 @@ func add_ally(role: String, element: String, tier: String, name: String, stat_mu
 	u.tier = tier
 	u.name = name
 	var m: float = D.TIER_MUL[tier] * stat_mul
-	u.max_hp = s["hp"] * m
+	u.max_hp = s["hp"] * m * (1.0 + mods.get("hp", 0.0))
 	u.hp = u.max_hp
-	u.atk = s["atk"] * m
+	u.atk = s["atk"] * m * (1.0 + mods.get("atk", 0.0))
+	u.regen = mods.get("regen", 0.0)
 	u.heal = D.HEAL_AMOUNT * (1.0 + (m - 1.0) * D.HEAL_SCALE) if role == "healer" else 0.0
 	u.range = s["range"]
-	u.cd_max = s["cd"]
+	u.cd_max = maxi(6, roundi(s["cd"] / (1.0 + mods.get("haste", 0.0))))
 	u.speed = s["speed"]
 	u.radius = 9.0 + (3.0 if tier == "legend" else 0.0) + (5.0 if role in ["haetae", "dragon", "bulgasari"] else 0.0)
 	u.base_atk = u.atk
@@ -195,6 +198,8 @@ func _act(u: U) -> void:
 		u.stun_t -= 1
 		return
 	var spd := u.speed * (D.SLOW_MUL if u.slow_t > 0 else 1.0)
+	if u.regen > 0.0 and u.hp < u.max_hp:
+		u.hp = minf(u.max_hp, u.hp + u.max_hp * u.regen / D.FPS)
 	if u.team == "enemy" and u.summon_every > 0:
 		u.summon_t -= 1
 		if u.summon_t <= 0:

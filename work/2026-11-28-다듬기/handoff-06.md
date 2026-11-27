@@ -9,7 +9,8 @@
 2. art/references/ — 정한 그림체
 3. 이미 있는 그림 `assets/sprites/kiln/soldier_*.png`, `assets/sprites/enemy/goblin.png` — **이것과 한 벌로**
 4. docs/그림-목록.md, art/sprite_list.json 의 "가마의 병사 (등급 6단계 추가 8종)" · "챕터 적·대장" 묶음
-5. work/2026-11-28-다듬기/NOTES.md
+5. work/2026-11-28-다듬기/pixel_preview.png — 사용자가 요청해 Claude가 먼저 설계한 장수·신궁·처용·해치·청룡·불가사리 도트 (격자: src/game/pixel_art.gd). **이 모양과 크기(전설 40px·신화 48px 느낌)를 바탕으로 더 다듬는다**
+6. work/2026-11-28-다듬기/NOTES.md
 
 ## 목표 (사용자 말 그대로)
 > "등급을 6가지 정도로 넓히자. 다른 디펜스 게임 보면 완전 최종 등급 엄청 희박한 확률로 뽑아서 진행하는 것처럼 등급을 적절히 나눠줘."

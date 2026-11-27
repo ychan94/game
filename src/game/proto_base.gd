@@ -196,16 +196,9 @@ func draw_glow(ci: CanvasItem) -> void:
 		col.a = 0.55
 		glow(ci, p, 10.0, col)
 	for u in battle.units:
-		if u.team == "ally" and u.tier == "legend" and fx_frames("legend_aura") > 0:
-			var at := tex("fx/legend_aura")
-			var an := fx_frames("legend_aura")
-			var afs: float = at.get_height()
-			var asz := Vector2(afs, afs) * 1.6
-			ci.draw_texture_rect_region(at, Rect2(o + u.pos + Vector2(0, 14) - asz / 2.0, asz), Rect2((t / 3 % an) * afs, 0, afs, afs))
 		if u.team == "ally" and u.tier == "legend":
-			var lc: Color = C["accent"]
-			lc.a = 0.22 + 0.08 * sin(t * 0.12)
-			glow(ci, u.pos + o + Vector2(0, -8), 34.0, lc)
+			var lc := Color(1.0, 0.95, 0.82, 0.20 + 0.06 * sin(t * 0.1))
+			glow(ci, u.pos + o + Vector2(0, -10), 40.0, lc)
 		if u.burn_t > 0:
 			glow(ci, u.pos + o, 12.0, Color(1.0, 0.45, 0.15, 0.35))
 
@@ -511,10 +504,17 @@ func tick_fx() -> void:
 	_tick_atmosphere()
 	shake = maxf(0.0, shake * 0.85 - 0.05)
 	_shake_now = shake_offset()
+	if battle != null:
+		for u in battle.units:
+			var hm := _mv(u.id)
+			var hk: float = clampf(u.hp / u.max_hp, 0.0, 1.0)
+			var tr: float = hm.get("hp_trail", 1.0)
+			hm["hp_trail"] = hk if tr < hk else maxf(hk, tr - 0.008)
 	for id in uv:
 		var m: Dictionary = uv[id]
 		m["lunge"] = maxi(0, m["lunge"] - 1)
 		m["hit"] = maxi(0, m["hit"] - 1)
+		m["atk"] = maxi(0, m.get("atk", 0) - 1)
 		m["kb"] *= 0.75
 		m["squash"] *= 0.8
 	for bm in beams:
@@ -657,7 +657,9 @@ func step_battle() -> void:
 	for u in battle.units:
 		var m := _mv(u.id)
 		if m["prev"] != Vector2.INF:
-			m["walk"] += m["prev"].distance_to(u.pos) * 0.35
+			var moved: float = m["prev"].distance_to(u.pos)
+			m["walk"] += moved * 0.35
+			m["walking"] = moved > 0.15
 		m["prev"] = u.pos
 	for e in battle.events:
 		var col: Color = C.get(e.get("element", ""), C["text"])
@@ -665,19 +667,20 @@ func step_battle() -> void:
 			"swing":
 				var m := _mv(e["unit"])
 				m["lunge"] = 10
-				m["dir"] = (e["to"] - e["pos"]).normalized()
+				start_attack_motion(e["unit"], e.get("role", "") if e["team"] == "ally" else "", e["to"] - e["pos"])
 				if not play_fx("slash", e["to"] - m["dir"] * 6.0, 1.2 if e["team"] == "ally" else 0.9, true, m["dir"].x < 0.0):
 					swooshes.append({"pos": e["pos"], "to": e["to"], "dir": m["dir"], "t": 9, "life": 9, "role": e.get("role", ""), "element": e["element"], "team": e["team"]})
 			"shot":
 				var m2 := _mv(e["unit"])
 				m2["lunge"] = 8
-				m2["dir"] = -(e["to"] - e["from"]).normalized() * 0.5  # 활시위 반동: 살짝 뒤로
+				start_attack_motion(e["unit"], e.get("role", "") if e["team"] == "ally" else "", e["to"] - e["from"])
 				var cannon: bool = e.get("role", "") == "cannon"
 				arrows.append({"from": e["from"], "to": e["to"], "t": 14 if cannon else 7, "life": 14 if cannon else 7, "element": e["element"], "team": e["team"], "cannon": cannon})
 				if cannon:
 					light(e["from"] + Vector2(10, -6), 26.0, Color(1.0, 0.7, 0.3, 0.8), 8)
 					shake = maxf(shake, 1.5)
 			"beam":
+				start_attack_motion(e["unit"], "dragon", e["to"] - e["from"])
 				beams.append({"from": e["from"], "to": e["to"], "t": 14, "life": 14, "element": e["element"]})
 				light(e["from"] + Vector2(16, -6), 40.0, Color(0.6, 0.9, 1.0, 0.9), 12)
 				shake = maxf(shake, 5.0)
@@ -686,6 +689,7 @@ func step_battle() -> void:
 				burst(e["pos"] + FIELD_OFFSET, Color(0.75, 0.55, 1.0), 12, 2.4, 2.0)
 				light(e["pos"], 26.0, Color(0.7, 0.5, 1.0, 0.6), 10)
 			"heal":
+				start_attack_motion(e["unit"], "healer", Vector2.RIGHT)
 				light(e["pos"], 26.0, Color(0.5, 1.0, 0.6, 0.6), 14)
 				light(e["from"], 16.0, Color(1.0, 0.9, 0.5, 0.5), 10)
 				burst(e["pos"] + FIELD_OFFSET + Vector2(0, -10), Color(0.6, 1.0, 0.65), 8, 1.4, 2.0)
@@ -741,7 +745,20 @@ func step_battle() -> void:
 
 
 # ---------------- 그리기 도우미 ----------------
+## 폭에 맞춰 자르기 (넘치면 … ) — 글자가 다른 칸 밑으로 들어가 겹치지 않게
+func fit(s: String, width: float, size := 12) -> String:
+	if font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x <= width:
+		return s
+	var out := s
+	while out.length() > 1 and font.get_string_size(out + "…", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x > width:
+		out = out.substr(0, out.length() - 1)
+	return out + "…"
+
+
+## 글자: 갈무리 픽셀 글꼴은 12의 배수 크기에서만 또렷하다 → 크기를 12·24·36 으로 맞추고, 자리는 정수 픽셀로
 func text(pos: Vector2, s: String, color: Color = C["text"], size := 12, width := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
+	size = maxi(12, roundi(size / 12.0) * 12)
+	pos = pos.round()
 	if width > 0.0:
 		draw_multiline_string(font, pos, s, align, width, size, -1, color)
 	else:
@@ -791,11 +808,9 @@ func _draw_damage_number(f: Dictionary) -> void:
 	# 글꼴 크기는 정수 단계만 (픽셀 글꼴이 흐려지지 않게): 맞은 순간 크게 → 제 크기
 	var size := 12
 	if amt >= DMG_BIG * 2.0:
-		size = 24
+		size = 36 if f["pop_t"] <= 3 else 24
 	elif amt >= DMG_BIG:
-		size = 18
-	if f["pop_t"] <= 3:
-		size += 6
+		size = 24
 	var s := "%d" % ceili(amt)
 	var w: float = font_bold.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 	var p: Vector2 = (f["pos"] - Vector2(w * 0.5, 0)).round()
@@ -825,9 +840,8 @@ func draw_fx() -> void:
 			continue
 		var c2: Color = f["color"]
 		c2.a = minf(1.0, float(f["t"]) / 12.0)
-		var age: int = f["life"] - f["t"]
-		var pop: float = 1.0 + (0.6 * (1.0 - age / 6.0) if f.get("pop", false) and age < 6 else 0.0)
-		draw_set_transform(f["pos"], 0.0, Vector2(pop, pop))
+		# 글자를 비율로 키우면 픽셀 글꼴이 깨진다 → 크기 대신 자리만 움직인다
+		draw_set_transform(f["pos"].round())
 		var ol := Color(0.05, 0.03, 0.06, c2.a)
 		for o in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1), Vector2(1, 1)]:
 			text(o, f["text"], ol, f["size"])
@@ -853,8 +867,15 @@ func draw_fx() -> void:
 var _tex_cache := {}
 
 
+const PixelArt = preload("res://src/game/pixel_art.gd")
+
+
 func tex(name: String) -> Texture2D:
 	if _tex_cache.has(name):
+		return _tex_cache[name]
+	if name.begins_with("pix:"):
+		var parts := name.split(":")
+		_tex_cache[name] = PixelArt.make(parts[1], parts[2])
 		return _tex_cache[name]
 	var path := "res://assets/sprites/%s.png" % name
 	var t: Texture2D = null
@@ -874,7 +895,8 @@ func draw_sprite(name: String, center: Vector2, scale_k := 1.0, tint: Color = Co
 	if tx == null:
 		return false
 	var sz: Vector2 = tx.get_size() * scale_k
-	draw_texture_rect(tx, Rect2(center - Vector2(sz.x / 2.0, sz.y * 0.6), sz), false, tint)
+	# 발바닥 기준: 32px 그림과 같은 자리에 발이 오게 (큰 그림은 위로 자란다)
+	draw_texture_rect(tx, Rect2(center + Vector2(-sz.x / 2.0, 12.8 * scale_k - sz.y), sz), false, tint)
 	return true
 
 
@@ -904,22 +926,16 @@ func draw_backlight(pos: Vector2, element: String, scale_k: float, base := Vecto
 
 
 ## 요변·전설: 금빛이 은은하게 번지고 반짝이 셋이 맴돈다 / 상품: 반짝이 하나
-func _draw_tier_aura(pos: Vector2, tier: String, scale_k: float) -> void:
+## 요변은 링·반짝이 없이 '빛만 더 난다' (사용자 요청): 그림을 밝게 + 부드러운 빛 (빛은 glow 층)
+func tier_tint(tier: String) -> Color:
 	if tier == "legend":
-		var gl: Color = C["accent"]
-		gl.a = 0.18 + 0.06 * sin(t * 0.1)
-		glow(self, pos + Vector2(0, -2) * scale_k, 16.0 * scale_k, gl)
-		for i in 3:
-			var a := t * 0.05 + i * TAU / 3.0
-			var sp := pos + Vector2(cos(a) * 12.0, sin(a) * 5.0 - 4.0) * scale_k
-			var tw: float = 0.6 + 0.4 * sin(t * 0.3 + i * 2.0)
-			draw_rect(Rect2(sp - Vector2.ONE, Vector2(2, 2)), Color(1.0, 0.92, 0.6, tw))
-			if tw > 0.9:
-				draw_rect(Rect2(sp - Vector2(3, 0), Vector2(6, 1)), Color(1.0, 0.92, 0.6, 0.5))
-				draw_rect(Rect2(sp - Vector2(0, 3), Vector2(1, 6)), Color(1.0, 0.92, 0.6, 0.5))
-	elif tier == "fine":
-		var sp2 := pos + Vector2(cos(t * 0.06) * 11.0, sin(t * 0.06) * 4.0 - 6.0) * scale_k
-		draw_rect(Rect2(sp2, Vector2(2, 2)), Color(1.0, 0.92, 0.6, 0.6 + 0.4 * sin(t * 0.25)))
+		var k := 1.28 + 0.07 * sin(t * 0.08)
+		return Color(k, k, k * 0.96)
+	return Color.WHITE
+
+
+func _draw_tier_aura(_pos: Vector2, _tier: String, _scale_k: float) -> void:
+	pass
 
 
 # ---------------- 병사·괴수·적 그리기 ----------------
@@ -933,15 +949,22 @@ const GRADE_COL := {"common": Color("cfc6b4"), "uncommon": Color("8fd88a"), "rar
 	"hero": Color("c58bff"), "legendary": Color("ffb347"), "mythic": Color("ff5f7a")}
 
 
+## 그림 고르기: Codex 그림 → 도트 격자(pixel_art.gd) → 비슷한 병사 그림 + 소품
 func soldier_sprite(role: String, element: String) -> String:
 	var own := ("kiln/soldier_%s_%s" if view_style == "kiln" else "nest/creature_%s_%s") % [role, element]
-	if tex(own) != null or not ROLE_BASE.has(role):
+	if tex(own) != null:
+		return own
+	if view_style == "kiln" and PixelArt.MAPS.has(role):
+		return "pix:%s:%s" % [role, element]
+	if not ROLE_BASE.has(role):
 		return own
 	return "kiln/soldier_%s_%s" % [ROLE_BASE[role], element]
 
 
+## 제 모양 그림이 있나 (있으면 소품을 덧그리지 않는다)
 func has_own_sprite(role: String, element: String) -> bool:
-	return tex(("kiln/soldier_%s_%s" if view_style == "kiln" else "nest/creature_%s_%s") % [role, element]) != null
+	return tex(("kiln/soldier_%s_%s" if view_style == "kiln" else "nest/creature_%s_%s") % [role, element]) != null \
+		or (view_style == "kiln" and PixelArt.MAPS.has(role))
 
 
 ## 소품: 그림 뒤(behind=true)·앞에 그린다. scale_k 는 그림 배율 (32px 기준)
@@ -1106,7 +1129,7 @@ func draw_ally_shape(pos: Vector2, role: String, element: String, tier: String, 
 		if not own:
 			draw_role_prop(role, pos, scale_k, element, true)
 		var lift := Vector2(0, -6) * scale_k / 2.0 if role == "cavalry" and not own else Vector2.ZERO
-		draw_sprite(sname, pos + lift, scale_k, Color(2.5, 2.5, 2.5) if flash_white else Color.WHITE)
+		draw_sprite(sname, pos + lift, scale_k, Color(2.5, 2.5, 2.5) if flash_white else tier_tint(tier))
 		if not own:
 			draw_role_prop(role, pos, scale_k, element, false)
 		_draw_tier_aura(pos, tier, scale_k)
@@ -1148,26 +1171,108 @@ func draw_ally_shape(pos: Vector2, role: String, element: String, tier: String, 
 	_draw_tier_aura(pos, tier, scale_k)
 
 
+## 병사마다 다른 공격 모션 (k: 0 → 1 진행). 준비(뒤로) → 때리기(빠르게 앞으로) → 돌아오기
+const ATK_DUR := {"spear": 14, "axe": 18, "twin": 16, "general": 18, "cavalry": 16, "shield": 12, "cheoyong": 22,
+	"haetae": 20, "bulgasari": 22, "dragon": 20, "archer": 12, "slinger": 14, "sniper": 18, "cannon": 14, "healer": 18}
+
+
+func start_attack_motion(id: int, role: String, dir: Vector2) -> void:
+	var m := _mv(id)
+	var d: int = ATK_DUR.get(role, 10)
+	m["atk"] = d
+	m["atk_d"] = d
+	m["atk_role"] = role
+	m["dir"] = dir.normalized() if dir.length() > 0.01 else Vector2.RIGHT
+
+
+## 0→1 구간을 앞당김(빠른 출발·느린 정지)
+static func _ease_out(x: float) -> float:
+	return 1.0 - pow(1.0 - clampf(x, 0.0, 1.0), 3.0)
+
+
 func _motion(u) -> Dictionary:
 	var m := _mv(u.id)
 	var off := Vector2.ZERO
-	if m["lunge"] > 0:
-		var k: float = float(m["lunge"]) / 10.0
-		off += m["dir"] * sin(k * PI) * (12.0 if u.team == "ally" else 7.0)   # 나갔다 돌아오기
+	var rot := 0.0
+	var sq: float = m["squash"]
+	var flip := 1.0
+	var dir: Vector2 = m["dir"]
+	var atk: int = m.get("atk", 0)
+	if atk > 0:
+		var k: float = 1.0 - float(atk) / m["atk_d"]
+		var wind: float = clampf(k / 0.35, 0.0, 1.0)           # 준비
+		var hit: float = clampf((k - 0.35) / 0.2, 0.0, 1.0)    # 때리기
+		var back: float = clampf((k - 0.55) / 0.45, 0.0, 1.0)  # 돌아오기
+		var strike: float = _ease_out(hit) * (1.0 - back)
+		match m.get("atk_role", ""):
+			"spear":     # 찌르기: 살짝 당겼다가 길게 쭉
+				off += dir * (-4.0 * wind * (1.0 - hit) + 16.0 * strike)
+				rot = 0.12 * strike
+			"axe":       # 내려찍기: 뒤로 크게 젖혔다가 앞으로 꺾으며 찍는다
+				rot = -0.45 * wind * (1.0 - hit) + 0.5 * strike
+				off += dir * 8.0 * strike
+				sq += 0.18 * maxf(0.0, strike - 0.7) / 0.3
+			"twin":      # 쌍검: 짧게 두 번
+				var two := absf(sin(k * TAU))
+				off += dir * 9.0 * two
+				rot = 0.18 * sin(k * TAU * 2.0)
+			"general":   # 장수: 칼을 치켜들고(위로 쭉) 크게 베며 내딛는다
+				off += Vector2(0, -5.0 * wind * (1.0 - hit)) + dir * 14.0 * strike
+				rot = -0.25 * wind * (1.0 - hit) + 0.3 * strike
+				sq += -0.1 * wind * (1.0 - hit)
+			"cavalry":   # 기마: 길게 돌진, 말 따라 들썩
+				off += dir * 22.0 * strike + Vector2(0, -3.0 * absf(sin(k * PI * 3.0)))
+				rot = 0.1 * strike
+			"shield":    # 방패: 몸으로 밀치기
+				off += dir * 9.0 * strike
+				sq += 0.15 * strike
+			"cheoyong":  # 처용: 한 바퀴 돌며 소매로 휘감는 춤 (돌 때 좌우가 뒤집힌다)
+				flip = cos(k * TAU)
+				if absf(flip) < 0.15:
+					flip = 0.15 * signf(flip + 0.0001)
+				off += Vector2(0, -6.0 * sin(k * PI)) + dir * 6.0 * sin(k * PI)
+			"haetae":    # 해치: 웅크렸다가 덮친다 (포물선)
+				sq += 0.2 * wind * (1.0 - hit)
+				off += dir * 18.0 * strike + Vector2(0, -12.0 * sin(clampf((k - 0.3) / 0.5, 0.0, 1.0) * PI))
+				rot = 0.15 * strike
+			"bulgasari": # 불가사리: 몸을 일으켰다가 땅을 쿵
+				off += Vector2(0, -8.0 * wind * (1.0 - hit))
+				sq += -0.15 * wind * (1.0 - hit) + 0.3 * maxf(0.0, 1.0 - absf(k - 0.55) / 0.15)
+				rot = -0.12 * wind * (1.0 - hit)
+			"dragon":    # 청룡: 머리를 젖혔다가 앞으로 뿜는다
+				rot = -0.22 * wind * (1.0 - hit) + 0.08 * strike
+				off += dir * (-6.0 * wind * (1.0 - hit) + 6.0 * strike)
+			"archer", "slinger", "sniper", "cannon":   # 쏘기: 당기며 웅크렸다가 반동
+				var pull := 3.0 if m.get("atk_role", "") != "sniper" else 6.0
+				off += -dir * (pull * wind * (1.0 - hit) + 4.0 * strike)
+				sq += 0.08 * wind * (1.0 - hit) - 0.06 * strike
+				rot = -0.06 * strike
+			"healer":    # 무당: 깡충 뛰며 방울을 흔든다
+				off += Vector2(0, -7.0 * sin(k * PI))
+				rot = 0.15 * sin(k * TAU * 2.0)
+			_:           # 적·기타: 덤벼들었다 돌아오기
+				off += dir * sin(k * PI) * 8.0
 	off += m["kb"]
-	if m["lunge"] == 0:
-		off.y -= absf(sin(m["walk"])) * 2.5                               # 걸을 때 통통
-	return {"off": off, "sq": m["squash"], "white": m["hit"] > 4}
+	if atk == 0:
+		if u.team == "ally" and u.kind == "dragon":
+			off.y += sin(t * 0.06 + u.id) * 3.0                          # 청룡은 늘 떠서 출렁
+		elif m.get("walking", false):
+			off.y -= absf(sin(m["walk"])) * 2.5                          # 걸을 때 통통
+		else:
+			sq += sin(t * 0.07 + u.id * 1.3) * 0.025                      # 숨쉬기
+	return {"off": off, "sq": sq, "white": m["hit"] > 4, "rot": rot, "flip": flip}
 
 
 ## base 변환 위에 유닛 하나를 (위치·찌그러짐 포함) 그린다
-func _draw_unit_sprite(name: String, base: Vector2, pos: Vector2, scale_k: float, sq: float, tint: Color, rot := 0.0) -> bool:
+func _draw_unit_sprite(name: String, base: Vector2, pos: Vector2, scale_k: float, sq: float, tint: Color, rot := 0.0, flip := 1.0) -> bool:
 	var tx := tex(name)
 	if tx == null:
 		return false
 	var sz: Vector2 = tx.get_size() * scale_k
-	draw_set_transform(base + pos, rot, Vector2(1.0 + sq, 1.0 - sq))
-	draw_texture_rect(tx, Rect2(Vector2(-sz.x / 2.0, -sz.y * 0.6), sz), false, tint)
+	# 발 쪽을 축으로 기울이고 찌그러뜨린다 (발이 땅에서 떨어지지 않게)
+	var foot := Vector2(0, 12.8 * scale_k)
+	draw_set_transform(base + pos + foot, rot, Vector2((1.0 + sq) * flip, 1.0 - sq))
+	draw_texture_rect(tx, Rect2(Vector2(-sz.x / 2.0, -sz.y), sz), false, tint)
 	draw_set_transform(base)
 	return true
 
@@ -1253,7 +1358,7 @@ func draw_enemy_shape(u, base := Vector2.ZERO) -> void:
 	var r: float = u.radius
 	var etint: Color = Color(2.5, 2.5, 2.5) if mo["white"] else look[2]
 	if tx != null:
-		_draw_unit_sprite(look[0], base, p, sc, mo["sq"], etint)
+		_draw_unit_sprite(look[0], base, p, sc, mo["sq"], etint, mo["rot"])
 		if u.kind == "brute" and tex("enemy/brute") == null:
 			draw_line(p + Vector2(-h * 0.3, -h * 0.05), p + Vector2(-h * 0.5, -h * 0.45), Color("5a4030"), 5.0)
 			draw_circle(p + Vector2(-h * 0.5, -h * 0.45), 5.0, Color("6b4c38"))
@@ -1314,11 +1419,25 @@ func _draw_enemy_status(u, p: Vector2, r: float, h := 20.0) -> void:
 				for k in 3:
 					var a := t * 0.15 + k * 2.1
 					draw_rect(Rect2(c + Vector2(cos(a) * 6.0, sin(a) * 2.0) - Vector2.ONE, Vector2(2, 2)), C["accent"])
-	if u.hp < u.max_hp:
-		var bw: float = maxf(r * 2.0 + 8.0, h * 0.6)
+	# 체력 바: 깎인 만큼 흰 꼬리가 남았다가 천천히 줄어든다 (얼마나 맞았는지 보이게)
+	var m := _mv(u.id)
+	var k: float = clampf(u.hp / u.max_hp, 0.0, 1.0)
+	var trail: float = m.get("hp_trail", 1.0)
+	if k < 1.0 or trail > k:
+		var big: bool = u.kind in PD.BOSSES
+		var bw: float = maxf(r * 2.0 + 10.0, h * 0.7)
+		var bh := 4.0
 		var by: float = p.y + h * 0.42
-		draw_rect(Rect2(Vector2(p.x - bw / 2.0, by), Vector2(bw, 3)), Color("3a2430"))
-		draw_rect(Rect2(Vector2(p.x - bw / 2.0, by), Vector2(bw * u.hp / u.max_hp, 3)), C["danger"])
+		var x0: float = p.x - bw / 2.0
+		draw_rect(Rect2(Vector2(x0 - 1, by - 1), Vector2(bw + 2, bh + 2)), Color(0.05, 0.03, 0.05, 0.85))
+		draw_rect(Rect2(Vector2(x0, by), Vector2(bw, bh)), Color("3a2430"))
+		draw_rect(Rect2(Vector2(x0 + bw * k, by), Vector2(bw * maxf(0.0, trail - k), bh)), Color(1.0, 0.92, 0.7))
+		var hc: Color = C["danger"] if k > 0.3 else Color("ff8a3a")
+		draw_rect(Rect2(Vector2(x0, by), Vector2(bw * k, bh)), hc)
+		draw_rect(Rect2(Vector2(x0, by), Vector2(bw * k, 1)), hc.lightened(0.35))
+		if not big:
+			for i in range(1, 4):
+				draw_rect(Rect2(Vector2(x0 + bw * i / 4.0, by), Vector2(1, bh)), Color(0, 0, 0, 0.35))
 
 
 func draw_battle() -> void:
@@ -1385,7 +1504,7 @@ func _draw_ally_in_battle(u, base: Vector2) -> void:
 		if not own:
 			draw_role_prop(u.kind, p, ALLY_SCALE, u.element, true)
 		var lift := Vector2(0, -6) if u.kind == "cavalry" and not own else Vector2.ZERO
-		_draw_unit_sprite(sname, base, p + lift, ALLY_SCALE, mo["sq"], Color(2.5, 2.5, 2.5) if mo["white"] else Color.WHITE)
+		_draw_unit_sprite(sname, base, p + lift, ALLY_SCALE, mo["sq"], Color(2.5, 2.5, 2.5) if mo["white"] else tier_tint(u.tier), mo["rot"], mo["flip"])
 		if not own:
 			draw_role_prop(u.kind, p, ALLY_SCALE, u.element, false)
 		_draw_tier_aura(p + Vector2(0, -6), u.tier, ALLY_SCALE * 0.9)
@@ -1480,10 +1599,24 @@ func draw_battle_hud(title: String) -> void:
 	draw_rect(Rect2(44, 31, 200, 10), Color("3a2430"))
 	draw_rect(Rect2(44, 31, 200 * vk, 10), C["good"] if vk > 0.5 else C["accent"] if vk > 0.25 else C["danger"])
 	text(Vector2(250, 40), "%d%%" % roundi(vk * 100.0))
-	text(Vector2(300, 40), "처치 %d" % battle.stats["kills"], C["text"], 24 if battle.stats["kills"] >= 30 else 12)
+	text(Vector2(300, 40), "처치 %d" % battle.stats["kills"], C["text"])
 	var left: int = battle.spawn_queue.size()
-	text(Vector2(420, 40), "남은 적 %d" % (left + battle._count("enemy")), C["dim"])
+	text(Vector2(372, 40), "남은 적 %d" % (left + battle._count("enemy")), C["dim"])
 	_draw_synergy_cooldowns()
+	# 대장 체력: 화면 아래 큰 바 (이름 + 깎이는 꼬리)
+	for u in battle.units:
+		if u.team == "enemy" and u.kind in PD.BOSSES:
+			var bk: float = clampf(u.hp / u.max_hp, 0.0, 1.0)
+			var btr: float = _mv(u.id).get("hp_trail", 1.0)
+			var r := Rect2(170, 328, 300, 8)
+			draw_rect(r.grow(2), Color(0.05, 0.03, 0.05, 0.9))
+			draw_rect(r, Color("3a2430"))
+			draw_rect(Rect2(r.position + Vector2(r.size.x * bk, 0), Vector2(r.size.x * maxf(0.0, btr - bk), r.size.y)), Color(1.0, 0.92, 0.7))
+			draw_rect(Rect2(r.position, Vector2(r.size.x * bk, r.size.y)), C["danger"])
+			draw_rect(Rect2(r.position, Vector2(r.size.x * bk, 2)), C["danger"].lightened(0.35))
+			text(Vector2(170, 324), u.name, C["danger"].lightened(0.3))
+			text(Vector2(170, 324), "%d / %d" % [ceili(u.hp), roundi(u.max_hp)], C["text"], 12, 300.0, HORIZONTAL_ALIGNMENT_RIGHT)
+			break
 	text(Vector2(0, 345), "아군은 알아서 싸웁니다 · Esc 처음으로", C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
 
 

@@ -90,13 +90,23 @@ func _all() -> void:
 	for f in [["general", "earth", "normal"], ["sniper", "water", "legend"], ["haetae", "fire", "fine"], ["cheoyong", "fire", "normal"],
 			["dragon", "water", "normal"], ["bulgasari", "earth", "normal"], ["twin", "fire", "normal"], ["slinger", "earth", "normal"]]:
 		run._add_soldier(f[0], f[1], f[2])
-	run.myth_shards = 2
+	run.myth_shards = 3
 	run.since["legendary"] = 70
+	run.tickets = 4
 	k.selected = run.army[-2]["id"]
 	await _snap("p05c_kiln_prep_chapter2")
 	k.show_help = true
 	await _snap("p05d_kiln_help")
 	k.show_help = false
+	# 챕터 3: 장비 칸
+	run.chapter = 3
+	for i in 5:
+		run.inventory.append(run._roll_equip(i == 0))
+	run.equip(run.army[-6]["id"], run.inventory[0]["id"])
+	k.selected = run.army[-6]["id"]
+	k.right_tab = "equip"
+	await _snap("p05e_kiln_equip")
+	k.right_tab = "draw"
 	# 전투: 합동 기술 파도가 지나가는 순간
 	k.fought = Vector2i(run.chapter, run.night)
 	k.battle = run.start_night()
@@ -148,6 +158,19 @@ func _all() -> void:
 	k.state = "night_end"
 	await _frames(5)
 	await _snap("p07c_kiln_chapter_clear")
+	# 챕터 3 밤 클리어 (전리품에 장비)
+	run.chapter = 3
+	run.night = 2
+	run.state = "prep"
+	k.fought = Vector2i(3, 2)
+	var b3 = run.start_night()
+	b3.units = b3.units.filter(func(u): return u.team == "ally")
+	b3.spawn_queue = []
+	b3.step()
+	run.end_night(b3)
+	k.battle = b3
+	await _frames(5)
+	await _snap("p07f_kiln_loot")
 
 	# ---- A 알을 품는 성 ----
 	var n = await _open("res://src/game/nest_scene.tscn")

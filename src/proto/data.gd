@@ -70,7 +70,7 @@ const HEAL_SCALE := 0.35         # 등급·별 배율의 35%만 회복에 더한
 # ---------- 병사 뽑기 (가마의 병사) ----------
 ## 흙을 내고 뽑으면 병사 모양·유약이 무작위로 정해져 가마에 들어간다. 품질(보통·상품·요변)은 가마 불이 정한다.
 ## 등급 6단계. 신화는 아주 드물다.
-## 억울하지 않은 운: 확률은 화면에 숫자로 · 등급별 천장 · 전설을 뽑을 때마다 신화 조각 1, 3개면 다음 뽑기 신화 확정
+## 억울하지 않은 운: 확률은 화면에 숫자로 · 등급별 천장 · 전설을 뽑을 때마다 신화 조각 1, 5개면 다음 뽑기 신화 확정
 const GRADES := ["common", "uncommon", "rare", "hero", "legendary", "mythic"]
 const GRADE_NAME := {"common": "일반", "uncommon": "고급", "rare": "희귀", "hero": "영웅", "legendary": "전설", "mythic": "신화"}
 const GRADE_ODDS := {"common": 0.52, "uncommon": 0.27, "rare": 0.13, "hero": 0.06, "legendary": 0.018, "mythic": 0.002}
@@ -81,8 +81,8 @@ const ROLE_GRADE := {"spear": "common", "archer": "common", "shield": "common",
 	"haetae": "legendary", "cheoyong": "legendary",
 	"dragon": "mythic", "bulgasari": "mythic"}
 ## 천장: 이 등급 이상이 이만큼 안 나오면 다음 뽑기는 그 등급 확정 (높은 천장이 먼저)
-const PITY := {"rare": 8, "hero": 30, "legendary": 90}
-const MYTH_SHARDS := 3            # 전설 3번 → 신화 확정
+const PITY := {"rare": 20, "hero": 50, "legendary": 100}   # 사용자: "희귀 20번, 영웅은 50번, 전설은 100번"
+const MYTH_SHARDS := 5            # 전설 5번 → 신화 확정 (사용자: "신화는 전설 5번 뽑으면 천장")
 const CLAY_DRAW := 3              # 한 번 뽑기
 const CLAY_SMASH_BACK := 1        # 가마에 넣은 뽑기 병사를 부수면 돌려받는 흙
 
@@ -209,11 +209,48 @@ const ARMY_CAP_PER_NIGHT := 2     # 밤마다 자리 +2
 const ARMY_CAP_MAX := 18          # 자리는 여기까지 (그다음 성장은 별·등급·요변으로)
 const CLAY_START := 24            # 처음 흙 (뽑기 8번)
 const CLAY_REFIRE := 2            # 있는 병사 다시 굽기
-const CLAY_PER_NIGHT := 6         # 밤을 넘기면 흙
-const CLAY_PER_KILLS := 4         # 처치 4마리마다 흙 1
-const MERGE_COUNT := 3            # 같은 병사 3명 → 별 +1
-const MAX_STAR := 3
-const STAR_MUL := {1: 1.0, 2: 1.8, 3: 3.0}
+const CLAY_PER_NIGHT := 4         # 밤을 넘기면 흙 (다시 굽기·뽑기에 쓴다)
+const TICKETS_PER_NIGHT := 2      # 밤을 넘기면 뽑기권 (1장 = 뽑기 1번, 흙 없이)
+const TICKET_PER_KILLS := 12      # 처치 12마리마다 뽑기권 1장 더
+const TICKETS_BOSS := 3           # 대장을 쓰러뜨리면 뽑기권 더
+## 별 올리기: 같은 병사·같은 별끼리 합친다. ★→★★ 2명, ★★→★★★ 3명, ★★★→★★★★ 4명, ★★★★→★★★★★ 5명
+## 요변은 요변끼리만 (사용자 요청)
+const MAX_STAR := 5
+const STAR_MUL := {1: 1.0, 2: 1.6, 3: 2.5, 4: 3.8, 5: 5.6}
+
+
+static func merge_need(star: int) -> int:
+	return star + 1
+
+
+# ---------- 장비 (챕터 3부터) ----------
+## 병사 한 명에 하나. 밤을 넘기면 전리품으로 얻는다. 언제든 끼우고 뺄 수 있고 사라지지 않는다
+const EQUIP_FROM_CHAPTER := 3
+const EQUIPS := {
+	"blade": {"name": "강철 칼날", "short": "칼날", "desc": "공격력", "atk": 0.25},
+	"armor": {"name": "두석린갑", "short": "갑옷", "desc": "체력", "hp": 0.35},
+	"charm": {"name": "신속 부적", "short": "부적", "desc": "공격 속도", "haste": 0.2},
+	"gourd": {"name": "약 호리병", "short": "호리병", "desc": "초당 체력 회복", "regen": 0.012},
+}
+const EQUIP_LEVEL_MUL := {1: 1.0, 2: 1.8, 3: 2.8}
+const EQUIP_LEVEL_NAME := {1: "", 2: "+", 3: "++"}
+## 챕터별 장비 단계 확률 [1단계, 2단계, 3단계]
+const EQUIP_LEVEL_ODDS := {3: [0.7, 0.25, 0.05], 4: [0.5, 0.35, 0.15], 5: [0.3, 0.45, 0.25]}
+const EQUIP_PER_NIGHT := 1
+const EQUIP_BOSS := 2             # 대장 밤에는 2개 (그중 하나는 2단계 이상 확정)
+
+
+## 장비 → 전투 배율 {atk, hp, haste, regen}
+static func equip_mods(item: Dictionary) -> Dictionary:
+	if item.is_empty():
+		return {}
+	var e: Dictionary = EQUIPS[item["type"]]
+	var k: float = EQUIP_LEVEL_MUL[item["level"]]
+	var m := {}
+	for key in ["atk", "hp", "haste", "regen"]:
+		if e.has(key):
+			m[key] = e[key] * k
+	return m
 const VILLAGE_REPAIR := 30.0      # 밤이 지나면 마을 체력 회복
 
 

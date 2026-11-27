@@ -19,6 +19,8 @@ var state := "prep"              # prep → (가마) → night → prep … → 
 var last_kills := 0
 var last_reward := 0
 var _next_id := 1
+var draws_since_epic := 0        # 귀함 없이 뽑은 횟수 (천장)
+var last_draw := {}              # 방금 뽑은 것 (화면용)
 
 
 func _init(seed_value: int) -> void:
@@ -50,17 +52,43 @@ static func soldier_name(role: String, element: String) -> String:
 	return "%s %s" % [D.GLAZE_NAME[element], D.ROLE_NAME_KILN[role]]
 
 
-# ---------------- 준비: 빚기 · 다시 굽기 · 합치기 ----------------
-func can_craft() -> bool:
-	return state == "prep" and clay >= D.CLAY_CRAFT and queue.size() < D.KILN_SLOTS and army.size() + queued_new() < cap()
+# ---------------- 준비: 뽑기 · 다시 굽기 · 합치기 ----------------
+func can_draw() -> bool:
+	return state == "prep" and clay >= D.CLAY_DRAW and queue.size() < D.KILN_SLOTS and army.size() + queued_new() < cap()
 
 
-func craft(role: String, element: String) -> bool:
-	if not can_craft():
-		return false
-	clay -= D.CLAY_CRAFT
-	queue.append({"kind": "new", "role": role, "element": element})
-	return true
+## 다음 뽑기가 귀함 확정인가 (천장)
+func pity_ready() -> bool:
+	return draws_since_epic >= D.DRAW_PITY
+
+
+## 흙을 내고 무작위 병사 하나를 뽑아 가마에 넣는다. 모양은 확률표대로, 유약은 셋 중 하나.
+## force_role·force_element 는 테스트·스크린샷이 정해진 장면을 만들 때만 쓴다
+func draw(force_role := "", force_element := "") -> Dictionary:
+	if not can_draw():
+		return {}
+	clay -= D.CLAY_DRAW
+	var role := force_role
+	var pity := pity_ready() and force_role == ""
+	if force_role != "":
+		pass
+	elif pity:
+		var epics: Array = D.KILN_ROLES.filter(func(r): return D.ROLE_RARITY[r] == "epic")
+		role = epics[rng.randi() % epics.size()]
+	else:
+		var odds: Dictionary = D.draw_odds()
+		var x := rng.randf()
+		for r in D.KILN_ROLES:
+			x -= odds[r]
+			role = r
+			if x < 0.0:
+				break
+	var element: String = force_element if force_element != "" else D.ELEMENTS[rng.randi() % D.ELEMENTS.size()]
+	var rar: String = D.ROLE_RARITY[role]
+	draws_since_epic = 0 if rar == "epic" else draws_since_epic + 1
+	last_draw = {"kind": "new", "role": role, "element": element, "rarity": rar, "pity": pity, "name": soldier_name(role, element)}
+	queue.append(last_draw)
+	return last_draw
 
 
 func can_refire(id: int) -> bool:
@@ -78,21 +106,21 @@ func refire(id: int) -> bool:
 	return true
 
 
-## 가마에서 빼기 (흙을 돌려준다)
+## 가마에서 빼기: 다시 굽기는 흙을 다 돌려주고, 뽑은 병사는 부숴서 흙 조금만 (다시 뽑기를 공짜로 못 하게)
 func unqueue(index: int) -> void:
 	if index < 0 or index >= queue.size():
 		return
 	var q: Dictionary = queue.pop_at(index)
-	clay += D.CLAY_CRAFT if q["kind"] == "new" else D.CLAY_REFIRE
+	clay += D.CLAY_SMASH_BACK if q["kind"] == "new" else D.CLAY_REFIRE
 
 
-## 합칠 수 있는 묶음: 같은 모양·유약·별 병사 3명 (가마에 넣은 병사는 뺀다)
+## 합칠 수 있는 묶음: 같은 모양·별 병사 3명 (유약은 달라도 된다 — 가장 좋은 등급의 유약을 따른다)
 func merge_groups() -> Array:
 	var by := {}
 	for s in army:
 		if s["star"] >= D.MAX_STAR or is_queued(s["id"]):
 			continue
-		var key := "%s|%s|%d" % [s["role"], s["element"], s["star"]]
+		var key := "%s|%d" % [s["role"], s["star"]]
 		if not by.has(key):
 			by[key] = []
 		by[key].append(s["id"])
@@ -113,13 +141,16 @@ func merge(ids: Array) -> Dictionary:
 		return {}
 	var a: Dictionary = parts[0]
 	for p in parts:
-		if p["role"] != a["role"] or p["element"] != a["element"] or p["star"] != a["star"]:
+		if p["role"] != a["role"] or p["star"] != a["star"]:
 			return {}
-	var best := 0
+	var best := -1
+	var element: String = a["element"]
 	for p in parts:
-		best = maxi(best, D.TIERS.find(p["tier"]))
+		if D.TIERS.find(p["tier"]) > best:
+			best = D.TIERS.find(p["tier"])
+			element = p["element"]
 	army = army.filter(func(s): return not ids.has(s["id"]))
-	var m := _add_soldier(a["role"], a["element"], D.TIERS[best], a["star"] + 1)
+	var m := _add_soldier(a["role"], element, D.TIERS[best], a["star"] + 1)
 	return m
 
 
@@ -165,7 +196,7 @@ func fire() -> Array:
 
 # ---------------- 밤 ----------------
 func start_night():
-	var b = Battle.new(rng.randi(), D.wave_plan(night))
+	var b = Battle.new(rng.randi(), D.wave_plan(night, true))
 	b.village_hp = village_hp
 	for s in army:
 		b.add_ally(s["role"], s["element"], s["tier"], s["name"], D.STAR_MUL[s["star"]])

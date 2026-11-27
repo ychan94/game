@@ -47,13 +47,10 @@ func _all() -> void:
 	if k.get_script() == null:
 		print("kiln 불러오기 실패"); quit(1); return
 	var run = k.run
-	run.craft("shield", "earth")
-	run.craft("spear", "fire")
-	run.craft("spear", "fire")
-	run.craft("archer", "fire")
-	run.craft("archer", "water")
-	k.craft_role = "spear"
-	k.craft_element = "fire"
+	# 7종이 다 보이게 정해서 뽑는다 (실제 게임은 무작위)
+	for f in [["shield", "earth"], ["spear", "fire"], ["axe", "fire"], ["cavalry", "fire"], ["archer", "water"], ["healer", "water"], ["cannon", "earth"], ["spear", "fire"]]:
+		run.draw(f[0], f[1])
+	run.draws_since_epic = 4
 	await _snap("p01_kiln_prep_first")
 	k.state = "fire"
 	for i in 6:
@@ -78,7 +75,7 @@ func _all() -> void:
 	# 둘째 밤 준비: 병사가 남아 있고, 진사 창병 3명이면 합치기 버튼
 	run.night = 2
 	run.clay = 9
-	run.craft("spear", "fire")
+	run.draw("spear", "water")
 	run.kiln.heat = 0
 	run.fire()
 	k.selected = run.army[0]["id"]

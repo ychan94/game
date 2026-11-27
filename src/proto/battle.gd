@@ -30,6 +30,7 @@ class U:
 	var burn_t := 0
 	var stun_t := 0
 	var special_t := 0
+	var heal := 0.0
 	var hit_flash := 0
 	var alive := true
 
@@ -69,6 +70,7 @@ func add_ally(role: String, element: String, tier: String, name: String, stat_mu
 	u.max_hp = s["hp"] * m
 	u.hp = u.max_hp
 	u.atk = s["atk"] * m
+	u.heal = D.HEAL_AMOUNT * (1.0 + (m - 1.0) * D.HEAL_SCALE) if role == "healer" else 0.0
 	u.range = s["range"]
 	u.cd_max = s["cd"]
 	u.speed = s["speed"]
@@ -81,16 +83,18 @@ func add_ally(role: String, element: String, tier: String, name: String, stat_mu
 
 ## 아군 대열: 방패 앞, 창 가운데, 궁수 뒤
 func _arrange() -> void:
-	var col := {"shield": VILLAGE_X + 160.0, "spear": VILLAGE_X + 118.0, "archer": VILLAGE_X + 56.0}
-	var by_role := {"shield": [], "spear": [], "archer": []}
+	var line_of := {"shield": "front", "cavalry": "front", "spear": "mid", "axe": "mid",
+		"archer": "back", "healer": "rear", "cannon": "rear"}
+	var col := {"front": VILLAGE_X + 160.0, "mid": VILLAGE_X + 118.0, "back": VILLAGE_X + 62.0, "rear": VILLAGE_X + 26.0}
+	var by_line := {"front": [], "mid": [], "back": [], "rear": []}
 	for u in units:
 		if u.team == "ally":
-			by_role[u.kind].append(u)
-	for role in by_role:
-		var list: Array = by_role[role]
+			by_line[line_of.get(u.kind, "mid")].append(u)
+	for line in by_line:
+		var list: Array = by_line[line]
 		for i in list.size():
 			var y := FIELD.size.y * (i + 1) / (list.size() + 1)
-			list[i].home = Vector2(col[role], y)
+			list[i].home = Vector2(col[line] + (8.0 if i % 2 == 1 else 0.0), y)
 			list[i].pos = list[i].home
 
 
@@ -172,6 +176,9 @@ func _act(u: U) -> void:
 		if u.special_t <= 0:
 			u.special_t = D.SPECIAL_EVERY
 			_special(u)
+	if u.team == "ally" and u.kind == "healer":
+		_heal(u)
+		return
 	var target = _pick_target(u)
 	if u.team == "enemy":
 		if target != null and u.pos.distance_to(target.pos) <= u.range + target.radius + u.radius:
@@ -228,10 +235,16 @@ func _attack(u: U, t: U) -> void:
 		return
 	u.cd = u.cd_max
 	if u.range > 60.0:
-		events.append({"kind": "shot", "from": u.pos, "to": t.pos, "team": u.team, "element": u.element, "unit": u.id, "target": t.id})
+		events.append({"kind": "shot", "from": u.pos, "to": t.pos, "team": u.team, "element": u.element, "unit": u.id, "target": t.id, "role": u.kind})
 	else:
 		events.append({"kind": "swing", "pos": u.pos, "to": t.pos, "team": u.team, "element": u.element, "unit": u.id, "target": t.id, "role": u.kind})
 	_hurt(t, u.atk, u, true)
+	if u.team == "ally" and (u.kind == "axe" or u.kind == "cannon"):
+		var r := 34.0 if u.kind == "axe" else 44.0
+		var k: float = D.AXE_CLEAVE if u.kind == "axe" else D.CANNON_SPLASH
+		for o in units:
+			if o.alive and o.team != u.team and o != t and o.pos.distance_to(t.pos) < r:
+				_hurt(o, u.atk * k, u, true)
 	if u.team == "ally":
 		match u.element:
 			"fire":
@@ -242,7 +255,27 @@ func _attack(u: U, t: U) -> void:
 			"water":
 				t.slow_t = D.SLOW_FRAMES
 			"earth":
-				t.pos.x = minf(t.pos.x + D.KNOCKBACK, FIELD.size.x)
+				t.pos.x = minf(t.pos.x + D.KNOCKBACK * (0.0 if t.kind == "chief" else 1.0), FIELD.size.x)
+
+
+## 무당: 사거리 안에서 가장 많이 다친 병사를 고친다
+func _heal(u: U) -> void:
+	if u.cd > 0:
+		return
+	var best = null
+	var worst := 0.98
+	for o in units:
+		if o.alive and o.team == "ally" and o.pos.distance_to(u.pos) <= u.range:
+			var k: float = o.hp / o.max_hp
+			if k < worst:
+				worst = k
+				best = o
+	if best == null:
+		return
+	u.cd = u.cd_max
+	var amt: float = minf(u.heal, best.max_hp - best.hp)
+	best.hp += amt
+	events.append({"kind": "heal", "pos": best.pos, "from": u.pos, "amount": amt, "unit": u.id, "target": best.id, "element": u.element})
 
 
 func _hurt(t: U, amount: float, src, show: bool) -> void:
@@ -300,9 +333,12 @@ func _move_waves() -> void:
 	for w in waves:
 		var x0: float = w["x"]
 		w["x"] = x0 + D.SYNERGY_WAVE_SPEED
+		var hit: Array = w.get("hit", [])
 		for u in units:
-			if u.alive and u.team == "enemy" and u.pos.x > x0 and u.pos.x <= w["x"]:
+			if u.alive and u.team == "enemy" and u.pos.x > x0 and u.pos.x <= w["x"] and not hit.has(u.id):
+				hit.append(u.id)   # 한 파도는 한 적을 한 번만 (해일에 밀린 적을 또 맞혀 끝까지 끌고 가지 않게)
 				_element_burst(u, w["element"], w["power"], null)
+		w["hit"] = hit
 	waves = waves.filter(func(w): return w["x"] < FIELD.size.x + 20.0)
 
 
@@ -332,7 +368,7 @@ func _element_burst(t: U, element: String, power: float, src) -> void:
 			t.burn_t = D.BURN_FRAMES
 		"water":
 			_hurt(t, power * 0.6, src, true)
-			t.pos.x = minf(t.pos.x + 80.0, FIELD.size.x)
+			t.pos.x = minf(t.pos.x + (0.0 if t.kind == "chief" else 80.0), FIELD.size.x)   # 대장은 밀리지 않는다 (밀기·느려짐이 걸음과 맞비겨 멈추지 않게)
 			t.slow_t = D.SLOW_FRAMES * 2
 		"earth":
 			_hurt(t, power * 0.6, src, true)

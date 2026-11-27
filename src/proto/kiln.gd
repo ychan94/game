@@ -20,7 +20,7 @@ func reset_slots() -> void:
 	slots = []
 	var roles := ["shield", "spear", "spear", "archer", "archer"]
 	for i in D.KILN_SLOTS:
-		slots.append({"role": roles[i], "element": D.ELEMENTS[i % 3]})
+		slots.append({"role": roles[i % roles.size()], "element": D.ELEMENTS[i % 3]})
 	heat = 0
 	results = []
 

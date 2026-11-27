@@ -181,6 +181,9 @@ func draw_glow(ci: CanvasItem) -> void:
 	for a in arrows:
 		var k: float = 1.0 - float(a["t"]) / a["life"]
 		var p: Vector2 = a["from"].lerp(a["to"], k) + o
+		if a.get("cannon", false):
+			glow(ci, p + Vector2(0, -sin(k * PI) * 40.0), 16.0, Color(1.0, 0.6, 0.2, 0.8))
+			continue
 		var col: Color = C.get(a["element"], C["imp"]) if a["team"] == "ally" else Color(0.45, 0.6, 1.0)
 		col.a = 0.55
 		glow(ci, p, 10.0, col)
@@ -502,6 +505,12 @@ func tick_fx() -> void:
 		m["squash"] *= 0.8
 	for a in arrows:
 		a["t"] -= 1
+		if a["t"] == 0 and a.get("cannon", false):
+			# 화차 불화살이 터진다
+			if not play_fx("fire_burst", a["to"], 2.2, true):
+				burst(a["to"] + FIELD_OFFSET, Color(1.0, 0.6, 0.25), 18, 3.0, 2.5)
+			light(a["to"], 48.0, Color(1.0, 0.55, 0.2, 0.85), 14)
+			shake = maxf(shake, 3.0)
 	arrows = arrows.filter(func(a): return a["t"] > 0)
 	for w in swooshes:
 		w["t"] -= 1
@@ -641,7 +650,16 @@ func step_battle() -> void:
 				var m2 := _mv(e["unit"])
 				m2["lunge"] = 8
 				m2["dir"] = -(e["to"] - e["from"]).normalized() * 0.5  # 활시위 반동: 살짝 뒤로
-				arrows.append({"from": e["from"], "to": e["to"], "t": 7, "life": 7, "element": e["element"], "team": e["team"]})
+				var cannon: bool = e.get("role", "") == "cannon"
+				arrows.append({"from": e["from"], "to": e["to"], "t": 14 if cannon else 7, "life": 14 if cannon else 7, "element": e["element"], "team": e["team"], "cannon": cannon})
+				if cannon:
+					light(e["from"] + Vector2(10, -6), 26.0, Color(1.0, 0.7, 0.3, 0.8), 8)
+					shake = maxf(shake, 1.5)
+			"heal":
+				light(e["pos"], 26.0, Color(0.5, 1.0, 0.6, 0.6), 14)
+				light(e["from"], 16.0, Color(1.0, 0.9, 0.5, 0.5), 10)
+				burst(e["pos"] + FIELD_OFFSET + Vector2(0, -10), Color(0.6, 1.0, 0.65), 8, 1.4, 2.0)
+				floats.append({"pos": e["pos"] + FIELD_OFFSET + Vector2(-8, -34), "text": "+%d" % roundi(e["amount"]), "color": Color(0.55, 1.0, 0.6), "size": 12, "t": 30, "life": 30})
 			"hit":
 				var m3 := _mv(e["unit"])
 				var d: Vector2 = (e["pos"] - e.get("from", e["pos"])).normalized()
@@ -875,11 +893,86 @@ func _draw_tier_aura(pos: Vector2, tier: String, scale_k: float) -> void:
 
 
 # ---------------- 병사·괴수·적 그리기 ----------------
+## 새 병사(도끼병·기마병·무당·화차)는 Codex 그림이 오기 전까지 가까운 병사 그림 + 코드로 그린 소품으로 보인다
+const ROLE_BASE := {"axe": "spear", "cavalry": "spear", "healer": "archer", "cannon": "archer"}
+
+
+func soldier_sprite(role: String, element: String) -> String:
+	var own := ("kiln/soldier_%s_%s" if view_style == "kiln" else "nest/creature_%s_%s") % [role, element]
+	if tex(own) != null or not ROLE_BASE.has(role):
+		return own
+	return "kiln/soldier_%s_%s" % [ROLE_BASE[role], element]
+
+
+func has_own_sprite(role: String, element: String) -> bool:
+	return tex(("kiln/soldier_%s_%s" if view_style == "kiln" else "nest/creature_%s_%s") % [role, element]) != null
+
+
+## 소품: 그림 뒤(behind=true)·앞에 그린다. scale_k 는 그림 배율 (32px 기준)
+func draw_role_prop(role: String, pos: Vector2, scale_k: float, element: String, behind: bool) -> void:
+	var k := scale_k / 2.0
+	var wood := Color("6b4a32")
+	var dark := Color("2a1d16")
+	match role:
+		"cavalry":
+			if behind:
+				# 말: 몸통·목·머리·다리 (진흙빛 말 인형)
+				var hc := Color("7a5a44")
+				var b := pos + Vector2(-2, 12) * k
+				draw_rect(Rect2(b + Vector2(-16, -6) * k, Vector2(30, 13) * k), dark)
+				draw_rect(Rect2(b + Vector2(-15, -5) * k, Vector2(28, 11) * k), hc)
+				draw_rect(Rect2(b + Vector2(-15, -5) * k, Vector2(28, 3) * k), hc.lightened(0.2))
+				draw_rect(Rect2(b + Vector2(10, -16) * k, Vector2(7, 14) * k), hc)
+				draw_rect(Rect2(b + Vector2(12, -19) * k, Vector2(11, 6) * k), hc.lightened(0.1))
+				draw_rect(Rect2(b + Vector2(9, -18) * k, Vector2(3, 10) * k), dark)        # 갈기
+				draw_rect(Rect2(b + Vector2(19, -18) * k, Vector2(1, 1) * k), Color.BLACK)  # 눈
+				for lx in [-13.0, -8.0, 6.0, 11.0]:
+					draw_rect(Rect2(b + Vector2(lx, 5) * k, Vector2(3, 9) * k), hc.darkened(0.25))
+				draw_rect(Rect2(b + Vector2(-19, -4) * k, Vector2(4, 9) * k), dark)        # 꼬리
+				draw_rect(Rect2(b + Vector2(-6, -7) * k, Vector2(10, 3) * k), C[element].darkened(0.1))   # 안장 (유약 색)
+		"axe":
+			if not behind:
+				var h := pos + Vector2(9, -2) * k
+				draw_line(h + Vector2(0, 10) * k, h + Vector2(0, -14) * k, wood, 2.0 * k)
+				draw_colored_polygon(PackedVector2Array([h + Vector2(0, -14) * k, h + Vector2(9, -17) * k, h + Vector2(10, -6) * k, h + Vector2(0, -8) * k]), Color("c9c4b8"))
+				draw_line(h + Vector2(9, -17) * k, h + Vector2(10, -6) * k, Color("f2eee4"), 1.0 * k)
+		"healer":
+			if not behind:
+				# 방울과 오색 천
+				var hb := pos + Vector2(-10, -2) * k
+				draw_line(hb + Vector2(0, 8) * k, hb + Vector2(0, -6) * k, wood, 1.5 * k)
+				for j in 3:
+					draw_circle(hb + Vector2(-2 + j * 2, -8 - j * 2) * k, 1.8 * k, Color("e8c35a"))
+				var cols := [Color("d9533f"), Color("e8c35a"), Color("7fc7b8")]
+				for j in 3:
+					draw_line(hb + Vector2(0, -4) * k, hb + Vector2(-4 - j * 2, 4 + j * 2) * k + Vector2(sin(t * 0.12 + j) * 1.5 * k, 0), cols[j], 1.2 * k)
+		"cannon":
+			if behind:
+				# 화차: 바퀴 달린 나무 수레 + 앞을 향한 신기전 통들
+				var c0 := pos + Vector2(10, 8) * k
+				draw_rect(Rect2(c0 + Vector2(-8, -4) * k, Vector2(20, 8) * k), dark)
+				draw_rect(Rect2(c0 + Vector2(-7, -3) * k, Vector2(18, 6) * k), wood)
+				for j in 3:
+					for i2 in 3:
+						draw_rect(Rect2(c0 + Vector2(-5 + i2 * 5, -14 + j * 4) * k, Vector2(4, 3) * k), Color("3a2a1e"))
+						draw_rect(Rect2(c0 + Vector2(-4 + i2 * 5, -13 + j * 4) * k, Vector2(2, 1) * k), C[element].lightened(0.2))
+				for wx in [-4.0, 8.0]:
+					draw_circle(c0 + Vector2(wx, 6) * k, 4.0 * k, dark)
+					draw_circle(c0 + Vector2(wx, 6) * k, 2.6 * k, wood)
+					draw_circle(c0 + Vector2(wx, 6) * k, 0.9 * k, dark)
+
+
 func draw_ally_shape(pos: Vector2, role: String, element: String, tier: String, scale_k := 1.0, flash_white := false) -> void:
-	var sname := ("kiln/soldier_%s_%s" if view_style == "kiln" else "nest/creature_%s_%s") % [role, element]
+	var sname := soldier_sprite(role, element)
 	if tex(sname) != null:
+		var own := has_own_sprite(role, element)
 		draw_backlight(pos, element, scale_k)
-		draw_sprite(sname, pos, scale_k, Color(2.5, 2.5, 2.5) if flash_white else Color.WHITE)
+		if not own:
+			draw_role_prop(role, pos, scale_k, element, true)
+		var lift := Vector2(0, -6) * scale_k / 2.0 if role == "cavalry" and not own else Vector2.ZERO
+		draw_sprite(sname, pos + lift, scale_k, Color(2.5, 2.5, 2.5) if flash_white else Color.WHITE)
+		if not own:
+			draw_role_prop(role, pos, scale_k, element, false)
 		_draw_tier_aura(pos, tier, scale_k)
 		return
 	var col: Color = Color.WHITE if flash_white else C[element]
@@ -1093,9 +1186,15 @@ func _draw_house(i: int) -> void:
 func _draw_ally_in_battle(u, base: Vector2) -> void:
 	var mo := _motion(u)
 	var p: Vector2 = u.pos + mo["off"]
-	var sname := ("kiln/soldier_%s_%s" if view_style == "kiln" else "nest/creature_%s_%s") % [u.kind, u.element]
+	var sname := soldier_sprite(u.kind, u.element)
 	if tex(sname) != null:
-		_draw_unit_sprite(sname, base, p, ALLY_SCALE, mo["sq"], Color(2.5, 2.5, 2.5) if mo["white"] else Color.WHITE)
+		var own := has_own_sprite(u.kind, u.element)
+		if not own:
+			draw_role_prop(u.kind, p, ALLY_SCALE, u.element, true)
+		var lift := Vector2(0, -6) if u.kind == "cavalry" and not own else Vector2.ZERO
+		_draw_unit_sprite(sname, base, p + lift, ALLY_SCALE, mo["sq"], Color(2.5, 2.5, 2.5) if mo["white"] else Color.WHITE)
+		if not own:
+			draw_role_prop(u.kind, p, ALLY_SCALE, u.element, false)
 		_draw_tier_aura(p + Vector2(0, -6), u.tier, ALLY_SCALE * 0.9)
 	else:
 		draw_ally_shape(p, u.kind, u.element, u.tier, 1.6, mo["white"])
@@ -1161,6 +1260,14 @@ func _draw_arrows() -> void:
 		var k: float = 1.0 - float(a["t"]) / a["life"]
 		var dir: Vector2 = (a["to"] - a["from"]).normalized()
 		var p: Vector2 = a["from"].lerp(a["to"], k)
+		if a.get("cannon", false):
+			# 신기전: 포물선으로 날아가는 불화살 + 불꼬리
+			var arc := -sin(k * PI) * 40.0
+			var pp := p + Vector2(0, arc)
+			var prev: Vector2 = a["from"].lerp(a["to"], maxf(0.0, k - 0.08)) + Vector2(0, -sin(maxf(0.0, k - 0.08) * PI) * 40.0)
+			draw_line(prev, pp, Color(1.0, 0.55, 0.2, 0.7), 3.0)
+			draw_circle(pp, 3.5, Color(1.0, 0.85, 0.5))
+			continue
 		if a["team"] == "ally":
 			var tip: Color = C.get(a["element"], C["text"]).lightened(0.4)
 			draw_line(p - dir * 12.0, p, Color(0.85, 0.75, 0.6), 2.0)

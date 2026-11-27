@@ -29,12 +29,86 @@ var battle = null
 var view_style := "kiln"
 var shot_lines: Array = []
 
+const ALLY_SCALE := 2.0          # 전투에서 아군 그림 크기 (32px → 64px)
+var glow_layer: Node2D           # 빛 층 (가산 혼합)
+var glow_tex: Texture2D          # 가운데가 밝고 가장자리로 사라지는 부드러운 원
+var uv := {}                     # 유닛별 움직임 상태 {id: {lunge, dir, kb, hit, squash, walk, prev}}
+var arrows: Array = []           # 날아가는 화살·도깨비불 [{from, to, t, life, element, team}]
+var swooshes: Array = []         # 공격 궤적 [{pos, dir, t, life, role, element, team}]
+var corpses: Array = []          # 쓰러지는 유닛 [{pos, vel, t, life, ...}]
+var lights: Array = []           # 순간 섬광 [{pos, radius, color, t, life}]
+var hitstop := 0                 # 큰 한 방에 전투를 잠깐 멈춘다 (손맛)
+var impacts: Array = []          # 맞는 순간의 십자 섬광 [{pos, t, life, size, color}]
+
 
 func _ready() -> void:
 	font = load("res://assets/fonts/Galmuri11.ttf")
 	font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
 	font.hinting = TextServer.HINTING_NONE
 	font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+	var g := GradientTexture2D.new()
+	g.width = 64
+	g.height = 64
+	g.fill = GradientTexture2D.FILL_RADIAL
+	g.fill_from = Vector2(0.5, 0.5)
+	g.fill_to = Vector2(1.0, 0.5)
+	var grad := Gradient.new()
+	grad.set_color(0, Color(1, 1, 1, 1))
+	grad.set_color(1, Color(1, 1, 1, 0))
+	grad.add_point(0.35, Color(1, 1, 1, 0.55))
+	g.gradient = grad
+	glow_tex = g
+	glow_layer = load("res://src/game/glow_layer.gd").new()
+	glow_layer.host = self
+	add_child(glow_layer)
+
+
+## 부드러운 빛 한 점 (어느 층에든 그릴 수 있다)
+func glow(ci: CanvasItem, pos: Vector2, radius: float, color: Color, squash := 1.0) -> void:
+	ci.draw_texture_rect(glow_tex, Rect2(pos - Vector2(radius, radius * squash), Vector2(radius * 2.0, radius * 2.0 * squash)), false, color)
+
+
+## 빛 층에 그릴 것: 장면마다 덮어써서 더한다 (super 호출)
+func draw_glow(ci: CanvasItem) -> void:
+	if battle == null:
+		return
+	var o := FIELD_OFFSET + _shake_now
+	for l in lights:
+		var c: Color = l["color"]
+		c.a *= float(l["t"]) / l["life"]
+		glow(ci, l["pos"] + o, l["radius"] * (1.2 - 0.4 * float(l["t"]) / l["life"]), c)
+	for im in impacts:
+		var kk: float = float(im["t"]) / im["life"]
+		var ip: Vector2 = im["pos"] + o
+		var ic: Color = im["color"]
+		ic.a = kk
+		var sz: float = im["size"] * (0.6 + 0.4 * kk)
+		var r: float = im["rot"]
+		ci.draw_line(ip - Vector2.from_angle(r) * sz, ip + Vector2.from_angle(r) * sz, ic, 2.0)
+		ci.draw_line(ip - Vector2.from_angle(r + PI / 2.0) * sz * 0.7, ip + Vector2.from_angle(r + PI / 2.0) * sz * 0.7, ic, 2.0)
+		glow(ci, ip, sz * 1.3, Color(ic.r, ic.g, ic.b, 0.6 * kk))
+	for w in swooshes:
+		if w["team"] == "ally" and w["role"] == "spear":
+			var wk: float = float(w["t"]) / w["life"]
+			var wc: Color = C.get(w["element"], C["text"]).lightened(0.4)
+			wc.a = 0.7 * wk
+			var a0: Vector2 = w["pos"] + w["dir"] * 6.0 + o
+			var b0: Vector2 = w["to"] + w["dir"] * 10.0 + o
+			ci.draw_line(a0, b0, wc, 4.0)
+			glow(ci, b0, 12.0, wc)
+	for a in arrows:
+		var k: float = 1.0 - float(a["t"]) / a["life"]
+		var p: Vector2 = a["from"].lerp(a["to"], k) + o
+		var col: Color = C.get(a["element"], C["imp"]) if a["team"] == "ally" else Color(0.45, 0.6, 1.0)
+		col.a = 0.55
+		glow(ci, p, 10.0, col)
+	for u in battle.units:
+		if u.team == "ally" and u.tier == "legend":
+			var lc: Color = C["accent"]
+			lc.a = 0.22 + 0.08 * sin(t * 0.12)
+			glow(ci, u.pos + o + Vector2(0, -8), 34.0, lc)
+		if u.burn_t > 0:
+			glow(ci, u.pos + o, 12.0, Color(1.0, 0.45, 0.15, 0.35))
 
 
 # ---------------- 입력 ----------------
@@ -87,9 +161,36 @@ func do_flash(color: Color, life := 16) -> void:
 	flash = {"color": color, "t": life, "life": life}
 
 
+var _shake_now := Vector2.ZERO
+
+
 func tick_fx() -> void:
 	t += 1
 	shake = maxf(0.0, shake * 0.85 - 0.05)
+	_shake_now = shake_offset()
+	for id in uv:
+		var m: Dictionary = uv[id]
+		m["lunge"] = maxi(0, m["lunge"] - 1)
+		m["hit"] = maxi(0, m["hit"] - 1)
+		m["kb"] *= 0.75
+		m["squash"] *= 0.8
+	for a in arrows:
+		a["t"] -= 1
+	arrows = arrows.filter(func(a): return a["t"] > 0)
+	for w in swooshes:
+		w["t"] -= 1
+	swooshes = swooshes.filter(func(w): return w["t"] > 0)
+	for c in corpses:
+		c["pos"] += c["vel"]
+		c["vel"].y += 0.25
+		c["t"] -= 1
+	corpses = corpses.filter(func(c): return c["t"] > 0)
+	for l in lights:
+		l["t"] -= 1
+	lights = lights.filter(func(l): return l["t"] > 0)
+	for im in impacts:
+		im["t"] -= 1
+	impacts = impacts.filter(func(im): return im["t"] > 0)
 	for p in fx:
 		p["pos"] += p["vel"]
 		p["vel"] *= 0.93
@@ -97,7 +198,7 @@ func tick_fx() -> void:
 		p["t"] -= 1
 	fx = fx.filter(func(p): return p["t"] > 0)
 	for f in floats:
-		f["pos"].y -= 0.6
+		f["pos"].y -= 0.9 if f["t"] > f["life"] - 8 else 0.3
 		f["t"] -= 1
 	floats = floats.filter(func(f): return f["t"] > 0)
 	for s in shot_lines:
@@ -114,34 +215,109 @@ func tick_fx() -> void:
 
 
 ## 전투 한 프레임 + 이벤트를 연출로 바꾸기
+func _mv(id: int) -> Dictionary:
+	if not uv.has(id):
+		uv[id] = {"lunge": 0, "dir": Vector2.RIGHT, "kb": Vector2.ZERO, "hit": 0, "squash": 0.0, "walk": 0.0, "prev": Vector2.INF}
+	return uv[id]
+
+
+func light(pos: Vector2, radius: float, color: Color, life := 10) -> void:
+	lights.append({"pos": pos, "radius": radius, "color": color, "t": life, "life": life})
+
+
+func _element_hit_fx(pos: Vector2, element: String, dir: Vector2, big: bool) -> void:
+	var sp := pos + FIELD_OFFSET
+	match element:
+		"fire":
+			burst(sp, Color(1.0, 0.75, 0.3), 10 if big else 6, 3.2, 2.0)
+			burst(sp, Color(0.95, 0.3, 0.1), 6, 2.0, 3.0)
+			light(pos, 26.0 if big else 18.0, Color(1.0, 0.5, 0.15, 0.8), 12)
+		"water":
+			for i in (10 if big else 6):
+				var a := dir.angle() + randf_range(-1.2, 1.2) + PI
+				fx.append({"pos": sp, "vel": Vector2.from_angle(a) * randf_range(1.5, 3.5) + Vector2(0, -1.5), "t": 24, "life": 24, "color": Color(0.6, 0.9, 0.95), "size": 2.0})
+			light(pos, 18.0, Color(0.4, 0.8, 0.9, 0.6), 10)
+		"earth":
+			burst(sp, Color(0.55, 0.42, 0.32), 8 if big else 5, 2.4, 3.0)
+			for i in 3:
+				fx.append({"pos": sp, "vel": Vector2(randf_range(-1.5, 1.5), randf_range(-3.5, -2.0)), "t": 28, "life": 28, "color": Color(0.35, 0.28, 0.22), "size": 3.0})
+			light(pos, 14.0, Color(0.8, 0.65, 0.45, 0.4), 8)
+		_:
+			burst(sp, Color(1, 1, 1), 5, 2.4, 2.0)
+			light(pos, 14.0, Color(1, 1, 1, 0.5), 6)
+
+
 func step_battle() -> void:
 	if battle == null or battle.done:
 		return
+	if hitstop > 0:
+		hitstop -= 1
+		return
 	battle.step()
+	# 걷기: 움직인 만큼 걸음 단계를 올린다
+	for u in battle.units:
+		var m := _mv(u.id)
+		if m["prev"] != Vector2.INF:
+			m["walk"] += m["prev"].distance_to(u.pos) * 0.35
+		m["prev"] = u.pos
 	for e in battle.events:
 		var col: Color = C.get(e.get("element", ""), C["text"])
 		match e["kind"]:
-			"hit":
-				if e["team"] == "enemy":
-					var amt: float = e["amount"]
-					float_text(e["pos"] + FIELD_OFFSET + Vector2(randf_range(-6, 6), -10), "%d" % ceili(amt),
-						col.lightened(0.3) if e["element"] != "" else C["text"], 24 if amt >= 20.0 else 12)
-			"death":
-				burst(e["pos"] + FIELD_OFFSET, C["accent"] if e["team"] == "enemy" else C["dim"], 14 if e["big"] else 8, 3.0)
-				if e["big"]:
-					shake = maxf(shake, 5.0)
+			"swing":
+				var m := _mv(e["unit"])
+				m["lunge"] = 10
+				m["dir"] = (e["to"] - e["pos"]).normalized()
+				swooshes.append({"pos": e["pos"], "to": e["to"], "dir": m["dir"], "t": 9, "life": 9, "role": e.get("role", ""), "element": e["element"], "team": e["team"]})
 			"shot":
-				shot_lines.append({"from": e["from"], "to": e["to"], "t": 6, "color": col if e["team"] == "ally" else C["imp"]})
+				var m2 := _mv(e["unit"])
+				m2["lunge"] = 8
+				m2["dir"] = -(e["to"] - e["from"]).normalized() * 0.5  # 활시위 반동: 살짝 뒤로
+				arrows.append({"from": e["from"], "to": e["to"], "t": 7, "life": 7, "element": e["element"], "team": e["team"]})
+			"hit":
+				var m3 := _mv(e["unit"])
+				var d: Vector2 = (e["pos"] - e.get("from", e["pos"])).normalized()
+				m3["hit"] = 8
+				m3["kb"] = d * (5.0 if e["team"] == "enemy" else 3.0)
+				m3["squash"] = 0.25
+				var amt: float = e["amount"]
+				if e["team"] == "enemy":
+					_element_hit_fx(e["pos"], e["element"], d, amt >= 20.0)
+					var ic: Color = C.get(e["element"], C["text"]).lightened(0.6) if e["element"] != "" else Color.WHITE
+					impacts.append({"pos": e["pos"] - d * 4.0, "t": 6, "life": 6, "size": 16.0 if amt >= 20.0 else 10.0, "color": ic, "rot": randf() * 0.8})
+					var big := amt >= 20.0
+					floats.append({"pos": e["pos"] + FIELD_OFFSET + Vector2(randf_range(-6, 6), -18), "text": "%d" % ceili(amt),
+						"color": col.lightened(0.45) if e["element"] != "" else C["text"], "size": 24 if big else 12, "t": 36, "life": 36, "pop": true})
+					if big:
+						hitstop = maxi(hitstop, 2)
+						shake = maxf(shake, 2.0)
+				else:
+					light(e["pos"], 14.0, Color(1.0, 0.3, 0.25, 0.5), 8)
+			"death":
+				var who: String = e.get("who", "")
+				corpses.append({"pos": e["pos"], "vel": Vector2(randf_range(1.0, 2.0) * (1.0 if e["team"] == "enemy" else -1.0), -3.5),
+					"t": 22, "life": 22, "team": e["team"], "who": who, "element": e.get("element", ""), "id": e["unit"]})
+				burst(e["pos"] + FIELD_OFFSET, C["accent"] if e["team"] == "enemy" else C["dim"], 16 if e["big"] else 9, 3.2)
+				light(e["pos"], 30.0 if e["big"] else 18.0, Color(1.0, 0.85, 0.5, 0.6), 12)
+				if e["big"]:
+					shake = maxf(shake, 6.0)
+					hitstop = maxi(hitstop, 4)
 			"special":
-				shake = maxf(shake, 6.0)
-				burst(e["pos"] + FIELD_OFFSET, col, 24, 4.0, 3.0)
-				float_text(e["pos"] + FIELD_OFFSET + Vector2(-20, -24), "%s!" % ("요변" if view_style == "kiln" else "전설"), C["accent"], 24)
+				shake = maxf(shake, 7.0)
+				hitstop = maxi(hitstop, 5)
+				burst(e["pos"] + FIELD_OFFSET, col.lightened(0.3), 30, 4.5, 3.0)
+				light(e["pos"], 80.0, Color(col.r, col.g, col.b, 0.9), 22)
+				light(e["pos"], 40.0, Color(1, 0.95, 0.7, 0.8), 14)
+				floats.append({"pos": e["pos"] + FIELD_OFFSET + Vector2(-20, -40), "text": "%s!" % ("요변" if view_style == "kiln" else "전설"),
+					"color": C["accent"], "size": 24, "t": 44, "life": 44, "pop": true})
 			"synergy":
 				shake = maxf(shake, 10.0)
-				do_flash(col, 20)
+				hitstop = maxi(hitstop, 8)
+				do_flash(col, 22)
 				show_banner(e["name"] + "!", "%s %d — 합동 기술" % [(PD.GLAZE_NAME if view_style == "kiln" else PD.ELEMENT_NAME)[e["element"]], e["count"]], col, 70)
-				for i in 30:
-					burst(Vector2(randf_range(200, 640), randf_range(80, 320)), col, 2, 3.0, 3.0)
+				for u in battle.units:
+					if u.team == "enemy":
+						light(u.pos, 26.0, Color(col.r, col.g, col.b, 0.8), 18)
+						_element_hit_fx(u.pos, e["element"], Vector2.LEFT, true)
 			"village_hit":
 				shake = maxf(shake, 3.0)
 				do_flash(C["danger"], 8)
@@ -183,8 +359,15 @@ func draw_fx() -> void:
 		draw_rect(Rect2(p["pos"] - Vector2.ONE * p["size"] / 2.0, Vector2.ONE * p["size"]), c)
 	for f in floats:
 		var c2: Color = f["color"]
-		c2.a = minf(1.0, float(f["t"]) / 15.0)
-		text(f["pos"], f["text"], c2, f["size"])
+		c2.a = minf(1.0, float(f["t"]) / 12.0)
+		var age: int = f["life"] - f["t"]
+		var pop: float = 1.0 + (0.6 * (1.0 - age / 6.0) if f.get("pop", false) and age < 6 else 0.0)
+		draw_set_transform(f["pos"], 0.0, Vector2(pop, pop))
+		var ol := Color(0.05, 0.03, 0.06, c2.a)
+		for o in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1), Vector2(1, 1)]:
+			text(o, f["text"], ol, f["size"])
+		text(Vector2.ZERO, f["text"], c2, f["size"])
+		draw_set_transform(Vector2.ZERO)
 	if not flash.is_empty():
 		var fc: Color = flash["color"]
 		fc.a = 0.35 * float(flash["t"]) / flash["life"]
@@ -243,28 +426,42 @@ func draw_sprite_rim(name: String, center: Vector2, scale_k: float, rim: Color, 
 	return true
 
 
+## 그림 뒤에서 은은하게 번지는 속성 빛 + 발밑 그림자 (어두운 흑유도 바탕에서 떠 보이게, 테두리 없이)
+func draw_backlight(pos: Vector2, element: String, scale_k: float, base := Vector2.ZERO) -> void:
+	var sh := Color(0, 0, 0, 0.35)
+	draw_set_transform(base + pos + Vector2(0, 11) * scale_k, 0.0, Vector2(1.0, 0.28))
+	draw_circle(Vector2.ZERO, 9.0 * scale_k, sh)
+	draw_set_transform(base)
+	var bl: Color = C[element].lightened(0.55)
+	bl.a = 0.30
+	glow(self, pos + Vector2(0, -3) * scale_k, 15.0 * scale_k, bl)
+
+
+## 요변·전설: 금빛이 은은하게 번지고 반짝이 셋이 맴돈다 / 상품: 반짝이 하나
 func _draw_tier_aura(pos: Vector2, tier: String, scale_k: float) -> void:
 	if tier == "legend":
-		draw_arc(pos + Vector2(0, -2) * scale_k, 15.0 * scale_k, 0, TAU, 28, rainbow(t * 0.01), 2.0)
-		draw_arc(pos + Vector2(0, -2) * scale_k, 17.0 * scale_k, 0, TAU, 28, rainbow(t * 0.01 + 0.5), 1.0)
+		var gl: Color = C["accent"]
+		gl.a = 0.18 + 0.06 * sin(t * 0.1)
+		glow(self, pos + Vector2(0, -2) * scale_k, 16.0 * scale_k, gl)
+		for i in 3:
+			var a := t * 0.05 + i * TAU / 3.0
+			var sp := pos + Vector2(cos(a) * 12.0, sin(a) * 5.0 - 4.0) * scale_k
+			var tw: float = 0.6 + 0.4 * sin(t * 0.3 + i * 2.0)
+			draw_rect(Rect2(sp - Vector2.ONE, Vector2(2, 2)), Color(1.0, 0.92, 0.6, tw))
+			if tw > 0.9:
+				draw_rect(Rect2(sp - Vector2(3, 0), Vector2(6, 1)), Color(1.0, 0.92, 0.6, 0.5))
+				draw_rect(Rect2(sp - Vector2(0, 3), Vector2(1, 6)), Color(1.0, 0.92, 0.6, 0.5))
 	elif tier == "fine":
-		var sp := pos + Vector2.from_angle(t * 0.08) * 13.0 * scale_k
-		draw_rect(Rect2(sp, Vector2(2, 2)), C["accent"])
+		var sp2 := pos + Vector2(cos(t * 0.06) * 11.0, sin(t * 0.06) * 4.0 - 6.0) * scale_k
+		draw_rect(Rect2(sp2, Vector2(2, 2)), Color(1.0, 0.92, 0.6, 0.6 + 0.4 * sin(t * 0.25)))
 
 
 # ---------------- 병사·괴수·적 그리기 ----------------
 func draw_ally_shape(pos: Vector2, role: String, element: String, tier: String, scale_k := 1.0, flash_white := false) -> void:
 	var sname := ("kiln/soldier_%s_%s" if view_style == "kiln" else "nest/creature_%s_%s") % [role, element]
 	if tex(sname) != null:
-		# 발밑에 옅은 속성 빛 + 속성 색 테두리: 어두운 흑유도 밤 풀밭에서 보이고, 유약 구분도 쉬워진다
-		var rim: Color = C[element].lightened(0.5)
-		var under := rim
-		under.a = 0.14
-		draw_set_transform(pos + Vector2(0, 11) * scale_k, 0.0, Vector2(1.0, 0.3))  # 납작한 타원
-		draw_circle(Vector2.ZERO, 10.0 * scale_k, under)
-		draw_set_transform(Vector2.ZERO)
-		rim.a = 0.85
-		draw_sprite_rim(sname, pos, scale_k, rim, Color(2.5, 2.5, 2.5) if flash_white else Color.WHITE)
+		draw_backlight(pos, element, scale_k)
+		draw_sprite(sname, pos, scale_k, Color(2.5, 2.5, 2.5) if flash_white else Color.WHITE)
 		_draw_tier_aura(pos, tier, scale_k)
 		return
 	var col: Color = Color.WHITE if flash_white else C[element]
@@ -304,18 +501,46 @@ func draw_ally_shape(pos: Vector2, role: String, element: String, tier: String, 
 	_draw_tier_aura(pos, tier, scale_k)
 
 
-func draw_enemy_shape(u) -> void:
-	var p: Vector2 = u.pos
+func _motion(u) -> Dictionary:
+	var m := _mv(u.id)
+	var off := Vector2.ZERO
+	if m["lunge"] > 0:
+		var k: float = float(m["lunge"]) / 10.0
+		off += m["dir"] * sin(k * PI) * (12.0 if u.team == "ally" else 7.0)   # 나갔다 돌아오기
+	off += m["kb"]
+	if m["lunge"] == 0:
+		off.y -= absf(sin(m["walk"])) * 2.5                               # 걸을 때 통통
+	return {"off": off, "sq": m["squash"], "white": m["hit"] > 4}
+
+
+## base 변환 위에 유닛 하나를 (위치·찌그러짐 포함) 그린다
+func _draw_unit_sprite(name: String, base: Vector2, pos: Vector2, scale_k: float, sq: float, tint: Color, rot := 0.0) -> bool:
+	var tx := tex(name)
+	if tx == null:
+		return false
+	var sz: Vector2 = tx.get_size() * scale_k
+	draw_set_transform(base + pos, rot, Vector2(1.0 + sq, 1.0 - sq))
+	draw_texture_rect(tx, Rect2(Vector2(-sz.x / 2.0, -sz.y * 0.6), sz), false, tint)
+	draw_set_transform(base)
+	return true
+
+
+func draw_enemy_shape(u, base := Vector2.ZERO) -> void:
+	var mo := _motion(u)
+	var p: Vector2 = u.pos + mo["off"]
 	var col: Color = C.get(u.kind, C["goblin"])
-	if u.hit_flash > 0:
+	if mo["white"]:
 		col = Color.WHITE
 	var r: float = u.radius
+	draw_set_transform(base + u.pos + Vector2(0, r * 0.9), 0.0, Vector2(1.0, 0.3))
+	draw_circle(Vector2.ZERO, r * 1.1, Color(0, 0, 0, 0.35))
+	draw_set_transform(base)
 	var ename: String = "enemy/" + u.kind
 	if u.kind == "hostile":
 		ename = "nest/creature_spear_" + (u.element if u.element != "" else "fire")
-	var etint: Color = Color(2.5, 2.5, 2.5) if u.hit_flash > 0 else (Color(0.55, 0.35, 0.7) if u.kind == "hostile" else Color.WHITE)
-	if not draw_sprite_rim(ename, p, 1.0, Color(0.78, 0.82, 1.0, 0.45), etint):
-		_draw_enemy_fallback(u, p, col, r)
+	var etint: Color = Color(2.5, 2.5, 2.5) if mo["white"] else (Color(0.55, 0.35, 0.7) if u.kind == "hostile" else Color.WHITE)
+	if not _draw_unit_sprite(ename, base, p, 1.0, mo["sq"], etint):
+		_draw_enemy_fallback(u, p, col, r * (1.0 + mo["sq"]))
 	_draw_enemy_status(u, p, r)
 
 
@@ -353,7 +578,8 @@ func _draw_enemy_status(u, p: Vector2, r: float) -> void:
 
 
 func draw_battle() -> void:
-	draw_set_transform(FIELD_OFFSET + shake_offset())
+	var base := FIELD_OFFSET + _shake_now
+	draw_set_transform(base)
 	var ga := tex("field/grass_a")
 	var gb := tex("field/grass_b")
 	for x in 20:
@@ -373,20 +599,85 @@ func draw_battle() -> void:
 		draw_rect(Rect2(hpos, Vector2(24, 18)), C["village"] if hp_ok else C["village"].darkened(0.6))
 		draw_colored_polygon(PackedVector2Array([hpos + Vector2(-3, 0), hpos + Vector2(27, 0), hpos + Vector2(12, -12)]), C["roof"] if hp_ok else C["roof"].darkened(0.6))
 	draw_line(Vector2(40, 0), Vector2(40, 260), Color(1, 1, 1, 0.08), 1.0)
-	if battle != null:
-		for s in shot_lines:
-			var sc: Color = s["color"]
-			sc.a = float(s["t"]) / 6.0
-			draw_line(s["from"], s["to"], sc, 1.5)
-		for u in battle.units:
-			if u.team == "ally":
-				draw_ally_shape(u.pos, u.kind, u.element, u.tier, 1.0, u.hit_flash > 0)
-				if u.hp < u.max_hp:
-					draw_rect(Rect2(u.pos + Vector2(-9, 12), Vector2(18, 2)), Color("3a2430"))
-					draw_rect(Rect2(u.pos + Vector2(-9, 12), Vector2(18 * u.hp / u.max_hp, 2)), C["good"])
-			else:
-				draw_enemy_shape(u)
+	if battle == null:
+		draw_set_transform(Vector2.ZERO)
+		return
+	# 위에서 아래 순서로 그려 앞뒤가 자연스럽게
+	var order: Array = battle.units.duplicate()
+	order.sort_custom(func(a, b): return a.pos.y < b.pos.y)
+	for u in order:
+		if u.team == "ally":
+			_draw_ally_in_battle(u, base)
+		else:
+			draw_enemy_shape(u, base)
+	_draw_corpses(base)
+	_draw_swooshes()
+	_draw_arrows()
 	draw_set_transform(Vector2.ZERO)
+
+
+func _draw_ally_in_battle(u, base: Vector2) -> void:
+	var mo := _motion(u)
+	var p: Vector2 = u.pos + mo["off"]
+	var sname := ("kiln/soldier_%s_%s" if view_style == "kiln" else "nest/creature_%s_%s") % [u.kind, u.element]
+	if tex(sname) != null:
+		draw_backlight(u.pos, u.element, ALLY_SCALE * 0.8, base)
+		_draw_unit_sprite(sname, base, p, ALLY_SCALE, mo["sq"], Color(2.5, 2.5, 2.5) if mo["white"] else Color.WHITE)
+		_draw_tier_aura(p + Vector2(0, -6), u.tier, ALLY_SCALE * 0.9)
+	else:
+		draw_ally_shape(p, u.kind, u.element, u.tier, 1.6, mo["white"])
+	if u.hp < u.max_hp:
+		draw_rect(Rect2(u.pos + Vector2(-14, 26), Vector2(28, 3)), Color("3a2430"))
+		draw_rect(Rect2(u.pos + Vector2(-14, 26), Vector2(28 * u.hp / u.max_hp, 3)), C["good"])
+
+
+func _draw_corpses(base: Vector2) -> void:
+	for c in corpses:
+		var k: float = float(c["t"]) / c["life"]
+		var tint := Color(1, 1, 1, k)
+		var rot: float = (1.0 - k) * (1.2 if c["team"] == "enemy" else -1.2)
+		var name: String = ("enemy/" + c["who"]) if c["team"] == "enemy" else (("kiln/soldier_%s_%s" if view_style == "kiln" else "nest/creature_%s_%s") % [c["who"], c["element"]])
+		if not _draw_unit_sprite(name, base, c["pos"], 1.0 if c["team"] == "enemy" else ALLY_SCALE, 0.0, tint, rot):
+			draw_circle(c["pos"], 8.0 * k, Color(C["dim"].r, C["dim"].g, C["dim"].b, k))
+
+
+## 공격 궤적: 창 찌르기는 빛줄기, 방패는 충격파, 도깨비는 할퀴기
+func _draw_swooshes() -> void:
+	for w in swooshes:
+		var k: float = float(w["t"]) / w["life"]
+		var d: Vector2 = w["dir"]
+		var col: Color = C.get(w["element"], C["text"]).lightened(0.5) if w["team"] == "ally" else Color(0.85, 0.85, 1.0)
+		col.a = k
+		if w["team"] == "ally" and w["role"] == "spear":
+			var a: Vector2 = w["pos"] + d * 6.0
+			var b: Vector2 = w["to"] + d * 14.0
+			var n := d.orthogonal() * 6.0 * k
+			draw_colored_polygon(PackedVector2Array([a + n, b, a - n]), col)
+			draw_line(a, b, Color(1, 1, 1, k), 1.0)
+		elif w["team"] == "ally" and w["role"] == "shield":
+			draw_arc(w["pos"] + d * 14.0, 10.0 + (1.0 - k) * 14.0, d.angle() - 1.0, d.angle() + 1.0, 12, col, 3.0)
+		else:
+			for i in 3:
+				var off := d.orthogonal() * (i - 1) * 4.0
+				var c0: Vector2 = w["to"] + off - d * 6.0
+				draw_line(c0, c0 + d * 9.0 + d.orthogonal() * 3.0, col, 2.0)
+
+
+func _draw_arrows() -> void:
+	for a in arrows:
+		var k: float = 1.0 - float(a["t"]) / a["life"]
+		var dir: Vector2 = (a["to"] - a["from"]).normalized()
+		var p: Vector2 = a["from"].lerp(a["to"], k)
+		if a["team"] == "ally":
+			var tip: Color = C.get(a["element"], C["text"]).lightened(0.4)
+			draw_line(p - dir * 12.0, p, Color(0.85, 0.75, 0.6), 2.0)
+			draw_colored_polygon(PackedVector2Array([p + dir * 4.0, p + dir.orthogonal() * 2.5, p - dir.orthogonal() * 2.5]), tip)
+			var tr := tip
+			tr.a = 0.35
+			draw_line(p - dir * 24.0, p - dir * 12.0, tr, 1.0)
+		else:
+			draw_circle(p, 4.0, Color(0.55, 0.7, 1.0))
+			draw_circle(p, 2.0, Color(0.9, 0.95, 1.0))
 
 
 func draw_battle_hud(title: String) -> void:

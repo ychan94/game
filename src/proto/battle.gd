@@ -180,7 +180,7 @@ func _act(u: U) -> void:
 			if u.pos.x <= VILLAGE_X:
 				village_hp -= u.village_dmg
 				u.alive = false
-				events.append({"kind": "village_hit", "pos": u.pos, "amount": u.village_dmg})
+				events.append({"kind": "village_hit", "pos": u.pos, "amount": u.village_dmg, "unit": u.id})
 		return
 	# 아군
 	if target != null:
@@ -223,9 +223,9 @@ func _attack(u: U, t: U) -> void:
 		return
 	u.cd = u.cd_max
 	if u.range > 60.0:
-		events.append({"kind": "shot", "from": u.pos, "to": t.pos, "team": u.team, "element": u.element})
+		events.append({"kind": "shot", "from": u.pos, "to": t.pos, "team": u.team, "element": u.element, "unit": u.id, "target": t.id})
 	else:
-		events.append({"kind": "swing", "pos": u.pos, "to": t.pos, "team": u.team, "element": u.element})
+		events.append({"kind": "swing", "pos": u.pos, "to": t.pos, "team": u.team, "element": u.element, "unit": u.id, "target": t.id, "role": u.kind})
 	_hurt(t, u.atk, u, true)
 	if u.team == "ally":
 		match u.element:
@@ -251,11 +251,11 @@ func _hurt(t: U, amount: float, src, show: bool) -> void:
 		stats["damage"] += a
 	if show:
 		t.hit_flash = 5
-		events.append({"kind": "hit", "pos": t.pos, "amount": a, "team": t.team,
+		events.append({"kind": "hit", "pos": t.pos, "amount": a, "team": t.team, "unit": t.id, "from": src.pos if src != null else t.pos,
 			"element": src.element if src != null else ""})
 	if t.hp <= 0.0:
 		t.alive = false
-		events.append({"kind": "death", "pos": t.pos, "team": t.team, "big": t.kind == "brute" or t.tier == "legend"})
+		events.append({"kind": "death", "pos": t.pos, "team": t.team, "big": t.kind == "brute" or t.tier == "legend", "unit": t.id, "who": t.kind, "element": t.element})
 		if t.team == "enemy":
 			stats["kills"] += 1
 
@@ -263,7 +263,7 @@ func _hurt(t: U, amount: float, src, show: bool) -> void:
 ## 요변·전설 하나가 혼자 쓰는 특수기 (주변 70px)
 func _special(u: U) -> void:
 	stats["specials"] += 1
-	events.append({"kind": "special", "pos": u.pos, "element": u.element, "name": u.name})
+	events.append({"kind": "special", "pos": u.pos, "element": u.element, "name": u.name, "unit": u.id})
 	for t in units:
 		if t.alive and t.team == "enemy" and t.pos.distance_to(u.pos) < 70.0:
 			_element_burst(t, u.element, 30.0, u)

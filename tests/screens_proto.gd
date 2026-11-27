@@ -53,9 +53,11 @@ func _all() -> void:
 	k.state = "fire"
 	for i in 6:
 		k.kiln.heat_up()
+	await _frames(70)  # 불길이 쌓여 오를 시간
 	await _snap("p02_kiln_fire")
 	for i in 3:
 		k.kiln.heat_up()
+	await _frames(70)
 	await _snap("p02b_kiln_fire_hot")
 	k.kiln.open()
 	k.kiln.results[1]["tier"] = "legend"
@@ -70,6 +72,8 @@ func _all() -> void:
 	await _snap("p04_kiln_reveal_done")
 	k.battle = k.kiln.make_battle(5)
 	k.state = "battle"
+	await _frames(240)
+	await _snap("p06a_kiln_battle_mid")
 	var got_syn := false
 	for i in 900:
 		await physics_frame

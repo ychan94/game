@@ -78,3 +78,20 @@
 - git 작성자(user.name/email)가 설정 안 돼 있어 시안 커밋이 막힘 → 사용자에게 물음. handoff-02 는 커밋과 무관해 먼저 시작
 - 2026-11-27 "이 저장소에만 작성자를 설정해 줘. 이름은 ychan94, 이메일은 ychan94@users.noreply.github.com 이야. (git config 에 --global 없이, 이 저장소에만)그다음 아까 막힌 커밋을 다시 하고 푸시해 줘."
   → git config user.name/user.email (이 저장소만) 설정 후 커밋·푸시
+
+## handoff-02 결과 확인 (Claude, 2026-11-27)
+- Codex 보고: `결과: 통과` (handoff-02.report.md). 방법: image_gen 생성 → C# 으로 크기·팔레트·투명·광택 정리
+- 새 파일: assets/sprites/kiln/ 10장만. 보호 검사 걸린 파일 없음
+- `python scripts/check_sprites.py --group "가마의 병사" --sheet work/2026-11-27-그림/sheet-02.png` → 10개 통과 · 문제 0 · 없음 0
+- art_loop measure: 잡티 0 · 끊긴 선 0 (10장)
+- 게임 화면: `screens_proto.gd` → work/2026-11-27-그림/screens-02/ (14장). 가마·병사 그림이 실제로 쓰임
+  - 볼 점: 게임이 그리는 네모난 문(주황 테두리)이 그림의 아치형 문 위에 겹쳐 위쪽 모서리 돌이 가려짐 (게임 코드 쪽 문 모양 문제, 그림은 지시서 영역대로)
+  - 볼 점: 흑유(땅) 병사는 어두운 바탕에서 대비가 낮음
+- `python scripts/test.py --stage all` → p0·p1·boss 통과. 이 실행이 reports/boss/history.csv 에 기록을 더함
+- 그림 커밋 안 함: 사용자가 본 뒤
+
+## 가마의 병사 커밋·가마 문 (2026-11-27)
+- 2026-11-27 "가마의 병사 그림 10장 좋아. 커밋해 줘 (assets/sprites/kiln/ 10장, 작업 메모, sheet-02.png 와 screens-02/ 포함. history.csv 와 history-local-backup.csv 는 빼 줘)."
+  → 그림 10장·작업 메모(NOTES.md, handoff-02.report.md)·sheet-02.png·screens-02/ 커밋. history.csv·백업 csv 제외
+- 2026-11-27 "가마 문은 게임 쪽을 아치로 맞추기로 했어. 클라우드 Claude가 이미 고쳐서 올렸으니 커밋한 다음 git pull --rebase 로 받아 줘."
+- 2026-11-27 "받은 다음 스크린샷을 다시 찍어서 불 올리기 화면(불 6, 불 9)과 빚기 화면, 전투 화면을 보여 줘. 그다음 푸시해 줘."

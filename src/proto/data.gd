@@ -18,12 +18,22 @@ const TIER_NAME_NEST := {"normal": "보통", "fine": "희귀", "legend": "전설
 
 # ---------- 역할 (빚는 모양 / 알 모양) ----------
 const ROLES := ["spear", "archer", "shield"]
-const KILN_ROLES := ["spear", "archer", "shield", "axe", "cavalry", "healer", "cannon"]   # 가마의 병사 (7종 × 유약 3 = 21가지)
-const ROLE_NAME_KILN := {"spear": "창병", "archer": "궁수", "shield": "방패병", "axe": "도끼병", "cavalry": "기마병", "healer": "무당", "cannon": "화차"}
+## 가마의 병사 15종 (등급 6단계). 뒤로 갈수록 드물고 강하다
+const KILN_ROLES := ["spear", "archer", "shield", "axe", "cavalry", "slinger", "healer", "cannon", "twin",
+	"general", "sniper", "haetae", "cheoyong", "dragon", "bulgasari"]
+const ROLE_NAME_KILN := {"spear": "창병", "archer": "궁수", "shield": "방패병",
+	"axe": "도끼병", "cavalry": "기마병", "slinger": "투석병",
+	"healer": "무당", "cannon": "화차", "twin": "쌍검무사",
+	"general": "장수", "sniper": "신궁",
+	"haetae": "해치", "cheoyong": "처용",
+	"dragon": "청룡", "bulgasari": "불가사리"}
 const ROLE_DESC := {
 	"spear": "앞에서 찌른다", "archer": "멀리서 쏜다", "shield": "도깨비를 끌어 막는다",
-	"axe": "휘둘러 주변을 함께 벤다", "cavalry": "빠르게 달려들어 끊는다",
-	"healer": "다친 병사를 고친다", "cannon": "아주 멀리 터지는 불화살",
+	"axe": "휘둘러 주변을 함께 벤다", "cavalry": "빠르게 달려들어 끊는다", "slinger": "돌을 던져 밀어낸다",
+	"healer": "다친 병사를 고친다", "cannon": "아주 멀리 터지는 불화살", "twin": "두 칼로 아주 빠르게 벤다",
+	"general": "곁의 병사 공격력 +30%", "sniper": "가장 강한 적을 끝에서 저격",
+	"haetae": "불을 뿜는 수호 짐승, 적을 모두 끌어당긴다", "cheoyong": "춤으로 주변 적을 모두 느리게",
+	"dragon": "한 줄의 적을 모두 꿰뚫는 물기둥", "bulgasari": "적을 쓰러뜨릴수록 커지고 강해진다",
 }
 const ROLE_NAME_NEST := {"spear": "공격형", "archer": "원거리형", "shield": "수비형"}
 const ROLE_STATS := {
@@ -34,33 +44,58 @@ const ROLE_STATS := {
 	"cavalry": {"hp": 75.0, "atk": 9.0, "range": 24.0, "cd": 32, "speed": 2.0},
 	"healer": {"hp": 40.0, "atk": 0.0, "range": 150.0, "cd": 75, "speed": 0.0},
 	"cannon": {"hp": 45.0, "atk": 16.0, "range": 280.0, "cd": 120, "speed": 0.0},
+	"slinger": {"hp": 45.0, "atk": 7.0, "range": 150.0, "cd": 38, "speed": 0.0},
+	"twin": {"hp": 90.0, "atk": 7.0, "range": 22.0, "cd": 18, "speed": 1.6},
+	"general": {"hp": 180.0, "atk": 15.0, "range": 26.0, "cd": 44, "speed": 1.0},
+	"sniper": {"hp": 50.0, "atk": 55.0, "range": 380.0, "cd": 110, "speed": 0.0},
+	"haetae": {"hp": 520.0, "atk": 20.0, "range": 30.0, "cd": 50, "speed": 0.8},
+	"cheoyong": {"hp": 240.0, "atk": 14.0, "range": 26.0, "cd": 36, "speed": 1.0},
+	"dragon": {"hp": 380.0, "atk": 70.0, "range": 420.0, "cd": 96, "speed": 0.0},
+	"bulgasari": {"hp": 560.0, "atk": 24.0, "range": 30.0, "cd": 40, "speed": 1.0},
 }
+const SLING_PUSH := 8.0          # 투석병: 맞은 적을 조금 밀어낸다
+const GENERAL_AURA := 100.0      # 장수 곁 이 거리 안의 병사는
+const GENERAL_BUFF := 0.3        #   공격력 +30% (장수 여럿이어도 한 번만)
+const HAETAE_TAUNT := 160.0      # 해치: 이 거리 안 적은 해치를 노린다
+const HAETAE_BREATH := 0.5       # 해치: 맞은 적 주변(44px) 50% 불 피해
+const CHEOYONG_AURA := 110.0     # 처용: 이 거리 안 적은 늘 느려진다
+const DRAGON_LINE := 28.0        # 청룡: 앞쪽, 위아래 이 폭 안의 적을 모두 꿰뚫는다
+const BULGASARI_GROW := 0.04     # 불가사리: 처치마다 공격·체력 +4%
+const BULGASARI_MAX := 3.0       #   최대 3배
 const AXE_CLEAVE := 0.6          # 도끼: 맞은 적 주변(34px)도 60% 피해
 const CANNON_SPLASH := 0.7       # 화차: 터진 자리 주변(44px) 70% 피해
 const HEAL_AMOUNT := 10.0        # 무당: 한 번에 회복
 const HEAL_SCALE := 0.35         # 등급·별 배율의 35%만 회복에 더한다 (전설 무당이 대장 공격을 다 지워 끝나지 않는 싸움 방지)
 
 # ---------- 병사 뽑기 (가마의 병사) ----------
-## 흙을 내고 뽑으면 병사 모양·유약이 무작위로 정해져 가마에 들어간다. 등급은 가마 불이 정한다.
-## 억울하지 않은 운: 확률은 화면에 숫자로 · 귀함 없이 DRAW_PITY 번 뽑으면 다음은 귀함 확정
-const ROLE_RARITY := {"spear": "common", "archer": "common", "shield": "common",
-	"axe": "rare", "cavalry": "rare", "healer": "epic", "cannon": "epic"}
-const RARITY_NAME := {"common": "흔함", "rare": "드묾", "epic": "귀함"}
-const RARITY_ODDS := {"common": 0.60, "rare": 0.28, "epic": 0.12}   # 등급 안에서는 똑같이 나눈다
-const DRAW_PITY := 6              # 귀함 없이 6번 → 7번째는 귀함 확정
+## 흙을 내고 뽑으면 병사 모양·유약이 무작위로 정해져 가마에 들어간다. 품질(보통·상품·요변)은 가마 불이 정한다.
+## 등급 6단계. 신화는 아주 드물다.
+## 억울하지 않은 운: 확률은 화면에 숫자로 · 등급별 천장 · 전설을 뽑을 때마다 신화 조각 1, 3개면 다음 뽑기 신화 확정
+const GRADES := ["common", "uncommon", "rare", "hero", "legendary", "mythic"]
+const GRADE_NAME := {"common": "일반", "uncommon": "고급", "rare": "희귀", "hero": "영웅", "legendary": "전설", "mythic": "신화"}
+const GRADE_ODDS := {"common": 0.52, "uncommon": 0.27, "rare": 0.13, "hero": 0.06, "legendary": 0.018, "mythic": 0.002}
+const ROLE_GRADE := {"spear": "common", "archer": "common", "shield": "common",
+	"axe": "uncommon", "cavalry": "uncommon", "slinger": "uncommon",
+	"healer": "rare", "cannon": "rare", "twin": "rare",
+	"general": "hero", "sniper": "hero",
+	"haetae": "legendary", "cheoyong": "legendary",
+	"dragon": "mythic", "bulgasari": "mythic"}
+## 천장: 이 등급 이상이 이만큼 안 나오면 다음 뽑기는 그 등급 확정 (높은 천장이 먼저)
+const PITY := {"rare": 8, "hero": 30, "legendary": 90}
+const MYTH_SHARDS := 3            # 전설 3번 → 신화 확정
 const CLAY_DRAW := 3              # 한 번 뽑기
 const CLAY_SMASH_BACK := 1        # 가마에 넣은 뽑기 병사를 부수면 돌려받는 흙
+
+
+static func grade_roles(g: String) -> Array:
+	return KILN_ROLES.filter(func(r): return ROLE_GRADE[r] == g)
 
 
 static func draw_odds() -> Dictionary:
 	var by := {}
 	for r in KILN_ROLES:
-		var rar: String = ROLE_RARITY[r]
-		var n := 0
-		for r2 in KILN_ROLES:
-			if ROLE_RARITY[r2] == rar:
-				n += 1
-		by[r] = RARITY_ODDS[rar] / n
+		var g: String = ROLE_GRADE[r]
+		by[r] = GRADE_ODDS[g] / grade_roles(g).size()
 	return by
 const VILLAGE_LINE := 112.0     # 마을 담장 선 (왼쪽 마을 구역 끝). 도깨비가 여기 닿으면 마을이 맞는다
 const ALLY_AGGRO := 210.0       # 창병·방패병이 도깨비를 알아채고 마주 나가는 거리
@@ -95,8 +130,30 @@ const ENEMIES := {
 	"goblin": {"name": "도깨비", "hp": 30.0, "atk": 6.0, "speed": 0.7, "range": 22.0, "cd": 50, "village": 8.0, "radius": 9.0},
 	"imp": {"name": "도깨비불", "hp": 18.0, "atk": 5.0, "speed": 0.8, "range": 110.0, "cd": 70, "village": 6.0, "radius": 7.0},
 	"brute": {"name": "큰 도깨비", "hp": 110.0, "atk": 14.0, "speed": 0.45, "range": 26.0, "cd": 80, "village": 20.0, "radius": 14.0},
-	"chief": {"name": "도깨비 대장", "hp": 2400.0, "atk": 42.0, "speed": 0.35, "range": 30.0, "cd": 70, "village": 80.0, "radius": 20.0},
+	"chief": {"name": "도깨비 대장", "hp": 2400.0, "atk": 42.0, "speed": 0.35, "range": 30.0, "cd": 70, "village": 80.0, "radius": 20.0, "heavy": true},
+	# 챕터마다 새로 나오는 적 (armor: 한 대마다 깎는 피해 · heavy: 밀리거나 느려지지 않음 · summon: [종류, 몇 프레임마다])
+	"fox": {"name": "여우 요괴", "hp": 26.0, "atk": 5.0, "speed": 1.3, "range": 20.0, "cd": 34, "village": 8.0, "radius": 8.0},
+	"armored": {"name": "갑옷 도깨비", "hp": 60.0, "atk": 8.0, "speed": 0.55, "range": 22.0, "cd": 50, "village": 10.0, "radius": 10.0, "armor": 4.0},
+	"ghost": {"name": "원귀", "hp": 40.0, "atk": 7.0, "speed": 0.9, "range": 22.0, "cd": 44, "village": 12.0, "radius": 9.0, "heavy": true},
+	"giant": {"name": "거인 도깨비", "hp": 300.0, "atk": 22.0, "speed": 0.35, "range": 30.0, "cd": 90, "village": 30.0, "radius": 16.0, "heavy": true},
+	# 챕터 대장
+	"gumiho": {"name": "구미호", "hp": 2600.0, "atk": 34.0, "speed": 0.6, "range": 26.0, "cd": 40, "village": 80.0, "radius": 18.0, "heavy": true, "summon": ["fox", 120]},
+	"imugi": {"name": "이무기", "hp": 5200.0, "atk": 46.0, "speed": 0.3, "range": 34.0, "cd": 60, "village": 90.0, "radius": 22.0, "heavy": true, "armor": 6.0},
+	"reaper": {"name": "저승사자", "hp": 4600.0, "atk": 80.0, "speed": 0.45, "range": 30.0, "cd": 70, "village": 100.0, "radius": 18.0, "heavy": true, "summon": ["ghost", 150]},
+	"king": {"name": "도깨비 왕", "hp": 8000.0, "atk": 60.0, "speed": 0.32, "range": 34.0, "cd": 60, "village": 120.0, "radius": 24.0, "heavy": true, "armor": 5.0, "summon": ["brute", 220]},
 }
+const BOSSES := ["chief", "gumiho", "imugi", "reaper", "king"]
+
+## 챕터: 아침 5번·밤 5번. 다섯째 밤에 대장. hp: 도깨비 체력 배율 (챕터 첫 밤 기준)
+const CHAPTERS := [
+	{"name": "마을 어귀", "new": "", "boss": "chief", "hp": 1.0, "boss_hp": 1.0},
+	{"name": "여우골 숲", "new": "fox", "boss": "gumiho", "hp": 1.6, "boss_hp": 0.8},
+	{"name": "안개 늪", "new": "armored", "boss": "imugi", "hp": 2.4, "boss_hp": 0.65},
+	{"name": "얼음 고개", "new": "ghost", "boss": "reaper", "hp": 3.4, "boss_hp": 0.65},
+	{"name": "도깨비 성", "new": "giant", "boss": "king", "hp": 4.6, "boss_hp": 0.65},
+]
+const CHAPTER_NEW_EVERY := 3      # 챕터의 새 적: 도깨비 3마리마다 1마리가 새 적으로
+const CLAY_PER_CHAPTER := 12      # 챕터를 넘기면 흙 보너스
 const VILLAGE_HP := 160.0        # 새어 들어온 피해가 서서히 쌓이게 (낮으면 '완승 아니면 완패'가 된다)
 
 
@@ -110,16 +167,21 @@ const ARMY_RUSH := 10             # 밤 5번 한 판의 몰려오기
 
 
 ## big_army: 밤 5번 한 판 (병사가 많다) — 더 촘촘하고 밤마다 더 몰려온다
-static func wave_plan(night := 1, big_army := false) -> Array:
+static func wave_plan(night := 1, big_army := false, chapter := 1) -> Array:
 	var n := maxi(1, night)
+	var ch: Dictionary = CHAPTERS[clampi(chapter, 1, CHAPTERS.size()) - 1]
+	var ch_mul: float = ch["hp"]
 	var every := maxi(12, ARMY_GOBLIN_EVERY - (n - 1) * 3) if big_army else maxi(22, WAVE_GOBLIN_EVERY - (n - 1) * 5)
-	var hp_mul := 1.0 + (n - 1) * NIGHT_HP_GROWTH
+	var hp_mul := (1.0 + (n - 1) * NIGHT_HP_GROWTH) * ch_mul
 	var st := func(kind: String) -> Dictionary:
-		return {} if n == 1 else {"hp": ENEMIES[kind]["hp"] * hp_mul}
+		return {} if hp_mul == 1.0 else {"hp": ENEMIES[kind]["hp"] * hp_mul, "atk": ENEMIES[kind]["atk"] * sqrt(ch_mul)}
 	var plan: Array = []
 	var f := 60
+	var k := 0
 	while f <= 1100:
-		plan.append([f, "goblin", st.call("goblin")])
+		k += 1
+		var kind: String = ch["new"] if ch["new"] != "" and k % CHAPTER_NEW_EVERY == 0 else "goblin"
+		plan.append([f, kind, st.call(kind)])
 		f += every
 	var imps: Array = WAVE_IMPS.duplicate()
 	var brutes: Array = WAVE_BRUTES.duplicate()
@@ -133,16 +195,18 @@ static func wave_plan(night := 1, big_army := false) -> Array:
 	for i in (ARMY_RUSH + (n - 1) * 4) if big_army else (WAVE_RUSH + (n - 1) * 2):
 		plan.append([1150 + i * 12, "goblin", st.call("goblin")])
 	if n >= KILN_NIGHTS:
-		plan.append([1250, "chief", {}])
+		var boss: String = ch["boss"]
+		plan.append([1250, boss, {"hp": ENEMIES[boss]["hp"] * ch["boss_hp"]}])
 	plan.sort_custom(func(a, b): return a[0] < b[0])
 	return plan
 
 
 # ---------- 여러 밤 (가마의 병사 한 판) ----------
 const KILN_NIGHTS := 5            # 다섯째 밤에 도깨비 대장
-const NIGHT_HP_GROWTH := 0.45     # 밤마다 도깨비 체력 +45% (병사 9~17명 기준 봇 균형 검사)
+const NIGHT_HP_GROWTH := 0.45     # 챕터 안에서 밤마다 도깨비 체력 +45% (봇 균형 검사)
 const ARMY_CAP_START := 9         # 병사 자리 (사용자: "병사 종류랑 갯수도 좀 더 많아야")
 const ARMY_CAP_PER_NIGHT := 2     # 밤마다 자리 +2
+const ARMY_CAP_MAX := 18          # 자리는 여기까지 (그다음 성장은 별·등급·요변으로)
 const CLAY_START := 24            # 처음 흙 (뽑기 8번)
 const CLAY_REFIRE := 2            # 있는 병사 다시 굽기
 const CLAY_PER_NIGHT := 6         # 밤을 넘기면 흙

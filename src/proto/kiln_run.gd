@@ -1,6 +1,7 @@
 extends RefCounted
-## 가마의 병사 한 판: 밤 5번. 병사는 밤이 지나도 남는다.
-##   준비 (빚기 · 다시 굽기 · 합치기) → 가마 (불 올리고 열기) → 밤 (전투) → 흙 보상 → 준비 …
+## 가마의 병사 한 판: 챕터 5개 × (아침 5번 · 밤 5번). 병사는 밤과 챕터가 지나도 남는다.
+##   아침 (뽑기 · 다시 굽기 · 합치기) → 가마 (불 올리고 열기) → 밤 (전투) → 흙 보상 → 아침 …
+##   다섯째 밤에 챕터 대장. 이기면 다음 챕터 (마을 회복 · 흙 보너스 · 새 적)
 ## 억울하지 않은 운: 다시 굽기는 등급이 절대 내려가지 않는다 · 불 4까지는 안 깨진다 · 합치기는 운 없이 확정
 
 const D = preload("res://src/proto/data.gd")
@@ -9,7 +10,9 @@ const Battle = preload("res://src/proto/battle.gd")
 
 var rng := RandomNumberGenerator.new()
 var kiln                         # 불 세기·확률·파편을 맡는다
-var night := 1
+var chapter := 1                 # 지금 챕터 (1부터)
+var night := 1                   # 챕터 안의 날 (1~5)
+var chapter_cleared := false     # 방금 챕터를 넘겼다 (화면용)
 var clay := D.CLAY_START
 var village_hp := D.VILLAGE_HP
 var army: Array = []             # [{id, role, element, tier, star, name}]
@@ -19,7 +22,9 @@ var state := "prep"              # prep → (가마) → night → prep … → 
 var last_kills := 0
 var last_reward := 0
 var _next_id := 1
-var draws_since_epic := 0        # 귀함 없이 뽑은 횟수 (천장)
+var since := {"rare": 0, "hero": 0, "legendary": 0}   # 그 등급 이상 없이 뽑은 횟수 (천장)
+var myth_shards := 0             # 전설을 뽑을 때마다 1, 3개면 다음 뽑기 신화 확정
+var draws := 0                   # 지금까지 뽑은 횟수
 var last_draw := {}              # 방금 뽑은 것 (화면용)
 
 
@@ -29,8 +34,16 @@ func _init(seed_value: int) -> void:
 
 
 # ---------------- 자리·찾기 ----------------
+func day() -> int:
+	return (chapter - 1) * D.KILN_NIGHTS + night
+
+
 func cap() -> int:
-	return D.ARMY_CAP_START + (night - 1) * D.ARMY_CAP_PER_NIGHT
+	return mini(D.ARMY_CAP_MAX, D.ARMY_CAP_START + (day() - 1) * D.ARMY_CAP_PER_NIGHT)
+
+
+func chapter_info() -> Dictionary:
+	return D.CHAPTERS[clampi(chapter, 1, D.CHAPTERS.size()) - 1]
 
 
 func soldier(id: int) -> Dictionary:
@@ -57,9 +70,23 @@ func can_draw() -> bool:
 	return state == "prep" and clay >= D.CLAY_DRAW and queue.size() < D.KILN_SLOTS and army.size() + queued_new() < cap()
 
 
-## 다음 뽑기가 귀함 확정인가 (천장)
-func pity_ready() -> bool:
-	return draws_since_epic >= D.DRAW_PITY
+static func grade_index(g: String) -> int:
+	return D.GRADES.find(g)
+
+
+## 다음 뽑기에서 확정되는 등급 ("" = 없음). 신화 조각이 먼저, 그다음 높은 천장부터
+func pity_grade() -> String:
+	if myth_shards >= D.MYTH_SHARDS:
+		return "mythic"
+	for g in ["legendary", "hero", "rare"]:
+		if since[g] >= D.PITY[g] - 1:
+			return g
+	return ""
+
+
+## 그 등급 확정까지 남은 뽑기 수 (이번 뽑기 포함)
+func pity_left(g: String) -> int:
+	return D.PITY[g] - since[g]
 
 
 ## 흙을 내고 무작위 병사 하나를 뽑아 가마에 넣는다. 모양은 확률표대로, 유약은 셋 중 하나.
@@ -69,13 +96,9 @@ func draw(force_role := "", force_element := "") -> Dictionary:
 		return {}
 	clay -= D.CLAY_DRAW
 	var role := force_role
-	var pity := pity_ready() and force_role == ""
-	if force_role != "":
-		pass
-	elif pity:
-		var epics: Array = D.KILN_ROLES.filter(func(r): return D.ROLE_RARITY[r] == "epic")
-		role = epics[rng.randi() % epics.size()]
-	else:
+	var forced := pity_grade() if force_role == "" else ""
+	var pity := false
+	if force_role == "":
 		var odds: Dictionary = D.draw_odds()
 		var x := rng.randf()
 		for r in D.KILN_ROLES:
@@ -83,10 +106,20 @@ func draw(force_role := "", force_element := "") -> Dictionary:
 			role = r
 			if x < 0.0:
 				break
+		if forced != "" and grade_index(D.ROLE_GRADE[role]) < grade_index(forced):
+			var pool: Array = D.grade_roles(forced)
+			role = pool[rng.randi() % pool.size()]
+			pity = true
+		if forced == "mythic":
+			myth_shards -= D.MYTH_SHARDS
 	var element: String = force_element if force_element != "" else D.ELEMENTS[rng.randi() % D.ELEMENTS.size()]
-	var rar: String = D.ROLE_RARITY[role]
-	draws_since_epic = 0 if rar == "epic" else draws_since_epic + 1
-	last_draw = {"kind": "new", "role": role, "element": element, "rarity": rar, "pity": pity, "name": soldier_name(role, element)}
+	var g: String = D.ROLE_GRADE[role]
+	for k in since:
+		since[k] = 0 if grade_index(g) >= grade_index(k) else since[k] + 1
+	if g == "legendary":
+		myth_shards += 1
+	draws += 1
+	last_draw = {"kind": "new", "role": role, "element": element, "grade": g, "pity": pity, "name": soldier_name(role, element)}
 	queue.append(last_draw)
 	return last_draw
 
@@ -196,7 +229,7 @@ func fire() -> Array:
 
 # ---------------- 밤 ----------------
 func start_night():
-	var b = Battle.new(rng.randi(), D.wave_plan(night, true))
+	var b = Battle.new(rng.randi(), D.wave_plan(night, true, chapter))
 	b.village_hp = village_hp
 	for s in army:
 		b.add_ally(s["role"], s["element"], s["tier"], s["name"], D.STAR_MUL[s["star"]])
@@ -213,8 +246,19 @@ func end_night(b) -> void:
 	last_reward = D.CLAY_PER_NIGHT + last_kills / D.CLAY_PER_KILLS
 	clay += last_reward
 	night += 1
+	chapter_cleared = false
 	if night > D.KILN_NIGHTS:
-		state = "won"
+		chapter += 1
+		if chapter > D.CHAPTERS.size():
+			chapter = D.CHAPTERS.size()
+			night = D.KILN_NIGHTS
+			state = "won"
+			return
+		night = 1
+		chapter_cleared = true
+		clay += D.CLAY_PER_CHAPTER
+		village_hp = D.VILLAGE_HP
+		state = "prep"
 		return
 	village_hp = minf(D.VILLAGE_HP, village_hp + D.VILLAGE_REPAIR)
 	state = "prep"

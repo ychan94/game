@@ -31,6 +31,14 @@ class U:
 	var stun_t := 0
 	var special_t := 0
 	var heal := 0.0
+	var armor := 0.0         # 적: 한 대마다 이만큼 피해를 깎는다
+	var heavy := false       # 적: 밀리지 않는다 (대장·거인·원귀)
+	var summon_kind := ""    # 적 대장: 부하를 부른다
+	var summon_every := 0
+	var summon_t := 0
+	var grow := 1.0          # 불가사리: 처치할수록 커진다
+	var base_atk := 0.0
+	var base_hp := 0.0
 	var hit_flash := 0
 	var alive := true
 
@@ -48,6 +56,7 @@ var stats := {"kills": 0, "specials": 0, "synergies": 0, "damage": 0.0}
 var _next_id := 1
 var synergy_power: float = D.SYNERGY_POWER
 var waves: Array = []           # 지나가는 합동 기술 파도 [{element, x, power}]
+var _summons: Array = []        # 이번 프레임에 대장이 부른 부하 [[종류, 자리, 능력치]]
 
 
 func _init(seed_value: int, plan: Array = []) -> void:
@@ -74,7 +83,9 @@ func add_ally(role: String, element: String, tier: String, name: String, stat_mu
 	u.range = s["range"]
 	u.cd_max = s["cd"]
 	u.speed = s["speed"]
-	u.radius = 9.0 + (3.0 if tier == "legend" else 0.0)
+	u.radius = 9.0 + (3.0 if tier == "legend" else 0.0) + (5.0 if role in ["haetae", "dragon", "bulgasari"] else 0.0)
+	u.base_atk = u.atk
+	u.base_hp = u.max_hp
 	u.special_t = D.SPECIAL_EVERY / 2
 	units.append(u)
 	_arrange()
@@ -83,8 +94,10 @@ func add_ally(role: String, element: String, tier: String, name: String, stat_mu
 
 ## 아군 대열: 방패 앞, 창 가운데, 궁수 뒤
 func _arrange() -> void:
-	var line_of := {"shield": "front", "cavalry": "front", "spear": "mid", "axe": "mid",
-		"archer": "back", "healer": "rear", "cannon": "rear"}
+	var line_of := {"shield": "front", "cavalry": "front", "haetae": "front", "bulgasari": "front",
+		"spear": "mid", "axe": "mid", "twin": "mid", "general": "mid", "cheoyong": "mid",
+		"archer": "back", "slinger": "back", "sniper": "back",
+		"healer": "rear", "cannon": "rear", "dragon": "rear"}
 	var col := {"front": VILLAGE_X + 160.0, "mid": VILLAGE_X + 118.0, "back": VILLAGE_X + 62.0, "rear": VILLAGE_X + 26.0}
 	var by_line := {"front": [], "mid": [], "back": [], "rear": []}
 	for u in units:
@@ -116,6 +129,12 @@ func add_enemy(kind: String, y: float, stat_override := {}) -> U:
 	u.speed = s["speed"]
 	u.radius = s.get("radius", 9.0)
 	u.village_dmg = s.get("village", 8.0)
+	u.armor = s.get("armor", 0.0)
+	u.heavy = s.get("heavy", false)
+	if s.has("summon"):
+		u.summon_kind = s["summon"][0]
+		u.summon_every = s["summon"][1]
+		u.summon_t = u.summon_every
 	u.pos = Vector2(FIELD.size.x + 10.0, y)
 	units.append(u)
 	return u
@@ -134,6 +153,11 @@ func step() -> void:
 	for u in units:
 		if u.alive:
 			_act(u)
+	for e2 in _summons:
+		var m = add_enemy(e2[0], clampf(e2[1].y + rng.randf_range(-40.0, 40.0), 20.0, FIELD.size.y - 20.0), e2[2])
+		m.pos.x = e2[1].x + 20.0
+		events.append({"kind": "summon", "pos": m.pos, "unit": m.id, "who": m.kind})
+	_summons.clear()
 	_spread_enemies()
 	var keep: Array = []
 	for u in units:
@@ -171,6 +195,17 @@ func _act(u: U) -> void:
 		u.stun_t -= 1
 		return
 	var spd := u.speed * (D.SLOW_MUL if u.slow_t > 0 else 1.0)
+	if u.team == "enemy" and u.summon_every > 0:
+		u.summon_t -= 1
+		if u.summon_t <= 0:
+			u.summon_t = u.summon_every
+			var ms: Dictionary = D.ENEMIES[u.summon_kind]
+			var hk: float = u.max_hp / D.ENEMIES[u.kind]["hp"]   # 대장 체력 배율만큼 부하도
+			_summons.append([u.summon_kind, u.pos, {"hp": ms["hp"] * maxf(1.0, hk) * 1.5}])
+	if u.team == "ally" and u.kind == "cheoyong":
+		for o in units:
+			if o.alive and o.team == "enemy" and o.pos.distance_to(u.pos) < D.CHEOYONG_AURA:
+				o.slow_t = maxi(o.slow_t, 2)
 	if u.team == "ally" and u.tier == "legend":
 		u.special_t -= 1
 		if u.special_t <= 0:
@@ -205,12 +240,14 @@ func _act(u: U) -> void:
 		u.pos += (u.home - u.pos).normalized() * minf(spd, u.pos.distance_to(u.home))
 
 
-## 아군: 가장 가까운 적. 적: 근처 방패 → 바로 옆 아군 → 없으면 null (마을로 행진)
+## 아군: 가장 가까운 적 (신궁은 사거리 안 가장 강한 적). 적: 근처 방패·해치 → 바로 옆 아군 → 없으면 null (마을로 행진)
 func _pick_target(u: U):
 	var best = null
 	var bd := INF
 	var shield = null
 	var sd := INF
+	var strong = null
+	var sh := -1.0
 	for t in units:
 		if not t.alive or t.team == u.team:
 			continue
@@ -218,12 +255,17 @@ func _pick_target(u: U):
 		if d < bd:
 			bd = d
 			best = t
-		if t.kind == "shield" and d < sd:
-			sd = d
-			shield = t
+		if u.team == "ally" and u.kind == "sniper" and d <= u.range and t.hp > sh:
+			sh = t.hp
+			strong = t
+		if u.team == "enemy":
+			var taunt: float = D.SHIELD_TAUNT if t.kind == "shield" else (D.HAETAE_TAUNT if t.kind == "haetae" else 0.0)
+			if taunt > 0.0 and d <= taunt and d < sd:
+				sd = d
+				shield = t
 	if u.team == "ally":
-		return best
-	if shield != null and sd <= D.SHIELD_TAUNT:
+		return strong if strong != null else best
+	if shield != null:
 		return shield
 	if best != null and bd <= 40.0 + u.range:
 		return best
@@ -234,17 +276,29 @@ func _attack(u: U, t: U) -> void:
 	if u.cd > 0:
 		return
 	u.cd = u.cd_max
+	var atk: float = u.atk * (_general_buff(u) if u.team == "ally" else 1.0)
+	if u.team == "ally" and u.kind == "dragon":
+		# 청룡: 앞쪽 한 줄을 모두 꿰뚫는다
+		events.append({"kind": "beam", "from": u.pos, "to": Vector2(FIELD.size.x, t.pos.y), "element": u.element, "unit": u.id, "team": u.team})
+		for o in units:
+			if o.alive and o.team == "enemy" and o.pos.x > u.pos.x and absf(o.pos.y - t.pos.y) < D.DRAGON_LINE:
+				_hurt(o, atk, u, true)
+		return
 	if u.range > 60.0:
 		events.append({"kind": "shot", "from": u.pos, "to": t.pos, "team": u.team, "element": u.element, "unit": u.id, "target": t.id, "role": u.kind})
 	else:
 		events.append({"kind": "swing", "pos": u.pos, "to": t.pos, "team": u.team, "element": u.element, "unit": u.id, "target": t.id, "role": u.kind})
-	_hurt(t, u.atk, u, true)
-	if u.team == "ally" and (u.kind == "axe" or u.kind == "cannon"):
+	_hurt(t, atk, u, true)
+	if u.team == "ally" and u.kind in ["axe", "cannon", "haetae"]:
 		var r := 34.0 if u.kind == "axe" else 44.0
-		var k: float = D.AXE_CLEAVE if u.kind == "axe" else D.CANNON_SPLASH
+		var k: float = {"axe": D.AXE_CLEAVE, "cannon": D.CANNON_SPLASH, "haetae": D.HAETAE_BREATH}[u.kind]
 		for o in units:
 			if o.alive and o.team != u.team and o != t and o.pos.distance_to(t.pos) < r:
-				_hurt(o, u.atk * k, u, true)
+				_hurt(o, atk * k, u, true)
+				if u.kind == "haetae":
+					o.burn_t = D.BURN_FRAMES
+	if u.team == "ally" and u.kind == "slinger":
+		_push(t, D.SLING_PUSH)
 	if u.team == "ally":
 		match u.element:
 			"fire":
@@ -255,7 +309,21 @@ func _attack(u: U, t: U) -> void:
 			"water":
 				t.slow_t = D.SLOW_FRAMES
 			"earth":
-				t.pos.x = minf(t.pos.x + D.KNOCKBACK * (0.0 if t.kind == "chief" else 1.0), FIELD.size.x)
+				_push(t, D.KNOCKBACK)
+
+
+## 적을 오른쪽으로 민다 (대장·거인·원귀처럼 무거운 적은 안 밀린다)
+func _push(t: U, dx: float) -> void:
+	if not t.heavy:
+		t.pos.x = minf(t.pos.x + dx, FIELD.size.x)
+
+
+## 장수 곁이면 공격력 +30% (여럿이어도 한 번)
+func _general_buff(u: U) -> float:
+	for o in units:
+		if o.alive and o.team == "ally" and o.kind == "general" and o != u and o.pos.distance_to(u.pos) <= D.GENERAL_AURA:
+			return 1.0 + D.GENERAL_BUFF
+	return 1.0
 
 
 ## 무당: 사거리 안에서 가장 많이 다친 병사를 고친다
@@ -284,6 +352,8 @@ func _hurt(t: U, amount: float, src, show: bool) -> void:
 	var a := amount
 	if t.kind == "shield" and t.team == "ally":
 		a *= 1.0 - D.SHIELD_REDUCE
+	if t.armor > 0.0:
+		a = maxf(a * 0.25, a - t.armor)   # 갑옷: 약한 공격은 덜 들어간다 (최소 25%)
 	t.hp -= a
 	if t.team == "enemy":
 		stats["damage"] += a
@@ -293,9 +363,15 @@ func _hurt(t: U, amount: float, src, show: bool) -> void:
 			"element": src.element if src != null else ""})
 	if t.hp <= 0.0:
 		t.alive = false
-		events.append({"kind": "death", "pos": t.pos, "team": t.team, "big": t.kind == "brute" or t.tier == "legend", "unit": t.id, "who": t.kind, "element": t.element})
+		events.append({"kind": "death", "pos": t.pos, "team": t.team, "big": t.kind in ["brute", "giant"] or t.kind in D.BOSSES or t.tier == "legend", "unit": t.id, "who": t.kind, "element": t.element})
 		if t.team == "enemy":
 			stats["kills"] += 1
+			if src != null and src.kind == "bulgasari" and src.grow < D.BULGASARI_MAX:
+				src.grow = minf(D.BULGASARI_MAX, src.grow + D.BULGASARI_GROW)
+				src.atk = src.base_atk * src.grow
+				var nh: float = src.base_hp * src.grow
+				src.hp += nh - src.max_hp
+				src.max_hp = nh
 
 
 ## 요변·전설 하나가 혼자 쓰는 특수기 (주변 70px)
@@ -368,7 +444,7 @@ func _element_burst(t: U, element: String, power: float, src) -> void:
 			t.burn_t = D.BURN_FRAMES
 		"water":
 			_hurt(t, power * 0.6, src, true)
-			t.pos.x = minf(t.pos.x + (0.0 if t.kind == "chief" else 80.0), FIELD.size.x)   # 대장은 밀리지 않는다 (밀기·느려짐이 걸음과 맞비겨 멈추지 않게)
+			_push(t, 80.0)   # 대장은 밀리지 않는다 (밀기·느려짐이 걸음과 맞비겨 멈추지 않게)
 			t.slow_t = D.SLOW_FRAMES * 2
 		"earth":
 			_hurt(t, power * 0.6, src, true)

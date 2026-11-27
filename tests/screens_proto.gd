@@ -9,7 +9,7 @@ func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
 	out_dir = args[0] if args.size() > 0 else OS.get_user_data_dir()
 	DirAccess.make_dir_recursive_absolute(out_dir)
-	create_timer(120.0).timeout.connect(func(): print("시간 초과"); quit(1))
+	create_timer(240.0).timeout.connect(func(): print("시간 초과"); quit(1))
 	_all.call_deferred()
 
 
@@ -47,10 +47,12 @@ func _all() -> void:
 	if k.get_script() == null:
 		print("kiln 불러오기 실패"); quit(1); return
 	var run = k.run
+	k.tut_seen = {}
+	await _snap("p01a_kiln_tutorial_draw")
 	# 7종이 다 보이게 정해서 뽑는다 (실제 게임은 무작위)
 	for f in [["shield", "earth"], ["spear", "fire"], ["axe", "fire"], ["cavalry", "fire"], ["archer", "water"], ["healer", "water"], ["cannon", "earth"], ["spear", "fire"]]:
 		run.draw(f[0], f[1])
-	run.draws_since_epic = 4
+	run.since["rare"] = 5
 	await _snap("p01_kiln_prep_first")
 	k.state = "fire"
 	for i in 6:
@@ -81,8 +83,24 @@ func _all() -> void:
 	k.selected = run.army[0]["id"]
 	k.state = "prep"
 	await _snap("p05_kiln_prep_night2")
+	# 높은 등급 병사들을 더해 챕터 2 아침 화면 (튜토리얼 끔)
+	k.tutorial_enabled = false
+	run.chapter = 2
+	run.night = 3
+	for f in [["general", "earth", "normal"], ["sniper", "water", "legend"], ["haetae", "fire", "fine"], ["cheoyong", "fire", "normal"],
+			["dragon", "water", "normal"], ["bulgasari", "earth", "normal"], ["twin", "fire", "normal"], ["slinger", "earth", "normal"]]:
+		run._add_soldier(f[0], f[1], f[2])
+	run.myth_shards = 2
+	run.since["legendary"] = 70
+	k.selected = run.army[-2]["id"]
+	await _snap("p05c_kiln_prep_chapter2")
+	k.show_help = true
+	await _snap("p05d_kiln_help")
+	k.show_help = false
 	# 전투: 합동 기술 파도가 지나가는 순간
+	k.fought = Vector2i(run.chapter, run.night)
 	k.battle = run.start_night()
+	k.battle.village_hp = 99999.0
 	k.state = "battle"
 	var got_wave := false
 	for i in 1500:
@@ -100,17 +118,36 @@ func _all() -> void:
 		await physics_frame
 	await _frames(10)
 	await _snap("p07_kiln_night_end")
-	# 다섯째 밤: 도깨비 대장
+	# 챕터 대장들
+	for c in [[1, "chief", "p07b_kiln_chief"], [2, "gumiho", "p07d_kiln_gumiho"], [5, "king", "p07e_kiln_king"]]:
+		run.chapter = c[0]
+		run.night = 5
+		run.state = "prep"
+		k.fought = Vector2i(run.chapter, run.night)
+		k.battle = run.start_night()
+		k.battle.village_hp = 99999.0
+		k.boss_seen.clear()
+		k.state = "battle"
+		while not k.battle.units.any(func(u): return u.kind == c[1]):
+			await physics_frame
+			if k.battle.done:
+				break
+		await _frames(90)
+		await _snap(c[2])
+	# 챕터 1 클리어 화면
+	run.chapter = 1
 	run.night = 5
 	run.state = "prep"
-	k.battle = run.start_night()
-	k.state = "battle"
-	while k.battle._count("enemy") == 0 or not k.battle.units.any(func(u): return u.kind == "chief"):
-		await physics_frame
-		if k.battle.done:
-			break
-	await _frames(60)
-	await _snap("p07b_kiln_chief")
+	k.fought = Vector2i(1, 5)
+	var b = run.start_night()
+	b.units = b.units.filter(func(u): return u.team == "ally")
+	b.spawn_queue = []
+	b.step()
+	run.end_night(b)
+	k.battle = b
+	k.state = "night_end"
+	await _frames(5)
+	await _snap("p07c_kiln_chapter_clear")
 
 	# ---- A 알을 품는 성 ----
 	var n = await _open("res://src/game/nest_scene.tscn")

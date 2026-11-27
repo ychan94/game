@@ -5,7 +5,7 @@ extends RefCounted
 const D = preload("res://src/proto/data.gd")
 
 const FIELD := Rect2(0, 0, 640, 260)
-const VILLAGE_X := 40.0
+const VILLAGE_X: float = D.VILLAGE_LINE
 
 
 class U:
@@ -81,7 +81,7 @@ func add_ally(role: String, element: String, tier: String, name: String, stat_mu
 
 ## 아군 대열: 방패 앞, 창 가운데, 궁수 뒤
 func _arrange() -> void:
-	var col := {"shield": 190.0, "spear": 150.0, "archer": 95.0}
+	var col := {"shield": VILLAGE_X + 160.0, "spear": VILLAGE_X + 118.0, "archer": VILLAGE_X + 56.0}
 	var by_role := {"shield": [], "spear": [], "archer": []}
 	for u in units:
 		if u.team == "ally":
@@ -190,8 +190,10 @@ func _act(u: U) -> void:
 		var d: float = u.pos.distance_to(target.pos)
 		if d <= u.range + target.radius + u.radius:
 			_attack(u, target)
-		elif spd > 0.0 and d < 130.0:
+		elif spd > 0.0 and d < D.ALLY_AGGRO and target.pos.distance_to(u.home) < D.ALLY_LEASH + D.ALLY_AGGRO * 0.5:
 			u.pos += (target.pos - u.pos).normalized() * spd
+		elif spd > 0.0 and u.pos.distance_to(u.home) > 2.0:
+			u.pos += (u.home - u.pos).normalized() * minf(spd, u.pos.distance_to(u.home))
 	elif spd > 0.0 and u.pos.distance_to(u.home) > 2.0:
 		u.pos += (u.home - u.pos).normalized() * minf(spd, u.pos.distance_to(u.home))
 

@@ -22,9 +22,12 @@ const ROLE_NAME_KILN := {"spear": "창병", "archer": "궁수", "shield": "방�
 const ROLE_NAME_NEST := {"spear": "공격형", "archer": "원거리형", "shield": "수비형"}
 const ROLE_STATS := {
 	"spear": {"hp": 60.0, "atk": 10.0, "range": 24.0, "cd": 40, "speed": 1.2},
-	"archer": {"hp": 35.0, "atk": 8.0, "range": 160.0, "cd": 50, "speed": 0.0},
+	"archer": {"hp": 35.0, "atk": 8.0, "range": 200.0, "cd": 50, "speed": 0.0},
 	"shield": {"hp": 140.0, "atk": 4.0, "range": 22.0, "cd": 50, "speed": 0.9},
 }
+const VILLAGE_LINE := 112.0     # 마을 담장 선 (왼쪽 마을 구역 끝). 도깨비가 여기 닿으면 마을이 맞는다
+const ALLY_AGGRO := 210.0       # 창병·방패병이 도깨비를 알아채고 마주 나가는 거리
+const ALLY_LEASH := 170.0       # 제자리에서 이만큼 넘게는 쫓지 않는다 (대열이 무너지지 않게)
 const SHIELD_TAUNT := 90.0       # 방패 근처 적은 방패를 먼저 노린다
 const SHIELD_REDUCE := 0.4       # 방패는 받는 피해 -40%
 const NEST_STAT_MUL := 1.45      # 괴수는 3마리라 한 마리가 더 강하다

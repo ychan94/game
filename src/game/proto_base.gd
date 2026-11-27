@@ -16,6 +16,7 @@ const C := {
 }
 
 var font: FontFile
+var font_bold: FontFile          # 피해 숫자용 굵은 글꼴
 var buttons: Array = []          # 이번 프레임에 그린 버튼 [{rect, id}]
 var _prev := {}
 var _mouse_prev := false
@@ -49,6 +50,10 @@ func _ready() -> void:
 	font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
 	font.hinting = TextServer.HINTING_NONE
 	font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+	font_bold = load("res://assets/fonts/Galmuri11-Bold.ttf")
+	font_bold.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+	font_bold.hinting = TextServer.HINTING_NONE
+	font_bold.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
 	var g := GradientTexture2D.new()
 	g.width = 64
 	g.height = 64
@@ -255,10 +260,34 @@ func _make_ground() -> Texture2D:
 				c = grass[clampi(int((n * 0.7 + fine * 0.3) * 4.0), 0, 3)]
 				if fine > 0.86 and n > 0.4:
 					c = Color("3a5338")          # 풀 포기 밝은 끝
-			# 마을 쪽 다져진 마당
-			if x < 22:
-				c = c.lerp(dirt[1], 0.6)
+			# 바퀴 자국 두 줄 (길 안쪽)
+			if d < path_w - 4.0 and (absf(y - path_y - 5.0) < 0.8 or absf(y - path_y + 5.0) < 0.8) and fine > 0.3:
+				c = c.darkened(0.25)
+			# 마을 마당 (담장 안쪽): 다져진 흙 + 듬성한 풀
+			var yard: float = PD.VILLAGE_LINE / 2.0 - 4.0
+			if x < yard:
+				var yc: Color = dirt[1].lerp(dirt[2], fine)
+				c = yc if n < 0.62 else c.lerp(yc, 0.5)
+			elif x < yard + 6:
+				c = c.lerp(dirt[1], 0.4 * (1.0 - (x - yard) / 6.0))
+			# 숲 가장자리: 위·아래 끝은 어두운 덤불
+			var edge_top := 9.0 + nz.get_noise_2d(x * 2.0, 5.0) * 6.0 + sin(x * 0.2) * 2.0
+			var edge_bot := h - 8.0 - nz.get_noise_2d(x * 2.0, 55.0) * 6.0 - sin(x * 0.17 + 1.0) * 2.0
+			if x >= yard and (y < edge_top or y > edge_bot):
+				var dd := minf(absf(y - edge_top), absf(y - edge_bot))
+				c = Color("101a15") if dd > 2.0 else Color("17251c")
+				if fine > 0.7 and dd < 4.0:
+					c = Color("24382a")
 			img.set_pixel(x, y, c)
+	# 큰 바위 몇 개 (길에서 비켜서)
+	for bpos in [Vector2(120, 24), Vector2(210, 104), Vector2(268, 30), Vector2(170, 112), Vector2(300, 98)]:
+		for yy in range(-4, 4):
+			for xx in range(-6, 7):
+				if xx * xx / 36.0 + yy * yy / 16.0 <= 1.0:
+					var cc := Color("5a5852") if yy < -1 else (Color("47453f") if yy < 2 else Color("33322e"))
+					if xx * xx / 36.0 + yy * yy / 16.0 > 0.75:
+						cc = Color("2a2925")
+					img.set_pixel(clampi(int(bpos.x) + xx, 0, w - 1), clampi(int(bpos.y) + yy, 0, h - 1), cc)
 	# 돌 몇 개
 	for i in 26:
 		var sx := rng.randi_range(30, w - 4)
@@ -282,8 +311,27 @@ func _tick_atmosphere() -> void:
 			g["pos"].x = -g["r"]
 
 
+## 마을: 담장(규칙의 마을 선) 왼쪽에 집 6채를 두 줄로 엇갈려 모아 세운다 (2배 크기)
+const HOUSE_SCALE := 2.0
+const HOUSES := [Vector2(30, 34), Vector2(78, 70), Vector2(28, 110), Vector2(80, 150), Vector2(30, 190), Vector2(78, 226)]
+const HOUSE_BREAK_ORDER := [3, 0, 5, 2, 4, 1]   # 마을 체력이 줄 때 이 순서로 불탄다
+
+
 func _house_pos(i: int) -> Vector2:
-	return Vector2(8, 30 + i * 60) + Vector2(12, 14)
+	return HOUSES[i]
+
+
+## 집 상태: 0 멀쩡 · 1 불붙음(연기·불길) · 2 무너짐
+func _house_state(i: int) -> int:
+	var vk: float = clampf(battle.village_hp / PD.VILLAGE_HP, 0.0, 1.0) if battle != null else 1.0
+	var n := HOUSES.size()
+	var rank: int = HOUSE_BREAK_ORDER.find(i)
+	var gone := 1.0 - float(rank + 1) / float(n + 1)
+	if vk <= gone:
+		return 2
+	if vk <= gone + 0.5 / float(n + 1):
+		return 1
+	return 0
 
 
 ## 화면 배경색: 전장이 보일 때는 바닥층이 그리므로 기본층은 칠하지 않는다
@@ -305,11 +353,20 @@ func draw_background(ci: CanvasItem) -> void:
 		if ground_tex == null:
 			ground_tex = _make_ground()
 		ci.draw_texture_rect(ground_tex, Rect2(o, Vector2(640, 260)), false)
-	# 마을 돌담 (마을 경계)
+	# 마을 돌담 (규칙의 마을 선 VILLAGE_LINE). 가운데 길 자리에 문
+	var wx: float = PD.VILLAGE_LINE - 8.0
 	for y in range(0, 260, 8):
-		var sx: float = 38.0 + (2.0 if (y / 8) % 2 == 0 else 0.0)
-		ci.draw_rect(Rect2(o + Vector2(sx, y), Vector2(6, 7)), Color("4b4842"))
-		ci.draw_rect(Rect2(o + Vector2(sx, y), Vector2(6, 1)), Color("67635b"))
+		if y >= 112 and y < 148:
+			continue
+		var sx: float = wx + (2.0 if (y / 8) % 2 == 0 else 0.0)
+		ci.draw_rect(Rect2(o + Vector2(sx, y + 2), Vector2(9, 8)), Color(0, 0, 0, 0.35))
+		ci.draw_rect(Rect2(o + Vector2(sx, y), Vector2(8, 7)), Color("4b4842"))
+		ci.draw_rect(Rect2(o + Vector2(sx, y), Vector2(8, 1)), Color("6f6a60"))
+		ci.draw_rect(Rect2(o + Vector2(sx + 3, y + 3), Vector2(1, 1)), Color("3a3833"))
+	# 문기둥 (장승 자리)
+	for gy in [104.0, 148.0]:
+		ci.draw_rect(Rect2(o + Vector2(wx - 1, gy), Vector2(10, 12)), Color("3b2c22"))
+		ci.draw_rect(Rect2(o + Vector2(wx - 1, gy), Vector2(10, 2)), Color("5d4636"))
 
 
 ## 뒷층(부드럽게, 캐릭터 뒤): 달빛, 낮은 안개, 그림자, 병사 뒷빛
@@ -320,6 +377,13 @@ func draw_back(ci: CanvasItem) -> void:
 	glow(ci, o + Vector2(560, -40), 260.0, Color(0.55, 0.65, 0.95, 0.10))   # 달빛
 	for g in fogs:
 		glow(ci, o + g["pos"], g["r"], Color(0.7, 0.78, 0.9, 0.07), 0.35)
+	for i in HOUSES.size():
+		if _house_state(i) == 0:
+			continue
+		for j in 6:
+			var ph: float = fmod(t * 0.008 + j / 6.0 + i * 0.17, 1.0)
+			var sp: Vector2 = o + _house_pos(i) + Vector2(sin(ph * 5.0 + i) * 8.0 + ph * 40.0, -18.0 - ph * 120.0)
+			glow(ci, sp, 14.0 + ph * 34.0, Color(0.16, 0.14, 0.15, 0.45 * (1.0 - ph)))
 	for u in battle.units:
 		var mo := _motion(u)
 		if u.team == "ally":
@@ -348,14 +412,23 @@ func draw_front(ci: CanvasItem) -> void:
 
 ## 빛층에 더하는 것: 마을 등불, 반딧불
 func _draw_ambient_lights(ci: CanvasItem, o: Vector2) -> void:
-	var vk: float = battle.village_hp / PD.VILLAGE_HP
-	for i in 4:
-		if vk <= i * 0.25:
-			continue
+	for i in HOUSES.size():
+		var st := _house_state(i)
+		var hp: Vector2 = _house_pos(i) + o
 		var fl := 0.85 + 0.15 * sin(t * 0.21 + i * 1.7) + 0.06 * sin(t * 0.67 + i)
-		var hp := _house_pos(i) + o + Vector2(8, 2)
-		glow(ci, hp, 34.0 * fl, Color(1.0, 0.62, 0.25, 0.28 * fl))
-		glow(ci, hp, 8.0, Color(1.0, 0.8, 0.45, 0.6 * fl))
+		if st == 0:
+			# 창호지 너머 등불
+			glow(ci, hp + Vector2(4, 8), 44.0 * fl, Color(1.0, 0.62, 0.25, 0.22 * fl))
+			glow(ci, hp + Vector2(4, 8), 9.0, Color(1.0, 0.8, 0.45, 0.55 * fl))
+		else:
+			# 불길: 지붕 위로 넘실대는 주황 빛
+			var k := 1.0 if st == 1 else 0.55
+			var fl2 := 0.75 + 0.25 * sin(t * 0.5 + i * 2.3) + 0.12 * sin(t * 1.3 + i)
+			glow(ci, hp + Vector2(0, -10), 70.0 * fl2 * k, Color(1.0, 0.38, 0.1, 0.30 * k))
+			for j in 4:
+				var ph: float = fmod(t * 0.05 + j * 0.25 + i * 0.13, 1.0)
+				var fp := hp + Vector2(-14 + j * 9 + sin(t * 0.3 + j) * 3.0, -8 - ph * 26.0)
+				glow(ci, fp, (11.0 - ph * 8.0) * k, Color(1.0, 0.55 + 0.3 * (1.0 - ph), 0.15, (1.0 - ph) * 0.8 * k))
 	for f in fireflies:
 		var a: float = maxf(0.0, sin(f["ph"]))
 		if a > 0.05:
@@ -460,7 +533,15 @@ func tick_fx() -> void:
 		p["t"] -= 1
 	fx = fx.filter(func(p): return p["t"] > 0)
 	for f in floats:
-		f["pos"].y -= 0.9 if f["t"] > f["life"] - 8 else 0.3
+		if f.has("vel"):
+			# 피해 숫자: 톡 튀어 올랐다가 살짝 떨어지며 사라진다
+			f["pos"] += f["vel"]
+			f["vel"].y += 0.16
+			f["vel"].x *= 0.9
+			if f["vel"].y > 0.8:
+				f["vel"].y = 0.8
+		else:
+			f["pos"].y -= 0.9 if f["t"] > f["life"] - 8 else 0.3
 		f["t"] -= 1
 	floats = floats.filter(func(f): return f["t"] > 0)
 	for s in shot_lines:
@@ -573,8 +654,7 @@ func step_battle() -> void:
 					var ic: Color = C.get(e["element"], C["text"]).lightened(0.6) if e["element"] != "" else Color.WHITE
 					impacts.append({"pos": e["pos"] - d * 4.0, "t": 6, "life": 6, "size": 16.0 if amt >= 20.0 else 10.0, "color": ic, "rot": randf() * 0.8})
 					var big := amt >= 20.0
-					floats.append({"pos": e["pos"] + FIELD_OFFSET + Vector2(randf_range(-6, 6), -18), "text": "%d" % ceili(amt),
-						"color": col.lightened(0.45) if e["element"] != "" else C["text"], "size": 24 if big else 12, "t": 36, "life": 36, "pop": true})
+					damage_number(e["unit"], e["pos"], amt, col.lightened(0.45) if e["element"] != "" else C["text"])
 					if big:
 						hitstop = maxi(hitstop, 2)
 						shake = maxf(shake, 2.0)
@@ -637,6 +717,51 @@ func shake_offset() -> Vector2:
 	return Vector2(randf_range(-shake, shake), randf_range(-shake, shake)) if shake > 0.2 else Vector2.ZERO
 
 
+## 피해 숫자: 같은 적이 짧은 사이에 또 맞으면 새 숫자를 띄우지 않고 그 숫자를 키운다 (겹겹이 쌓이지 않게)
+const DMG_MERGE := 18            # 이 프레임 안에 또 맞으면 합친다
+const DMG_BIG := 25.0            # 이 이상이면 금빛 큰 숫자
+
+func damage_number(uid: int, pos: Vector2, amt: float, color: Color) -> void:
+	for f in floats:
+		if f.get("uid", -1) == uid and f["life"] - f["t"] < DMG_MERGE:
+			f["amount"] += amt
+			f["t"] = f["life"]
+			f["pop_t"] = 0
+			f["vel"] = Vector2(f["vel"].x * 0.5, -1.6)
+			if f["amount"] >= DMG_BIG:
+				f["color"] = C["accent"]
+			return
+	floats.append({"uid": uid, "pos": pos + FIELD_OFFSET + Vector2(randf_range(-5, 5), -26), "amount": amt,
+		"vel": Vector2(randf_range(-0.9, 0.9), -2.4), "color": C["accent"] if amt >= DMG_BIG else color,
+		"t": 40, "life": 40, "pop_t": 0})
+
+
+func _draw_damage_number(f: Dictionary) -> void:
+	var amt: float = f["amount"]
+	var a: float = minf(1.0, float(f["t"]) / 10.0)
+	f["pop_t"] = int(f["pop_t"]) + 1
+	# 글꼴 크기는 정수 단계만 (픽셀 글꼴이 흐려지지 않게): 맞은 순간 크게 → 제 크기
+	var size := 12
+	if amt >= DMG_BIG * 2.0:
+		size = 24
+	elif amt >= DMG_BIG:
+		size = 18
+	if f["pop_t"] <= 3:
+		size += 6
+	var s := "%d" % ceili(amt)
+	var w: float = font_bold.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	var p: Vector2 = (f["pos"] - Vector2(w * 0.5, 0)).round()
+	var sh := Color(0.04, 0.02, 0.05, a * 0.9)
+	draw_string(font_bold, p + Vector2(1, 2), s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(0, 0, 0, a * 0.5))
+	for o in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]:
+		draw_string(font_bold, p + o, s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, sh)
+	var c: Color = f["color"]
+	if f["pop_t"] <= 2:
+		c = Color.WHITE   # 맞은 순간 하얗게 번쩍
+	c.a = a
+	draw_string(font_bold, p, s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, c)
+
+
 func rainbow(phase: float) -> Color:
 	return Color.from_hsv(fmod(phase, 1.0), 0.6, 1.0)
 
@@ -647,6 +772,9 @@ func draw_fx() -> void:
 		c.a = float(p["t"]) / p["life"]
 		draw_rect(Rect2(p["pos"] - Vector2.ONE * p["size"] / 2.0, Vector2.ONE * p["size"]), c)
 	for f in floats:
+		if f.has("amount"):
+			_draw_damage_number(f)
+			continue
 		var c2: Color = f["color"]
 		c2.a = minf(1.0, float(f["t"]) / 12.0)
 		var age: int = f["life"] - f["t"]
@@ -921,18 +1049,9 @@ func draw_battle() -> void:
 	var base := FIELD_OFFSET + _shake_now
 	draw_set_transform(base)
 	# 바닥·그림자·뒷빛은 층(bg/back)이 그린다
-	# 마을
-	var vk: float = battle.village_hp / PD.VILLAGE_HP if battle != null else 1.0
-	for i in 4:
-		var hp_ok := vk > i * 0.25
-		var hpos := Vector2(8, 30 + i * 60)
-		if draw_sprite("field/house" if hp_ok else "field/house_broken", hpos + Vector2(12, 14)):
-			continue
-		if not hp_ok and draw_sprite("field/house", hpos + Vector2(12, 14), 1.0, Color(0.35, 0.3, 0.3)):
-			draw_line(hpos + Vector2(6, 2), hpos + Vector2(14, 12), Color(0.1, 0.08, 0.08), 1.0)
-			continue
-		draw_rect(Rect2(hpos, Vector2(24, 18)), C["village"] if hp_ok else C["village"].darkened(0.6))
-		draw_colored_polygon(PackedVector2Array([hpos + Vector2(-3, 0), hpos + Vector2(27, 0), hpos + Vector2(12, -12)]), C["roof"] if hp_ok else C["roof"].darkened(0.6))
+	# 마을 (뒤쪽 집부터)
+	for i in HOUSES.size():
+		_draw_house(i)
 	if battle == null:
 		draw_set_transform(Vector2.ZERO)
 		return
@@ -950,6 +1069,25 @@ func draw_battle() -> void:
 	_draw_swooshes()
 	_draw_arrows()
 	draw_set_transform(Vector2.ZERO)
+
+
+func _draw_house(i: int) -> void:
+	var c: Vector2 = HOUSES[i]
+	var st := _house_state(i)
+	var sc := HOUSE_SCALE
+	if st == 2:
+		if draw_sprite("field/house_broken", c, sc):
+			return
+		if draw_sprite("field/house", c + Vector2(0, 6), sc, Color(0.3, 0.24, 0.24)):
+			draw_line(c + Vector2(-14, -10), c + Vector2(10, 14), Color(0.08, 0.06, 0.06), 2.0)
+			draw_line(c + Vector2(12, -12), c + Vector2(-6, 10), Color(0.08, 0.06, 0.06), 2.0)
+			return
+	var tint := Color(1, 0.86, 0.78) if st == 1 else Color.WHITE
+	if draw_sprite("field/house", c, sc, tint if st != 2 else Color(0.3, 0.25, 0.25)):
+		return
+	var dk := 0.6 if st == 2 else 0.0
+	draw_rect(Rect2(c + Vector2(-22, -6), Vector2(44, 28)), C["village"].darkened(dk))
+	draw_colored_polygon(PackedVector2Array([c + Vector2(-28, -4), c + Vector2(28, -4), c + Vector2(0, -26)]), C["roof"].darkened(dk))
 
 
 func _draw_ally_in_battle(u, base: Vector2) -> void:

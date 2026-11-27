@@ -20,6 +20,8 @@ func _frames(n: int) -> void:
 
 func _snap(name: String) -> void:
 	await _frames(2)
+	await RenderingServer.frame_post_draw  # 화면이 실제로 다 그려진 뒤에 찍는다
+	await RenderingServer.frame_post_draw
 	root.get_viewport().get_texture().get_image().save_png(out_dir.path_join(name + ".png"))
 	print("saved ", name)
 

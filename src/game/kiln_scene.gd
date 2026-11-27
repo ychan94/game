@@ -142,7 +142,7 @@ func _draw_kiln_body(offset: Vector2, door_open: float) -> void:
 	# 몸체: 그림(kiln/kiln_body, 160×160)이 있으면 그림, 없으면 벽돌 도형. 문·불길·빛은 위에 코드로 그린다
 	var body := tex("kiln/kiln_body")
 	if body != null:
-		draw_texture_rect(body, Rect2(o + Vector2(20, 0), Vector2(300, 300)), false)
+		draw_texture_rect(body, Rect2(o + KILN_BODY_RECT.position, KILN_BODY_RECT.size), false)
 	else:
 		_draw_brick_body(o)
 	_draw_kiln_front(o, glow, door_open)
@@ -158,8 +158,77 @@ func _draw_brick_body(o: Vector2) -> void:
 				draw_rect(Rect2(o + Vector2(bx, 128 + row * 22), Vector2(32, 18)), Color("634232"), false, 1.0)
 
 
+# ---- 가마 그림의 문 모양 읽기 ----
+# 그림 가운데의 어두운 영역(문 자리)을 찾아 같은 모양의 마스크를 만든다. 그림을 다시 그리지 않아도 문 모양이 맞는다.
+const KILN_BODY_RECT := Rect2(20, 0, 300, 300)   # 가마 그림을 그리는 자리 (o 기준)
+var door_mask: Texture2D = null
+var door_box := Rect2()                           # 문 영역 (그림 픽셀 기준)
+var _mask_tried := false
+
+
+func _ensure_door_mask() -> void:
+	if _mask_tried:
+		return
+	_mask_tried = true
+	var body := tex("kiln/kiln_body")
+	if body == null:
+		return
+	var img: Image = body.get_image()
+	if img == null:
+		return
+	if img.is_compressed():
+		img.decompress()
+	img.convert(Image.FORMAT_RGBA8)
+	var w := img.get_width()
+	var h := img.get_height()
+	var dark := func(x: int, y: int) -> bool:
+		var c := img.get_pixel(x, y)
+		return c.a > 0.5 and c.get_luminance() < 0.2
+	# 가운데 근처에서 어두운 점을 찾아 거기서부터 이어진 어두운 영역을 칠한다
+	var seed := Vector2i(-1, -1)
+	for dy in range(0, h / 3):
+		for dx in [0, -3, 3, -6, 6]:
+			var p := Vector2i(w / 2 + dx, h / 2 + dy - h / 8)
+			if p.x >= 0 and p.y >= 0 and p.x < w and p.y < h and dark.call(p.x, p.y):
+				seed = p
+				break
+		if seed.x >= 0:
+			break
+	if seed.x < 0:
+		return
+	var mask := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var seen := {}
+	var stack := [seed]
+	var minp := seed
+	var maxp := seed
+	while not stack.is_empty():
+		var q: Vector2i = stack.pop_back()
+		if seen.has(q) or q.x < 0 or q.y < 0 or q.x >= w or q.y >= h or not dark.call(q.x, q.y):
+			continue
+		seen[q] = true
+		mask.set_pixel(q.x, q.y, Color.WHITE)
+		minp = Vector2i(mini(minp.x, q.x), mini(minp.y, q.y))
+		maxp = Vector2i(maxi(maxp.x, q.x), maxi(maxp.y, q.y))
+		stack.append_array([q + Vector2i.RIGHT, q + Vector2i.LEFT, q + Vector2i.UP, q + Vector2i.DOWN])
+	var share := float(seen.size()) / (w * h)
+	if share < 0.03 or share > 0.6:
+		return  # 문으로 보기 어려우면 마스크를 쓰지 않는다 (예전 네모 문으로)
+	door_mask = ImageTexture.create_from_image(mask)
+	door_box = Rect2(minp, maxp - minp + Vector2i.ONE)
+
+
+func _sprite_to_screen(o: Vector2, p: Vector2) -> Vector2:
+	var body := tex("kiln/kiln_body")
+	var s: Vector2 = KILN_BODY_RECT.size / body.get_size()
+	return o + KILN_BODY_RECT.position + p * s
+
+
 func _draw_kiln_front(o: Vector2, glow: Color, door_open: float) -> void:
 	var k: float = float(kiln.heat) / PD.KILN_MAX_HEAT
+	_ensure_door_mask()
+	if door_mask != null:
+		_draw_arch_door(o, glow, k)
+		return
 	# 문 (닫힘 → 열림): 문틈으로 불빛이 샌다
 	var door := Rect2(o + Vector2(80, 60), Vector2(180, 170))
 	draw_rect(door.grow(4.0), glow)
@@ -188,6 +257,36 @@ func _draw_kiln_front(o: Vector2, glow: Color, door_open: float) -> void:
 		var sp := o + Vector2(170 + sin(t * 0.05 + i) * 8.0, 0 - fmod(t * (0.6 + k) + i * 17.0, 60.0))
 		draw_circle(sp, 3.0 + i * 0.4, Color(glow.r, glow.g, glow.b, 0.5 * k))
 	draw_rect(Rect2(o + Vector2(0, 270), Vector2(340, 20)), Color("3a261c"))
+
+
+func _draw_arch_door(o: Vector2, glow: Color, k: float) -> void:
+	var rect := Rect2(o + KILN_BODY_RECT.position, KILN_BODY_RECT.size)
+	# 문 안: 꺼진 가마는 거의 검정, 불을 올릴수록 불빛 색으로
+	var inside := Color(0.08, 0.05, 0.04).lerp(glow, minf(1.0, 0.25 + k * 0.85))
+	draw_texture_rect(door_mask, rect, false, inside)
+	# 깜빡이는 불빛 한 겹 더
+	var flicker := glow.lightened(0.25)
+	flicker.a = (0.10 + 0.08 * sin(t * 0.3)) * k
+	draw_texture_rect(door_mask, rect, false, flicker)
+	var tl := _sprite_to_screen(o, door_box.position)
+	var br := _sprite_to_screen(o, door_box.end)
+	var box := Rect2(tl, br - tl)
+	# 문 아래쪽 불길
+	for i in 3 + kiln.heat * 2:
+		var fx_x: float = box.position.x + 6.0 + fmod(i * 23.0, maxf(box.size.x - 12.0, 1.0))
+		var flick := sin(t * 0.35 + i * 1.7) * 3.0
+		var hgt: float = 4.0 + kiln.heat * 2.2 + flick
+		var base_y: float = box.end.y - 2.0
+		draw_colored_polygon(PackedVector2Array([Vector2(fx_x - 5, base_y), Vector2(fx_x + 5, base_y), Vector2(fx_x + flick * 0.3, base_y - hgt)]),
+			glow.lightened(0.15) if i % 2 == 0 else glow.lightened(0.45))
+	# 아주 뜨거우면 문 안에 금이 빛난다
+	if kiln.heat >= 8:
+		var c := box.get_center()
+		draw_polyline(PackedVector2Array([c + Vector2(-4, -box.size.y * 0.35), c + Vector2(6, -box.size.y * 0.1), c + Vector2(-5, box.size.y * 0.1), c + Vector2(5, box.size.y * 0.3)]), Color(1, 0.95, 0.8, 0.9), 2.0)
+	# 굴뚝 연기와 불티
+	for i in 2 + kiln.heat:
+		var sp := o + Vector2(170 + sin(t * 0.05 + i) * 8.0, 0 - fmod(t * (0.6 + k) + i * 17.0, 60.0))
+		draw_circle(sp, 3.0 + i * 0.4, Color(glow.r, glow.g, glow.b, 0.5 * k))
 
 
 func _draw_fire() -> void:

@@ -229,6 +229,20 @@ func draw_sprite(name: String, center: Vector2, scale_k := 1.0, tint: Color = Co
 	return true
 
 
+## 그림 둘레에 테두리(rim)를 두른 뒤 그림을 그린다. 그림이 없으면 false.
+func draw_sprite_rim(name: String, center: Vector2, scale_k: float, rim: Color, tint: Color = Color.WHITE) -> bool:
+	var tx := tex(name)
+	if tx == null:
+		return false
+	var sz: Vector2 = tx.get_size() * scale_k
+	var r := Rect2(center - Vector2(sz.x / 2.0, sz.y * 0.6), sz)
+	var d := maxf(1.0, roundf(scale_k))
+	for off in [Vector2(d, 0), Vector2(-d, 0), Vector2(0, d), Vector2(0, -d)]:
+		draw_texture_rect(tx, Rect2(r.position + off, r.size), false, rim)
+	draw_texture_rect(tx, r, false, tint)
+	return true
+
+
 func _draw_tier_aura(pos: Vector2, tier: String, scale_k: float) -> void:
 	if tier == "legend":
 		draw_arc(pos + Vector2(0, -2) * scale_k, 15.0 * scale_k, 0, TAU, 28, rainbow(t * 0.01), 2.0)
@@ -241,7 +255,16 @@ func _draw_tier_aura(pos: Vector2, tier: String, scale_k: float) -> void:
 # ---------------- 병사·괴수·적 그리기 ----------------
 func draw_ally_shape(pos: Vector2, role: String, element: String, tier: String, scale_k := 1.0, flash_white := false) -> void:
 	var sname := ("kiln/soldier_%s_%s" if view_style == "kiln" else "nest/creature_%s_%s") % [role, element]
-	if draw_sprite(sname, pos, scale_k, Color(2.5, 2.5, 2.5) if flash_white else Color.WHITE):
+	if tex(sname) != null:
+		# 발밑에 옅은 속성 빛 + 속성 색 테두리: 어두운 흑유도 밤 풀밭에서 보이고, 유약 구분도 쉬워진다
+		var rim: Color = C[element].lightened(0.5)
+		var under := rim
+		under.a = 0.14
+		draw_set_transform(pos + Vector2(0, 11) * scale_k, 0.0, Vector2(1.0, 0.3))  # 납작한 타원
+		draw_circle(Vector2.ZERO, 10.0 * scale_k, under)
+		draw_set_transform(Vector2.ZERO)
+		rim.a = 0.85
+		draw_sprite_rim(sname, pos, scale_k, rim, Color(2.5, 2.5, 2.5) if flash_white else Color.WHITE)
 		_draw_tier_aura(pos, tier, scale_k)
 		return
 	var col: Color = Color.WHITE if flash_white else C[element]
@@ -291,7 +314,7 @@ func draw_enemy_shape(u) -> void:
 	if u.kind == "hostile":
 		ename = "nest/creature_spear_" + (u.element if u.element != "" else "fire")
 	var etint: Color = Color(2.5, 2.5, 2.5) if u.hit_flash > 0 else (Color(0.55, 0.35, 0.7) if u.kind == "hostile" else Color.WHITE)
-	if not draw_sprite(ename, p, 1.0, etint):
+	if not draw_sprite_rim(ename, p, 1.0, Color(0.78, 0.82, 1.0, 0.45), etint):
 		_draw_enemy_fallback(u, p, col, r)
 	_draw_enemy_status(u, p, r)
 

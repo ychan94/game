@@ -62,9 +62,13 @@ func _all() -> void:
 	for i in 3:
 		k.kiln.heat_up()
 	await _frames(70)
+	k.bet_on = true
 	await _snap("p02b_kiln_fire_hot")
 	run.kiln.heat = 4
-	k.kiln.results = run.fire()
+	run.bet_busts = 3   # 대박이 나오는 장면
+	k.kiln.results = run.fire(true)
+	k.bet_on = false
+	k.bet_told = false
 	k.kiln.results[1]["tier"] = "legend"
 	run.army[1]["tier"] = "legend"
 	k.state = "reveal"
@@ -88,7 +92,7 @@ func _all() -> void:
 	run.chapter = 2
 	run.night = 3
 	for f in [["general", "earth", "normal"], ["sniper", "water", "legend"], ["haetae", "fire", "fine"], ["cheoyong", "fire", "normal"],
-			["dragon", "water", "normal"], ["bulgasari", "earth", "normal"], ["twin", "fire", "normal"], ["slinger", "earth", "normal"]]:
+			["dragon", "water", "normal"], ["baekho", "earth", "normal"], ["jujak", "fire", "normal"], ["hyeonmu", "water", "normal"], ["twin", "fire", "normal"], ["slinger", "earth", "normal"]]:
 		run._add_soldier(f[0], f[1], f[2])
 	run.myth_shards = 3
 	run.since["legendary"] = 70
@@ -106,7 +110,23 @@ func _all() -> void:
 	k.selected = run.army[-6]["id"]
 	k.right_tab = "equip"
 	await _snap("p05e_kiln_equip")
+	k.right_tab = "shop"
+	run.pearls = 9
+	await _snap("p05f_kiln_shop")
 	k.right_tab = "draw"
+	# 전직: ★3 창병 + 같은 관군 재료
+	var sp3: Dictionary = run._add_soldier("spear", "earth", "fine", 3)
+	k.selected = sp3["id"]
+	k.promo_pick = true
+	await _snap("p05g_kiln_promo")
+	k.promo_pick = false
+	# 배치 화면 (진영 시너지 · 정보창)
+	k._open_deploy()
+	k.tip_sid = run.army[1]["id"]
+	await _frames(3)
+	await _snap("p05h_kiln_deploy")
+	k.state = "prep"
+	k.battle = null
 	# 전투: 합동 기술 파도가 지나가는 순간
 	k.fought = Vector2i(run.chapter, run.night)
 	k.battle = run.start_night()

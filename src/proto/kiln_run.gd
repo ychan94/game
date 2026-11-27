@@ -566,3 +566,22 @@ func unequip(soldier_id: int) -> bool:
 	inventory.append(s["equip"])
 	s["equip"] = {}
 	return true
+
+
+## 정보창용: 이 병사가 전투에 나가면 갖는 능력치
+func soldier_stats(s: Dictionary) -> Dictionary:
+	var st: Dictionary = D.ROLE_STATS[s["role"]]
+	var m := soldier_mods(s)
+	var k: float = D.TIER_MUL[s["tier"]] * D.STAR_MUL[s["star"]]
+	return {
+		"hp": roundi(st["hp"] * k * (1.0 + m.get("hp", 0.0))),
+		"atk": roundi(st["atk"] * k * (1.0 + m.get("atk", 0.0))),
+		"aps": snappedf(60.0 / maxf(6.0, st["cd"] / (1.0 + m.get("haste", 0.0))), 0.1),
+		"range": roundi(st["range"]),
+		"speed": st["speed"],
+		"shield": roundi(st["hp"] * k * (1.0 + m.get("hp", 0.0)) * m.get("shield", 0.0)),
+		"skill_lv": D.skill_level(s["star"]),
+		"skill_pow": 1.0 + m.get("skill", 0.0),
+		"cdr": m.get("cdr", 0.0),
+		"skills": [s["role"]] + m.get("skills", []),
+	}

@@ -490,8 +490,104 @@ def bulgasari():
     return g
 
 
+# ---------- 백호 (신화): 흰 범 — 흰 몸에 유약 색 줄무늬, 이마 무늬, 금눈, 송곳니 ----------
+def baekho():
+    g = Grid(48, 48)
+    g.line(8, 30, 4, 22, "c"); g.line(9, 30, 5, 22, "c"); g.line(4, 22, 6, 14, "c"); g.line(5, 22, 7, 14, "c")   # 꼬리
+    for (x, y) in ((5, 25), (5, 19), (6, 16)):
+        g.px(x, y, "D"); g.px(x + 1, y, "D")
+    g.ell(20, 30, 13, 7, "c")                                 # 몸
+    g.ell(31, 27, 6, 7, "c")                                  # 가슴
+    for x, top in ((9, 33), (15, 34), (27, 33), (33, 32)):   # 다리
+        g.rect(x, top, x + 3, 41, "c"); g.rect(x - 1, 41, x + 4, 42, "c")
+        g.px(x, 42, "o"); g.px(x + 2, 42, "o")              # 발가락 금
+    g.ell(37, 21, 6, 6, "c")                                  # 머리
+    g.rect(40, 22, 45, 26, "c")                               # 주둥이
+    g.line(33, 16, 34, 12, "c"); g.px(33, 13, "c"); g.px(34, 14, "R")   # 귀
+    g.line(39, 16, 40, 12, "c"); g.px(40, 13, "c"); g.px(40, 14, "R")
+    g.px(45, 22, "k"); g.rect(41, 26, 45, 26, "R"); g.px(42, 27, "w"); g.px(44, 27, "w")   # 코·입·송곳니
+    g.rect(38, 19, 40, 20, "y"); g.px(40, 19, "k")            # 금눈
+    for (x0, y0) in ((35, 15), (37, 15), (39, 16)):           # 이마 줄무늬
+        g.line(x0, y0, x0, y0 + 2, "D")
+    for x in range(10, 31, 4):                                # 몸 줄무늬 (유약 색)
+        g.line(x, 24, x + 1, 28, "D"); g.line(x + 1, 28, x, 31, "D")
+    g.line(30, 23, 31, 26, "D"); g.line(34, 26, 35, 29, "D")
+    g.px(12, 26, "w"); g.px(30, 22, "w")
+    stone_base(g, 6, 44, 43)
+    g.outline()
+    g.shade_bottom("c", "P")
+    return g
+
+
+# ---------- 주작 (신화): 불꽃 날개를 펼치고 솟구치는 붉은 새, 날개깃 끝은 유약 색, 긴 꼬리깃 ----------
+def jujak():
+    g = Grid(48, 48)
+    for k in range(14):                                       # 왼쪽 큰 날개 (위로 펼침, 깃이 촘촘히)
+        ex, ey = 4 + k * 1.5, 4 + k
+        g.line(22, 25, round(ex), round(ey), "r" if (k // 2) % 2 else "n")
+    for k in range(0, 14, 2):                                 # 날개깃 끝 (유약 색)
+        ex, ey = 4 + k * 1.5, 4 + k
+        g.px(round(ex), round(ey), "G"); g.px(round(ex) + 1, round(ey), "L"); g.px(round(ex), round(ey) + 1, "G")
+    for k in range(9):                                        # 오른쪽 날개 (뒤)
+        g.line(26, 22, 36 + k, 6 + k, "R" if (k // 2) % 2 else "r")
+    for k in range(0, 9, 2):
+        g.px(36 + k, 6 + k, "G")
+    g.ell(24, 26, 5, 7, "r")                                  # 몸
+    g.ell(23, 28, 3, 4, "n")                                  # 가슴 불빛
+    g.ell(30, 16, 3, 3, "r")                                  # 머리
+    g.line(28, 22, 29, 18, "r"); g.line(27, 22, 28, 18, "r")  # 목
+    g.rect(33, 16, 35, 16, "y"); g.px(36, 17, "y")            # 부리
+    g.px(31, 15, "y"); g.px(32, 15, "k")                      # 눈
+    g.line(29, 13, 27, 8, "n"); g.line(30, 13, 30, 7, "y"); g.line(31, 13, 33, 8, "n")   # 볏
+    for k, c in enumerate(("n", "r", "y")):                   # 긴 꼬리깃 (아래로 흐름)
+        x1, y1 = 6 + k * 7, 44 - k
+        g.line(22, 32, x1, y1, c); g.line(23, 32, x1 + 1, y1, c)
+        g.ell(x1, y1, 1, 1, "G"); g.px(x1, y1, "y")
+    g.line(25, 32, 24, 37, "y"); g.line(27, 32, 28, 37, "y")  # 발
+    for (x, y) in ((10, 20), (16, 14), (40, 26), (34, 30), (14, 30)):   # 불티
+        g.px(x, y, "n"); g.px(x, y - 1, "y")
+    g.outline()
+    return g
+
+
+# ---------- 현무 (신화): 유약 등딱지의 거북을 검은 뱀이 휘감고, 뱀 머리가 높이 솟는다 ----------
+def hyeonmu():
+    g = Grid(48, 48)
+    for x, top in ((8, 35), (15, 37), (28, 37), (35, 35)):   # 다리
+        g.rect(x, top, x + 4, 41, "f"); g.rect(x - 1, 41, x + 5, 41, "F")
+    g.ell(42, 32, 4, 3, "f"); g.rect(44, 31, 46, 33, "f")     # 거북 머리
+    g.px(44, 31, "y"); g.px(45, 31, "k"); g.px(46, 33, "o")
+    g.ell(23, 29, 16, 10, "G")                                # 등딱지
+    g.rect(8, 36, 38, 37, "F")                                # 배딱지 테
+    for (cx, cy) in ((15, 26), (23, 23), (31, 26), (19, 32), (27, 32)):   # 육각 무늬
+        for dx, dy in ((-3, 0), (-2, -2), (2, -2), (3, 0), (2, 2), (-2, 2)):
+            g.px(cx + dx, cy + dy, "D")
+        g.px(cx, cy, "L")
+    # 검은 뱀: 등딱지를 한 바퀴 감고 위로 솟는다
+    import math as _m
+    for i in range(60):
+        t = i / 59.0
+        a = _m.pi * (1.1 + 1.6 * t)
+        x = 23 + _m.cos(a) * 15 * (1 - 0.15 * t)
+        y = 27 + _m.sin(a) * 8 * (1 - 0.15 * t)
+        g.ell(round(x), round(y), 1, 1, "k")
+    for i in range(18):
+        t = i / 17.0
+        g.ell(round(36 - t * 4 + _m.sin(t * 4) * 2), round(22 - t * 14), 1, 1, "k")
+    g.ell(33, 7, 3, 2, "k"); g.rect(35, 7, 37, 8, "k")        # 뱀 머리
+    g.px(34, 6, "y"); g.line(38, 8, 40, 9, "r"); g.px(41, 8, "r")   # 눈·혀
+    for i in range(0, 60, 6):                                 # 뱀 비늘 빛
+        t = i / 59.0
+        a = _m.pi * (1.1 + 1.6 * t)
+        g.px(round(23 + _m.cos(a) * 15 * (1 - 0.15 * t)), round(27 + _m.sin(a) * 8 * (1 - 0.15 * t)) - 1, "M")
+    stone_base(g, 5, 46, 42)
+    g.outline()
+    g.light("G")
+    return g
+
+
 SPR = {"general": general(), "sniper": sniper(), "cheoyong": cheoyong(),
-       "haetae": haetae(), "dragon": dragon(), "bulgasari": bulgasari()}
+       "haetae": haetae(), "dragon": dragon(), "baekho": baekho(), "jujak": jujak(), "hyeonmu": hyeonmu()}
 
 GLAZE = {
     "fire": {"L": "cd6851", "G": "a84438", "D": "67332e"},
@@ -539,7 +635,7 @@ def write_gd(path):
 def preview(path):
     from PIL import Image, ImageDraw
     S = 5
-    sheet = Image.new("RGBA", (len(SPR) * (48 * S + 12) + 12, 3 * (48 * S + 12) + 12), (32, 28, 40, 255))
+    sheet = Image.new("RGBA", (len(SPR) * (48 * S + 12) + 12, 3 * (48 * S + 12) + 12), (32, 28, 40, 255))  # 유약 3줄
     for j, (el, gp) in enumerate(GLAZE.items()):
         for i, (name, g) in enumerate(SPR.items()):
             im = Image.new("RGBA", (g.w, g.h))

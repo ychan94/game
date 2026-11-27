@@ -196,6 +196,12 @@ func draw_glow(ci: CanvasItem) -> void:
 		col.a = 0.55
 		glow(ci, p, 10.0, col)
 	for u in battle.units:
+		if u.team == "ally" and u.shield_hp > 0.0:
+			glow(ci, u.pos + o + Vector2(0, -8), 30.0, Color(0.55, 0.8, 1.0, 0.22 + 0.06 * sin(t * 0.2)))
+		if u.team == "ally" and u.buff_t > 0:
+			glow(ci, u.pos + o + Vector2(0, 16), 24.0, Color(1.0, 0.5, 0.25, 0.35), 0.4)
+		if u.team == "ally" and u.guard_t > 0:
+			glow(ci, u.pos + o + Vector2(0, -8), 26.0, Color(0.8, 0.8, 0.6, 0.2))
 		if u.team == "ally" and u.tier == "legend":
 			var lc := Color(1.0, 0.95, 0.82, 0.20 + 0.06 * sin(t * 0.1))
 			glow(ci, u.pos + o + Vector2(0, -10), 40.0, lc)
@@ -657,10 +663,22 @@ func step_battle() -> void:
 	for u in battle.units:
 		var m := _mv(u.id)
 		if m["prev"] != Vector2.INF:
-			var moved: float = m["prev"].distance_to(u.pos)
+			var step: Vector2 = u.pos - m["prev"]
+			var moved: float = step.length()
+			if moved > 6.0:
+				step = Vector2.ZERO   # 스킬 순간이동은 걸음이 아니다
+				moved = 0.0
 			m["walk"] += moved * 0.35
-			m["walking"] = moved > 0.15
+			m["vel"] = m.get("vel", Vector2.ZERO).lerp(step, 0.2)
+			m["walking"] = m["vel"].length() > 0.15
+			# 몸 돌리기: 뚜렷이 왼쪽으로 갈 때만 (살짝 밀리는 것으로는 안 돈다)
+			if m["vel"].x < -0.35:
+				m["face"] = -1.0
+			elif m["vel"].x > 0.2 or not m["walking"]:
+				m["face"] = 1.0
 		m["prev"] = u.pos
+		var vis: Vector2 = m.get("vis", u.pos)
+		m["vis"] = u.pos if vis.distance_to(u.pos) < 1.0 else vis.lerp(u.pos, 0.35)
 	for e in battle.events:
 		var col: Color = C.get(e.get("element", ""), C["text"])
 		match e["kind"]:
@@ -688,6 +706,8 @@ func step_battle() -> void:
 			"summon":
 				burst(e["pos"] + FIELD_OFFSET, Color(0.75, 0.55, 1.0), 12, 2.4, 2.0)
 				light(e["pos"], 26.0, Color(0.7, 0.5, 1.0, 0.6), 10)
+			"skill":
+				_skill_fx(e)
 			"heal":
 				start_attack_motion(e["unit"], "healer", Vector2.RIGHT)
 				light(e["pos"], 26.0, Color(0.5, 1.0, 0.6, 0.6), 14)
@@ -943,7 +963,7 @@ func _draw_tier_aura(_pos: Vector2, _tier: String, _scale_k: float) -> void:
 const ROLE_BASE := {"axe": "spear", "cavalry": "spear", "healer": "archer", "cannon": "archer",
 	"slinger": "archer", "twin": "spear", "general": "shield", "sniper": "archer", "cheoyong": "spear"}
 ## 사람 모양이 아닌 신화 짐승은 그림이 올 때까지 코드로 그린다
-const BEASTS := ["haetae", "dragon", "bulgasari"]
+const BEASTS := ["haetae", "dragon"]
 ## 등급 색 (일반 → 신화)
 const GRADE_COL := {"common": Color("cfc6b4"), "uncommon": Color("8fd88a"), "rare": Color("6fa8ff"),
 	"hero": Color("c58bff"), "legendary": Color("ffb347"), "mythic": Color("ff5f7a")}
@@ -1173,7 +1193,54 @@ func draw_ally_shape(pos: Vector2, role: String, element: String, tier: String, 
 
 ## 병사마다 다른 공격 모션 (k: 0 → 1 진행). 준비(뒤로) → 때리기(빠르게 앞으로) → 돌아오기
 const ATK_DUR := {"spear": 14, "axe": 18, "twin": 16, "general": 18, "cavalry": 16, "shield": 12, "cheoyong": 22,
-	"haetae": 20, "bulgasari": 22, "dragon": 20, "archer": 12, "slinger": 14, "sniper": 18, "cannon": 14, "healer": 18}
+	"haetae": 20, "hyeonmu": 22, "dragon": 20, "baekho": 18, "jujak": 14, "archer": 12, "slinger": 14, "sniper": 18, "cannon": 14, "healer": 18}
+
+
+## 스킬 연출: 이름이 떠오르고, 역할마다 다른 빛·입자
+func _skill_fx(e: Dictionary) -> void:
+	var role: String = e["role"]
+	var p: Vector2 = e["pos"]
+	var col: Color = C.get(e["element"], C["accent"]).lightened(0.3)
+	var targets: Array = e.get("targets", [])
+	floats.append({"pos": p + FIELD_OFFSET + Vector2(-30, -58), "text": e["name"] + ("" if e["lv"] == 0 else " +%d" % e["lv"]), "color": Color(1.0, 0.9, 0.55), "size": 12, "t": 50, "life": 50})
+	light(p, 40.0, Color(col.r, col.g, col.b, 0.8), 16)
+	start_attack_motion(e["unit"], role, (targets[0] - p) if not targets.is_empty() else Vector2.RIGHT)
+	match role:
+		"archer", "cannon":
+			for tp in targets:
+				arrows.append({"from": p, "to": tp, "t": 14 if role == "cannon" else 8, "life": 14 if role == "cannon" else 8, "element": e["element"], "team": "ally", "cannon": role == "cannon"})
+		"jujak":
+			for tp in targets:
+				arrows.append({"from": tp + Vector2(randf_range(-60, 20), -160), "to": tp, "t": 12, "life": 12, "element": "fire", "team": "ally", "cannon": true})
+			do_flash(Color(1.0, 0.5, 0.2), 10)
+		"dragon":
+			for tp in targets:
+				beams.append({"from": tp + Vector2(-14, -150), "to": tp, "t": 18, "life": 18, "element": "water"})
+			do_flash(Color(0.5, 0.8, 1.0), 14)
+			shake = maxf(shake, 8.0)
+		"sniper":
+			if not targets.is_empty():
+				var far: Vector2 = p + (targets[0] - p).normalized() * 640.0
+				beams.append({"from": p, "to": far, "t": 10, "life": 10, "element": "earth"})
+		"haetae":
+			for i in 24:
+				wave_parts.append({"pos": p + Vector2(10, -6), "vel": Vector2(randf_range(2.0, 5.0), randf_range(-1.5, 1.5)), "t": 0, "life": randi_range(12, 22), "size": randf_range(8, 14), "element": "fire"})
+		"axe", "twin", "cheoyong":
+			for i in 3:
+				swooshes.append({"pos": p, "to": p + Vector2.from_angle(i * TAU / 3.0) * 40.0, "dir": Vector2.from_angle(i * TAU / 3.0), "t": 9, "life": 9, "role": "spear", "element": e["element"], "team": "ally"})
+			if role == "cheoyong":
+				for tp in targets:
+					burst(tp + FIELD_OFFSET + Vector2(0, -20), C["accent"], 4, 1.2, 2.0)
+		"general":
+			show_banner("진군의 북!", "모든 병사 공격력 ↑", Color(1.0, 0.6, 0.3), 50)
+			shake = maxf(shake, 4.0)
+		"hyeonmu", "shield", "healer":
+			pass
+	for tp in targets:
+		light(tp, 22.0, Color(col.r, col.g, col.b, 0.7), 10)
+	if e["lv"] >= 3 or role in ["dragon", "baekho", "jujak", "hyeonmu"]:
+		hitstop = maxi(hitstop, 3)
+		shake = maxf(shake, 5.0)
 
 
 func start_attack_motion(id: int, role: String, dir: Vector2) -> void:
@@ -1235,7 +1302,15 @@ func _motion(u) -> Dictionary:
 				sq += 0.2 * wind * (1.0 - hit)
 				off += dir * 18.0 * strike + Vector2(0, -12.0 * sin(clampf((k - 0.3) / 0.5, 0.0, 1.0) * PI))
 				rot = 0.15 * strike
-			"bulgasari": # 불가사리: 몸을 일으켰다가 땅을 쿵
+			"baekho":    # 백호: 낮게 웅크렸다가 길게 덮친다
+				sq += 0.22 * wind * (1.0 - hit)
+				off += dir * 22.0 * strike + Vector2(0, -10.0 * sin(clampf((k - 0.3) / 0.45, 0.0, 1.0) * PI))
+				rot = 0.18 * strike - 0.1 * wind * (1.0 - hit)
+			"jujak":     # 주작: 날개를 치며 솟았다가 앞으로 내리꽂는다
+				off += Vector2(0, -7.0 * wind * (1.0 - hit)) + dir * 8.0 * strike
+				sq += -0.12 * sin(k * TAU * 2.0)
+				rot = 0.15 * strike
+			"hyeonmu":   # 현무: 몸을 일으켰다가 등딱지로 쿵
 				off += Vector2(0, -8.0 * wind * (1.0 - hit))
 				sq += -0.15 * wind * (1.0 - hit) + 0.3 * maxf(0.0, 1.0 - absf(k - 0.55) / 0.15)
 				rot = -0.12 * wind * (1.0 - hit)
@@ -1253,13 +1328,28 @@ func _motion(u) -> Dictionary:
 			_:           # 적·기타: 덤벼들었다 돌아오기
 				off += dir * sin(k * PI) * 8.0
 	off += m["kb"]
-	if atk == 0:
-		if u.team == "ally" and u.kind == "dragon":
-			off.y += sin(t * 0.06 + u.id) * 3.0                          # 청룡은 늘 떠서 출렁
-		elif m.get("walking", false):
-			off.y -= absf(sin(m["walk"])) * 2.5                          # 걸을 때 통통
+	# 순간이동 같은 스킬(돌격·덮치기·돌파)은 보이는 자리가 빠르게 따라간다
+	off += m.get("vis", u.pos) - u.pos
+	var flying: bool = u.team == "ally" and u.kind in ["dragon", "jujak"]
+	if flying:
+		off.y += sin(t * 0.06 + u.id) * 3.0 - 4.0                         # 떠서 출렁
+		if u.kind == "jujak":
+			sq += sin(t * 0.3 + u.id) * 0.06                              # 날갯짓
+	if atk == 0 and not flying:
+		if m.get("walking", false):
+			# 걸음: 발을 디딜 때마다 통통·좌우로 기우뚱·살짝 눌림, 가는 쪽으로 몸을 기울인다
+			var ph: float = m["walk"]
+			var four_legs: bool = u.kind in ["haetae", "baekho", "hyeonmu", "cavalry"]
+			off.y -= absf(sin(ph)) * (1.5 if four_legs else 2.8)
+			rot += sin(ph) * (0.03 if four_legs else 0.07)
+			sq += (1.0 - absf(sin(ph))) * 0.05 - 0.025
+			var vx: float = m.get("vel", Vector2.ZERO).x
+			rot += clampf(vx * 0.08, -0.1, 0.1) * (1.0 if u.team == "ally" else -1.0)
 		else:
 			sq += sin(t * 0.07 + u.id * 1.3) * 0.025                      # 숨쉬기
+	# 가는 쪽을 본다 (아군이 제자리로 물러날 때 뒤돌아 걷는다)
+	if u.team == "ally" and m.get("face", 1.0) < 0.0 and atk == 0:
+		flip *= -1.0
 	return {"off": off, "sq": sq, "white": m["hit"] > 4, "rot": rot, "flip": flip}
 
 
@@ -1496,8 +1586,7 @@ func _draw_ally_in_battle(u, base: Vector2) -> void:
 	var p: Vector2 = u.pos + mo["off"]
 	var sname := soldier_sprite(u.kind, u.element)
 	if u.kind in BEASTS and not has_own_sprite(u.kind, u.element):
-		var gk: float = sqrt(u.grow) if u.kind == "bulgasari" else 1.0
-		draw_beast(u.kind, p, ALLY_SCALE * gk, u.element, mo["white"])
+		draw_beast(u.kind, p, ALLY_SCALE, u.element, mo["white"])
 		_draw_tier_aura(p + Vector2(0, -6), u.tier, ALLY_SCALE * 0.9)
 	elif tex(sname) != null:
 		var own := has_own_sprite(u.kind, u.element)

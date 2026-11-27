@@ -263,18 +263,20 @@ func test_refire_never_lowers_tier_and_safe_heat_never_cracks() -> bool:
 	return true
 
 
-## 별 올리기: 같은 병사·같은 별끼리 ★→★★ 2명, ★★→★★★ 3명 … ★★★★→★★★★★ 5명. 요변은 요변끼리만
+## 별 올리기: 같은 병사·같은 별 3명 → 별 +1, ★5 까지. 요변은 요변끼리만
 func test_merge_stars_up_to_five() -> bool:
 	var run = KilnRun.new(2)
 	run.chapter = 9
 	check(PD.MAX_STAR == 5, "별은 5개까지")
 	for st in range(1, 5):
-		check(PD.merge_need(st) == st + 1, "★%d → ★%d 은 %d명" % [st, st + 1, st + 1])
-	# ★ 2명 (유약 달라도) → ★★
+		check(PD.merge_need(st) == 3, "★%d → ★%d 은 3명" % [st, st + 1])
+	# ★ 3명 (유약 달라도) → ★★
 	run._add_soldier("spear", "fire", "normal")
 	run._add_soldier("spear", "water", "fine")
+	check(run.merge_groups().is_empty(), "★ 2명으로는 못 합친다")
+	run._add_soldier("spear", "earth", "normal")
 	var g: Array = run.merge_groups()
-	check(g.size() == 1 and g[0].size() == 2, "★ 2명이면 합칠 수 있다")
+	check(g.size() == 1 and g[0].size() == 3, "★ 3명이면 합칠 수 있다")
 	var m: Dictionary = run.merge(g[0])
 	check(m["star"] == 2 and m["tier"] == "fine" and m["element"] == "water", "별 +1, 품질은 좋은 것, 유약은 그 병사 것: %s" % [m])
 	# ★★ 는 3명 필요
@@ -292,8 +294,10 @@ func test_merge_stars_up_to_five() -> bool:
 	check(r2.merge_groups().is_empty(), "요변과 보통은 못 합친다")
 	check(r2.merge([r2.army[0]["id"], r2.army[1]["id"]]).is_empty(), "억지로 합쳐도 안 된다")
 	r2._add_soldier("archer", "water", "legend")
+	check(r2.merge_groups().is_empty(), "요변 2명 + 보통 1명은 못 합친다")
+	r2._add_soldier("archer", "earth", "legend")
 	var g2: Array = r2.merge_groups()
-	check(g2.size() == 1 and r2.merge(g2[0])["tier"] == "legend", "요변 2명은 요변 ★★ 로")
+	check(g2.size() == 1 and r2.merge(g2[0])["tier"] == "legend", "요변 3명은 요변 ★★ 로")
 	# ★★★★★ 는 더 못 올린다
 	var r3 = KilnRun.new(4)
 	r3.chapter = 9
@@ -321,6 +325,7 @@ func test_loot_tickets_and_equipment() -> bool:
 	r2.night = PD.KILN_NIGHTS
 	r2._add_soldier("spear", "fire", "normal")
 	r2._add_soldier("spear", "water", "normal")
+	r2._add_soldier("spear", "earth", "normal")
 	var b2 = r2.start_night()
 	b2.units = b2.units.filter(func(u): return u.team == "ally")
 	b2.spawn_queue = []

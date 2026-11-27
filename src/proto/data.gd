@@ -213,14 +213,17 @@ const CLAY_PER_NIGHT := 4         # 밤을 넘기면 흙 (다시 굽기·뽑기�
 const TICKETS_PER_NIGHT := 2      # 밤을 넘기면 뽑기권 (1장 = 뽑기 1번, 흙 없이)
 const TICKET_PER_KILLS := 12      # 처치 12마리마다 뽑기권 1장 더
 const TICKETS_BOSS := 3           # 대장을 쓰러뜨리면 뽑기권 더
-## 별 올리기: 같은 병사·같은 별끼리 합친다. ★→★★ 2명, ★★→★★★ 3명, ★★★→★★★★ 4명, ★★★★→★★★★★ 5명
+## 별 올리기: 같은 병사·같은 별 3명을 합치면 별 +1 (★5 까지). 사용자: "같은 거 3개씩만 합쳐서 하는걸로 하자"
 ## 요변은 요변끼리만 (사용자 요청)
 const MAX_STAR := 5
 const STAR_MUL := {1: 1.0, 2: 1.6, 3: 2.5, 4: 3.8, 5: 5.6}
 
 
-static func merge_need(star: int) -> int:
-	return star + 1
+const MERGE_COUNT := 3
+
+
+static func merge_need(_star: int) -> int:
+	return MERGE_COUNT
 
 
 # ---------- 장비 (챕터 3부터) ----------

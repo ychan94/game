@@ -159,7 +159,7 @@ static func merge_class(s: Dictionary) -> String:
 	return "%s|%d|%s" % [s["role"], s["star"], "legend" if s["tier"] == "legend" else "plain"]
 
 
-## 지금 합칠 수 있는 묶음 (★→★★ 2명, ★★→★★★ 3명 …). 가마에 넣은 병사는 뺀다
+## 지금 합칠 수 있는 묶음 (같은 병사·같은 별 3명). 가마에 넣은 병사는 뺀다
 func merge_groups() -> Array:
 	var by := {}
 	for s in army:

@@ -46,6 +46,7 @@ var result := ""
 var stats := {"kills": 0, "specials": 0, "synergies": 0, "damage": 0.0}
 var _next_id := 1
 var synergy_power: float = D.SYNERGY_POWER
+var waves: Array = []           # 지나가는 합동 기술 파도 [{element, x, power}]
 
 
 func _init(seed_value: int, plan: Array = []) -> void:
@@ -125,9 +126,11 @@ func step() -> void:
 		var e: Array = spawn_queue.pop_front()
 		add_enemy(e[1], rng.randf_range(30.0, FIELD.size.y - 30.0), e[2] if e.size() > 2 else {})
 	_synergy()
+	_move_waves()
 	for u in units:
 		if u.alive:
 			_act(u)
+	_spread_enemies()
 	var keep: Array = []
 	for u in units:
 		if u.alive:
@@ -287,9 +290,37 @@ func _synergy() -> void:
 			stats["synergies"] += 1
 			var power: float = synergy_power * counts[e] / D.SYNERGY_COUNT
 			events.append({"kind": "synergy", "element": e, "count": counts[e], "name": D.SYNERGY_NAME[e]})
-			for t in units:
-				if t.alive and t.team == "enemy":
-					_element_burst(t, e, power, null)
+			waves.append({"element": e, "x": VILLAGE_X, "power": power})
+
+
+## 합동 기술 파도: 마을 쪽에서 오른쪽으로 휩쓸며, 지나가는 자리의 적이 맞는다
+func _move_waves() -> void:
+	for w in waves:
+		var x0: float = w["x"]
+		w["x"] = x0 + D.SYNERGY_WAVE_SPEED
+		for u in units:
+			if u.alive and u.team == "enemy" and u.pos.x > x0 and u.pos.x <= w["x"]:
+				_element_burst(u, w["element"], w["power"], null)
+	waves = waves.filter(func(w): return w["x"] < FIELD.size.x + 20.0)
+
+
+## 도깨비끼리 겹치지 않게 살짝 밀어낸다
+func _spread_enemies() -> void:
+	var es: Array = []
+	for u in units:
+		if u.alive and u.team == "enemy" and u.stun_t == 0:
+			es.append(u)
+	for i in es.size():
+		for j in range(i + 1, es.size()):
+			var a = es[i]
+			var c = es[j]
+			var d: Vector2 = c.pos - a.pos
+			var m: float = maxf(D.ENEMY_SPREAD, (a.radius + c.radius) * 0.8)
+			var l := d.length()
+			if l > 0.01 and l < m:
+				var push := d / l * (m - l) * 0.25
+				a.pos -= push
+				c.pos += push
 
 
 func _element_burst(t: U, element: String, power: float, src) -> void:

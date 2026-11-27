@@ -5,7 +5,7 @@ extends SceneTree
 
 const SUITES := {
 	"p0": ["res://tests/test_p0.gd"],
-	"p1": ["res://tests/test_p1.gd", "res://tests/test_proto.gd"],
+	"p1": ["res://tests/test_p1.gd", "res://tests/test_proto.gd", "res://tests/test_kiln_run.gd"],
 	"boss": ["res://tests/test_boss.gd"],
 }
 
@@ -16,7 +16,13 @@ func _init() -> void:
 	var ok := 0
 	var fail := 0
 	for path in SUITES.get(stage, []):
-		var suite = load(path).new()
+		var script = load(path)
+		if script == null or not script.can_instantiate():
+			# 테스트 파일을 해석하지 못하면 (문법 오류 등) 멈추지 말고 실패로 센다
+			fail += 1
+			print("  실패: %s — 테스트 파일을 불러오지 못함 (문법 오류?)" % path.get_file())
+			continue
+		var suite = script.new()
 		for m in suite.get_method_list():
 			var name: String = m["name"]
 			if not name.begins_with("test_"):

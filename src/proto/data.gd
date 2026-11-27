@@ -47,12 +47,15 @@ const SYNERGY_COUNT := 3         # 같은 속성 3이면 합동 기술
 const SYNERGY_FIRST := 180       # 첫 합동 기술은 3초 뒤
 const SYNERGY_EVERY := 480       # 그 뒤 8초마다
 const SYNERGY_POWER := 12.0      # 합동 기술 기본 위력 (같은 속성 3마리 기준). 높으면 승부가 합동 기술 하나로 갈린다
+const SYNERGY_WAVE_SPEED := 9.0  # 합동 기술 파도가 마을 쪽에서 전장을 휩쓰는 속도 (프레임당 px). 지나가는 순서대로 맞는다
+const ENEMY_SPREAD := 20.0       # 도깨비끼리 서로 밀어내는 거리 (겹쳐 보이지 않게, 몸 크기와 별개)
 
 # ---------- 적 (도깨비) ----------
 const ENEMIES := {
 	"goblin": {"name": "도깨비", "hp": 30.0, "atk": 6.0, "speed": 0.7, "range": 22.0, "cd": 50, "village": 8.0, "radius": 9.0},
 	"imp": {"name": "도깨비불", "hp": 18.0, "atk": 5.0, "speed": 0.8, "range": 110.0, "cd": 70, "village": 6.0, "radius": 7.0},
 	"brute": {"name": "큰 도깨비", "hp": 110.0, "atk": 14.0, "speed": 0.45, "range": 26.0, "cd": 80, "village": 20.0, "radius": 14.0},
+	"chief": {"name": "도깨비 대장", "hp": 1200.0, "atk": 24.0, "speed": 0.35, "range": 30.0, "cd": 70, "village": 80.0, "radius": 20.0},
 }
 const VILLAGE_HP := 160.0        # 새어 들어온 피해가 서서히 쌓이게 (낮으면 '완승 아니면 완패'가 된다)
 
@@ -64,20 +67,48 @@ const WAVE_BRUTES := [480, 1040]
 const WAVE_RUSH := 6              # 마지막 몰려오기 마릿수
 
 
-static func wave_plan() -> Array:
+static func wave_plan(night := 1) -> Array:
+	var n := maxi(1, night)
+	var every := maxi(22, WAVE_GOBLIN_EVERY - (n - 1) * 5)
+	var hp_mul := 1.0 + (n - 1) * NIGHT_HP_GROWTH
+	var st := func(kind: String) -> Dictionary:
+		return {} if n == 1 else {"hp": ENEMIES[kind]["hp"] * hp_mul}
 	var plan: Array = []
 	var f := 60
 	while f <= 1100:
-		plan.append([f, "goblin"])
-		f += WAVE_GOBLIN_EVERY
-	for f2 in WAVE_IMPS:
-		plan.append([f2, "imp"])
-	for f3 in WAVE_BRUTES:
-		plan.append([f3, "brute"])
-	for i in WAVE_RUSH:
-		plan.append([1150 + i * 12, "goblin"])
+		plan.append([f, "goblin", st.call("goblin")])
+		f += every
+	var imps: Array = WAVE_IMPS.duplicate()
+	var brutes: Array = WAVE_BRUTES.duplicate()
+	for i in n - 1:
+		imps.append(300 + i * 170)
+		brutes.append(620 + i * 140)
+	for f2 in imps:
+		plan.append([f2, "imp", st.call("imp")])
+	for f3 in brutes:
+		plan.append([f3, "brute", st.call("brute")])
+	for i in WAVE_RUSH + (n - 1) * 2:
+		plan.append([1150 + i * 12, "goblin", st.call("goblin")])
+	if n >= KILN_NIGHTS:
+		plan.append([1250, "chief", {}])
 	plan.sort_custom(func(a, b): return a[0] < b[0])
 	return plan
+
+
+# ---------- 여러 밤 (가마의 병사 한 판) ----------
+const KILN_NIGHTS := 5            # 다섯째 밤에 도깨비 대장
+const NIGHT_HP_GROWTH := 0.36     # 밤마다 도깨비 체력 +36% (0.22 너무 쉬움, 0.42 너무 어려움 — 봇 균형 검사)
+const ARMY_CAP_START := 6         # 병사 자리
+const ARMY_CAP_PER_NIGHT := 1     # 밤마다 자리 +1
+const CLAY_START := 15            # 처음 흙 (병사 5명)
+const CLAY_CRAFT := 3             # 새 병사 빚기
+const CLAY_REFIRE := 2            # 있는 병사 다시 굽기
+const CLAY_PER_NIGHT := 6         # 밤을 넘기면 흙
+const CLAY_PER_KILLS := 4         # 처치 4마리마다 흙 1
+const MERGE_COUNT := 3            # 같은 병사 3명 → 별 +1
+const MAX_STAR := 3
+const STAR_MUL := {1: 1.0, 2: 1.8, 3: 3.0}
+const VILLAGE_REPAIR := 30.0      # 밤이 지나면 마을 체력 회복
 
 
 # ---------- 가마 (B) ----------

@@ -60,16 +60,25 @@ func open() -> Array:
 		if use_guarantee and i == 0:
 			r["tier"] = "legend"
 			r["lucky"] = true  # 파편으로 확정된 요변
-		elif rng.randf() < o["crack"]:
-			r["cracked"] = true
-			shards += 1
-		elif rng.randf() < o["legend"]:
-			r["tier"] = "legend"
-		elif rng.randf() < o["fine"]:
-			r["tier"] = "fine"
+		else:
+			var rr := roll(o)
+			r["cracked"] = rr["cracked"]
+			r["tier"] = rr["tier"]
 		r["name"] = "%s %s" % [D.GLAZE_NAME[r["element"]], D.ROLE_NAME_KILN[r["role"]]]
 		results.append(r)
 	return results
+
+
+## 병사 한 명 굽기: 깨짐 → 요변 → 상품 순서. 깨지면 파편 +1
+func roll(o: Dictionary) -> Dictionary:
+	if rng.randf() < o["crack"]:
+		shards += 1
+		return {"cracked": true, "tier": "normal"}
+	if rng.randf() < o["legend"]:
+		return {"cracked": false, "tier": "legend"}
+	if rng.randf() < o["fine"]:
+		return {"cracked": false, "tier": "fine"}
+	return {"cracked": false, "tier": "normal"}
 
 
 func make_battle(seed_value: int):

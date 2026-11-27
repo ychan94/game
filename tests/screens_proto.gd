@@ -42,51 +42,78 @@ func _all() -> void:
 		print("launcher 불러오기 실패"); quit(1); return
 	await _snap("p00_launcher")
 
-	# ---- B 가마의 병사 ----
+	# ---- B 가마의 병사 (밤 5번) ----
 	var k = await _open("res://src/game/kiln_scene.tscn")
 	if k.get_script() == null:
 		print("kiln 불러오기 실패"); quit(1); return
-	k.kiln.slots[0] = {"role": "shield", "element": "fire"}
-	k.kiln.slots[1] = {"role": "spear", "element": "fire"}
-	k.kiln.slots[3] = {"role": "archer", "element": "fire"}
-	await _snap("p01_kiln_shape")
+	var run = k.run
+	run.craft("shield", "earth")
+	run.craft("spear", "fire")
+	run.craft("spear", "fire")
+	run.craft("archer", "fire")
+	run.craft("archer", "water")
+	k.craft_role = "spear"
+	k.craft_element = "fire"
+	await _snap("p01_kiln_prep_first")
 	k.state = "fire"
 	for i in 6:
 		k.kiln.heat_up()
-	await _frames(70)  # 불길이 쌓여 오를 시간
+	await _frames(70)
 	await _snap("p02_kiln_fire")
 	for i in 3:
 		k.kiln.heat_up()
 	await _frames(70)
 	await _snap("p02b_kiln_fire_hot")
-	k.kiln.open()
+	run.kiln.heat = 4
+	k.kiln.results = run.fire()
 	k.kiln.results[1]["tier"] = "legend"
-	k.kiln.results[1]["cracked"] = false
-	k.kiln.results[2]["cracked"] = true
+	run.army[1]["tier"] = "legend"
 	k.state = "reveal"
 	k.reveal_t = 0
 	k.reveal_shown = 0
 	await _frames(115)
 	await _snap("p03_kiln_reveal_legend")
-	await _frames(80)
+	await _frames(100)
 	await _snap("p04_kiln_reveal_done")
-	k.battle = k.kiln.make_battle(5)
+	# 둘째 밤 준비: 병사가 남아 있고, 진사 창병 3명이면 합치기 버튼
+	run.night = 2
+	run.clay = 9
+	run.craft("spear", "fire")
+	run.kiln.heat = 0
+	run.fire()
+	k.selected = run.army[0]["id"]
+	k.state = "prep"
+	await _snap("p05_kiln_prep_night2")
+	# 전투: 합동 기술 파도가 지나가는 순간
+	k.battle = run.start_night()
 	k.state = "battle"
-	await _frames(240)
-	await _snap("p06a_kiln_battle_mid")
-	var got_syn := false
-	for i in 900:
+	var got_wave := false
+	for i in 1500:
 		await physics_frame
-		if not k.banner.is_empty() and not got_syn and k.battle.stats["synergies"] > 0:
-			got_syn = true
-			await _snap("p05_kiln_synergy")
+		if i == 240:
+			await _snap("p06_kiln_battle_mid")
+		if not got_wave and not k.battle.waves.is_empty() and k.battle.waves[0]["x"] > 250.0:
+			got_wave = true
+			await _snap("p06b_kiln_synergy_wave")
+		if i == 700:
+			await _snap("p06c_kiln_battle_busy")
 		if k.battle.done:
 			break
-	await _snap("p06_kiln_battle")
 	while not k.battle.done:
 		await physics_frame
 	await _frames(10)
-	await _snap("p07_kiln_result")
+	await _snap("p07_kiln_night_end")
+	# 다섯째 밤: 도깨비 대장
+	run.night = 5
+	run.state = "prep"
+	k.battle = run.start_night()
+	k.state = "battle"
+	while k.battle._count("enemy") == 0 or not k.battle.units.any(func(u): return u.kind == "chief"):
+		await physics_frame
+		if k.battle.done:
+			break
+	await _frames(60)
+	await _snap("p07b_kiln_chief")
 
 	# ---- A 알을 품는 성 ----
 	var n = await _open("res://src/game/nest_scene.tscn")

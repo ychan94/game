@@ -77,6 +77,11 @@ func draw_glow(ci: CanvasItem) -> void:
 		var c: Color = l["color"]
 		c.a *= float(l["t"]) / l["life"]
 		glow(ci, l["pos"] + o, l["radius"] * (1.2 - 0.4 * float(l["t"]) / l["life"]), c)
+	for w in battle.waves:
+		var gc: Color = C[w["element"]].lightened(0.3)
+		gc.a = 0.5
+		for y in range(10, 260, 26):
+			glow(ci, Vector2(w["x"], y) + o, 26.0, gc)
 	for im in impacts:
 		var kk: float = float(im["t"]) / im["life"]
 		var ip: Vector2 = im["pos"] + o
@@ -254,6 +259,12 @@ func step_battle() -> void:
 		hitstop -= 1
 		return
 	battle.step()
+	# 합동 기술 파도 앞에서 튀는 입자
+	for w in battle.waves:
+		var wc: Color = C[w["element"]].lightened(0.4)
+		for i in 4:
+			fx.append({"pos": Vector2(w["x"], randf_range(0, 260)) + FIELD_OFFSET, "vel": Vector2(randf_range(0.5, 2.5), randf_range(-2.0, 0.5)),
+				"t": 20, "life": 20, "color": wc, "size": 3.0 if w["element"] == "earth" else 2.0})
 	# 걷기: 움직인 만큼 걸음 단계를 올린다
 	for u in battle.units:
 		var m := _mv(u.id)
@@ -376,9 +387,10 @@ func draw_fx() -> void:
 		var k: float = float(banner["t"]) / banner["life"]
 		var bc: Color = banner["color"].lightened(0.3)
 		bc.a = minf(1.0, k * 3.0)
-		draw_rect(Rect2(0, 150, 640, 70), Color(0, 0, 0, 0.55 * minf(1.0, k * 3.0)))
-		text(Vector2(0, 190), banner["text"], bc, 36, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
-		text(Vector2(0, 210), banner["sub"], Color(1, 1, 1, bc.a), 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+		var by: float = 150.0 if battle == null else 66.0
+		draw_rect(Rect2(0, by, 640, 56), Color(0, 0, 0, 0.45 * minf(1.0, k * 3.0)))
+		text(Vector2(0, by + 34), banner["text"], bc, 36, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+		text(Vector2(0, by + 52), banner["sub"], Color(1, 1, 1, bc.a), 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
 
 
 # ---------------- 그림 (Codex 작업물) ----------------
@@ -525,30 +537,65 @@ func _draw_unit_sprite(name: String, base: Vector2, pos: Vector2, scale_k: float
 	return true
 
 
+const ENEMY_LOOK := {
+	# 종류: [그림, 크기, 물들일 색]  — 큰 도깨비·대장은 도깨비 그림을 키워 쓴다 (전용 그림이 오면 그걸 쓴다)
+	"goblin": ["enemy/goblin", 2.0, Color(1, 1, 1)],
+	"imp": ["enemy/imp", 2.0, Color(1, 1, 1)],
+	"brute": ["enemy/brute", 2.0, Color(1, 1, 1)],
+	"chief": ["enemy/chief", 2.0, Color(1, 1, 1)],
+}
+
+
+func _enemy_look(u) -> Array:
+	match u.kind:
+		"hostile":
+			return ["nest/creature_spear_" + (u.element if u.element != "" else "fire"), 1.6, Color(0.55, 0.35, 0.7)]
+		"brute":
+			if tex("enemy/brute") == null:
+				return ["enemy/goblin", 2.6, Color(0.72, 0.68, 0.85)]
+		"chief":
+			if tex("enemy/chief") == null:
+				return ["enemy/goblin", 3.6, Color(1.15, 0.72, 0.62)]
+	return ENEMY_LOOK.get(u.kind, ["enemy/goblin", 2.0, Color(1, 1, 1)])
+
+
 func draw_enemy_shape(u, base := Vector2.ZERO) -> void:
 	var mo := _motion(u)
 	var p: Vector2 = u.pos + mo["off"]
+	var look := _enemy_look(u)
+	var tx := tex(look[0])
+	var sc: float = look[1]
+	var h: float = (tx.get_height() if tx != null else 20.0) * sc
 	var col: Color = C.get(u.kind, C["goblin"])
 	if mo["white"]:
 		col = Color.WHITE
 	var r: float = u.radius
-	draw_set_transform(base + u.pos + Vector2(0, r * 0.9), 0.0, Vector2(1.0, 0.3))
-	draw_circle(Vector2.ZERO, r * 1.1, Color(0, 0, 0, 0.35))
+	draw_set_transform(base + u.pos + Vector2(0, h * 0.36), 0.0, Vector2(1.0, 0.3))
+	draw_circle(Vector2.ZERO, h * 0.32, Color(0, 0, 0, 0.35))
 	draw_set_transform(base)
-	var ename: String = "enemy/" + u.kind
-	if u.kind == "hostile":
-		ename = "nest/creature_spear_" + (u.element if u.element != "" else "fire")
-	var etint: Color = Color(2.5, 2.5, 2.5) if mo["white"] else (Color(0.55, 0.35, 0.7) if u.kind == "hostile" else Color.WHITE)
-	if not _draw_unit_sprite(ename, base, p, 1.0, mo["sq"], etint):
-		_draw_enemy_fallback(u, p, col, r * (1.0 + mo["sq"]))
-	_draw_enemy_status(u, p, r)
+	var etint: Color = Color(2.5, 2.5, 2.5) if mo["white"] else look[2]
+	if tx != null:
+		_draw_unit_sprite(look[0], base, p, sc, mo["sq"], etint)
+		if u.kind == "brute" and tex("enemy/brute") == null:
+			draw_line(p + Vector2(-h * 0.3, -h * 0.05), p + Vector2(-h * 0.5, -h * 0.45), Color("5a4030"), 5.0)
+			draw_circle(p + Vector2(-h * 0.5, -h * 0.45), 5.0, Color("6b4c38"))
+		if u.kind == "chief" and tex("enemy/chief") == null:
+			var top := p + Vector2(0, -h * 0.62)
+			draw_colored_polygon(PackedVector2Array([top + Vector2(-12, 6), top + Vector2(12, 6), top + Vector2(12, -2), top + Vector2(6, 3), top + Vector2(0, -6), top + Vector2(-6, 3), top + Vector2(-12, -2)]), C["accent"])
+	else:
+		_draw_enemy_fallback(u, p, col, r * 1.6 * (1.0 + mo["sq"]))
+	_draw_enemy_status(u, p, r, h)
 
 
 func _draw_enemy_fallback(u, p: Vector2, col: Color, r: float) -> void:
 	match u.kind:
 		"imp":
-			draw_colored_polygon(PackedVector2Array([p + Vector2(-r, 2), p + Vector2(r, 2), p + Vector2(0, -r * 2.2 + sin(t * 0.3) * 2.0)]), col.lightened(0.2))
-			draw_circle(p, r, col)
+			var fl := sin(t * 0.35) * 2.0
+			draw_colored_polygon(PackedVector2Array([p + Vector2(-r, 2), p + Vector2(r, 2), p + Vector2(fl, -r * 2.4)]), Color(0.35, 0.5, 1.0, 0.8))
+			draw_colored_polygon(PackedVector2Array([p + Vector2(-r * 0.6, 2), p + Vector2(r * 0.6, 2), p + Vector2(fl * 0.5, -r * 1.6)]), Color(0.7, 0.85, 1.0))
+			draw_circle(p, r * 0.8, Color(0.55, 0.7, 1.0))
+			draw_circle(p + Vector2(-3, -1), 1.5, Color(1, 0.9, 0.3))
+			draw_circle(p + Vector2(3, -1), 1.5, Color(1, 0.9, 0.3))
 		"hostile":
 			draw_circle(p, r, col)
 			draw_circle(p + Vector2(-4, -2), 2.0, C["danger"])
@@ -563,18 +610,36 @@ func _draw_enemy_fallback(u, p: Vector2, col: Color, r: float) -> void:
 				draw_line(p + Vector2(-r, 0), p + Vector2(-r - 8, -12), C["clay"].darkened(0.3), 4.0)
 
 
-func _draw_enemy_status(u, p: Vector2, r: float) -> void:
-	if u.burn_t > 0 and t % 6 < 3:
-		draw_rect(Rect2(p + Vector2(randf_range(-r, r), -r - 3), Vector2(2, 2)), C["fire"].lightened(0.4))
+## 머리 위 상태 아이콘: 불꽃 = 화상(불), 물방울 = 느려짐(물), 별 = 기절(땅)
+func _draw_enemy_status(u, p: Vector2, r: float, h := 20.0) -> void:
+	var top := p + Vector2(0, -h * 0.62 - 8.0)
+	var icons: Array = []
+	if u.burn_t > 0:
+		icons.append("burn")
 	if u.slow_t > 0:
-		draw_arc(p, r + 2.0, 0, TAU, 16, C["water"], 1.0)
+		icons.append("slow")
 	if u.stun_t > 0:
-		for i in 3:
-			draw_rect(Rect2(p + Vector2.from_angle(t * 0.15 + i * 2.1) * (r + 4.0) - Vector2(1, r + 4), Vector2(2, 2)), C["accent"])
+		icons.append("stun")
+	for i in icons.size():
+		var c := top + Vector2((i - (icons.size() - 1) / 2.0) * 10.0, 0)
+		match icons[i]:
+			"burn":
+				var fl := sin(t * 0.4) * 1.0
+				draw_colored_polygon(PackedVector2Array([c + Vector2(-3, 3), c + Vector2(3, 3), c + Vector2(fl, -5)]), C["fire"].lightened(0.2))
+				draw_colored_polygon(PackedVector2Array([c + Vector2(-1.5, 3), c + Vector2(1.5, 3), c + Vector2(fl * 0.5, -1)]), Color(1, 0.9, 0.5))
+			"slow":
+				draw_circle(c + Vector2(0, 1), 3.0, C["water"])
+				draw_colored_polygon(PackedVector2Array([c + Vector2(-2.6, 0), c + Vector2(2.6, 0), c + Vector2(0, -5)]), C["water"])
+				draw_rect(Rect2(c + Vector2(-1, 0), Vector2(1, 1)), Color.WHITE)
+			"stun":
+				for k in 3:
+					var a := t * 0.15 + k * 2.1
+					draw_rect(Rect2(c + Vector2(cos(a) * 6.0, sin(a) * 2.0) - Vector2.ONE, Vector2(2, 2)), C["accent"])
 	if u.hp < u.max_hp:
-		var bw: float = r * 2.0 + 4.0
-		draw_rect(Rect2(p + Vector2(-bw / 2.0, r + 3.0), Vector2(bw, 2)), Color("3a2430"))
-		draw_rect(Rect2(p + Vector2(-bw / 2.0, r + 3.0), Vector2(bw * u.hp / u.max_hp, 2)), C["danger"])
+		var bw: float = maxf(r * 2.0 + 8.0, h * 0.6)
+		var by: float = p.y + h * 0.42
+		draw_rect(Rect2(Vector2(p.x - bw / 2.0, by), Vector2(bw, 3)), Color("3a2430"))
+		draw_rect(Rect2(Vector2(p.x - bw / 2.0, by), Vector2(bw * u.hp / u.max_hp, 3)), C["danger"])
 
 
 func draw_battle() -> void:
@@ -596,6 +661,9 @@ func draw_battle() -> void:
 		var hpos := Vector2(8, 30 + i * 60)
 		if draw_sprite("field/house" if hp_ok else "field/house_broken", hpos + Vector2(12, 14)):
 			continue
+		if not hp_ok and draw_sprite("field/house", hpos + Vector2(12, 14), 1.0, Color(0.35, 0.3, 0.3)):
+			draw_line(hpos + Vector2(6, 2), hpos + Vector2(14, 12), Color(0.1, 0.08, 0.08), 1.0)
+			continue
 		draw_rect(Rect2(hpos, Vector2(24, 18)), C["village"] if hp_ok else C["village"].darkened(0.6))
 		draw_colored_polygon(PackedVector2Array([hpos + Vector2(-3, 0), hpos + Vector2(27, 0), hpos + Vector2(12, -12)]), C["roof"] if hp_ok else C["roof"].darkened(0.6))
 	draw_line(Vector2(40, 0), Vector2(40, 260), Color(1, 1, 1, 0.08), 1.0)
@@ -610,6 +678,7 @@ func draw_battle() -> void:
 			_draw_ally_in_battle(u, base)
 		else:
 			draw_enemy_shape(u, base)
+	_draw_waves()
 	_draw_corpses(base)
 	_draw_swooshes()
 	_draw_arrows()
@@ -629,6 +698,33 @@ func _draw_ally_in_battle(u, base: Vector2) -> void:
 	if u.hp < u.max_hp:
 		draw_rect(Rect2(u.pos + Vector2(-14, 26), Vector2(28, 3)), Color("3a2430"))
 		draw_rect(Rect2(u.pos + Vector2(-14, 26), Vector2(28 * u.hp / u.max_hp, 3)), C["good"])
+
+
+## 합동 기술 파도: 불의 벽 / 물결 / 갈라지는 땅
+func _draw_waves() -> void:
+	for w in battle.waves:
+		var x: float = w["x"]
+		var col: Color = C[w["element"]]
+		match w["element"]:
+			"fire":
+				for y in range(0, 260, 10):
+					var hgt := 10.0 + 6.0 * sin(t * 0.5 + y * 0.3)
+					draw_colored_polygon(PackedVector2Array([Vector2(x - 8, y + 10), Vector2(x + 4, y + 10), Vector2(x - 2 + sin(y + t * 0.4) * 3.0, y + 10 - hgt)]), Color(1.0, 0.55, 0.15, 0.85))
+				var tail := col
+				tail.a = 0.25
+				draw_rect(Rect2(x - 60, 0, 52, 260), tail)
+			"water":
+				var tail2 := col
+				tail2.a = 0.3
+				draw_rect(Rect2(x - 70, 0, 66, 260), tail2)
+				for y in range(0, 260, 18):
+					draw_arc(Vector2(x - 4, y + 9), 9.0, -PI / 2.0, PI / 2.0, 8, Color(0.92, 0.98, 1.0, 0.9), 3.0)
+			"earth":
+				var pts := PackedVector2Array()
+				for y in range(0, 270, 12):
+					pts.append(Vector2(x + (6.0 if (y / 12) % 2 == 0 else -6.0), y))
+				draw_polyline(pts, Color(0.2, 0.14, 0.1), 4.0)
+				draw_polyline(pts, Color(0.85, 0.65, 0.4, 0.8), 1.0)
 
 
 func _draw_corpses(base: Vector2) -> void:
@@ -687,15 +783,29 @@ func draw_battle_hud(title: String) -> void:
 	draw_rect(Rect2(44, 31, 200, 10), Color("3a2430"))
 	draw_rect(Rect2(44, 31, 200 * vk, 10), C["good"] if vk > 0.5 else C["accent"] if vk > 0.25 else C["danger"])
 	text(Vector2(250, 40), "%d%%" % roundi(vk * 100.0))
-	text(Vector2(330, 40), "처치 %d" % battle.stats["kills"], C["text"], 24 if battle.stats["kills"] >= 30 else 12)
+	text(Vector2(300, 40), "처치 %d" % battle.stats["kills"], C["text"], 24 if battle.stats["kills"] >= 30 else 12)
 	var left: int = battle.spawn_queue.size()
-	text(Vector2(470, 40), "남은 적 %d" % (left + battle._count("enemy")), C["dim"])
-	var syn := []
-	for e in battle.synergy_t:
-		syn.append((PD.GLAZE_NAME if view_style == "kiln" else PD.ELEMENT_NAME)[e])
-	if not syn.is_empty():
-		text(Vector2(470, 18), "합동: " + ", ".join(syn), C["accent"])
+	text(Vector2(420, 40), "남은 적 %d" % (left + battle._count("enemy")), C["dim"])
+	_draw_synergy_cooldowns()
 	text(Vector2(0, 345), "아군은 알아서 싸웁니다 · Esc 처음으로", C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+
+
+## 합동 기술마다: 유약 색 원이 차오르고, 다 차면 발동. 남은 초를 함께 보여 준다
+func _draw_synergy_cooldowns() -> void:
+	var i := 0
+	for e in battle.synergy_t:
+		var left: int = battle.synergy_t[e]
+		var total: float = PD.SYNERGY_FIRST if battle.stats["synergies"] == 0 else PD.SYNERGY_EVERY
+		var k: float = clampf(1.0 - left / total, 0.0, 1.0)
+		var c := Vector2(600 - i * 56, 22)
+		var col: Color = C[e].lightened(0.3)
+		draw_circle(c, 14.0, Color(0.08, 0.07, 0.1))
+		draw_arc(c, 12.0, -PI / 2.0, -PI / 2.0 + TAU * k, 32, col, 4.0)
+		if left < 30:
+			draw_circle(c, 15.0 + 2.0 * sin(t * 0.6), Color(col.r, col.g, col.b, 0.35))
+		text(c + Vector2(-20, 5), "%d" % ceili(left / 60.0), C["text"], 12, 40.0, HORIZONTAL_ALIGNMENT_CENTER)
+		text(c + Vector2(-40, 30), PD.SYNERGY_NAME[e], col, 12, 80.0, HORIZONTAL_ALIGNMENT_CENTER)
+		i += 1
 
 
 func draw_result(win: bool, retry: String) -> void:

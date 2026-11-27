@@ -1,31 +1,38 @@
 extends "res://src/game/proto_base.gd"
-## B 가마의 병사 — 1분 시험판: 빚기 → 불 올리기 → 가마 열기 → 밤 한 번
+## B 가마의 병사 — 한 판 = 밤 5번. 병사는 밤이 지나도 남는다.
+##   준비(빚기·다시 굽기·합치기) → 가마(불 올리기·열기) → 준비 → 밤 → 밤 결과 → 준비 … → 다섯 밤
 
-const Kiln = preload("res://src/proto/kiln.gd")
+const KilnRun = preload("res://src/proto/kiln_run.gd")
 
-var kiln
-var state := "shape"     # shape → fire → reveal → battle → result
+var run
+var kiln                 # run.kiln (불 세기·확률·파편)
+var state := "prep"      # prep → fire → reveal → prep → battle → night_end → prep … / final
 var reveal_t := 0
 var reveal_shown := 0
+var selected := -1       # 고른 병사 id
+var craft_role := "spear"
+var craft_element := "fire"
 
 
 func _ready() -> void:
 	super._ready()
 	view_style = "kiln"
-	kiln = Kiln.new(int(Time.get_unix_time_from_system()))
+	_new_run()
+
+
+func _new_run() -> void:
+	run = KilnRun.new(int(Time.get_unix_time_from_system()))
+	kiln = run.kiln
+	state = "prep"
+	selected = -1
+	battle = null
 
 
 func _physics_process(_d: float) -> void:
 	back_to_menu_if_esc()
 	match state:
-		"shape":
-			for i in kiln.slots.size():
-				if clicked("role%d" % i):
-					kiln.cycle_role(i)
-				if clicked("elem%d" % i):
-					kiln.cycle_element(i)
-			if pressed(KEY_ENTER) or pressed(KEY_KP_ENTER) or clicked("go"):
-				state = "fire"
+		"prep":
+			_prep_input()
 		"fire":
 			_tick_fire()
 			if (pressed(KEY_SPACE) or clicked("heat")) and kiln.heat < PD.KILN_MAX_HEAT:
@@ -36,7 +43,7 @@ func _physics_process(_d: float) -> void:
 					flames.append({"pos": Vector2(bx.position.x + bx.size.x * randf_range(0.1, 0.9), bx.end.y - randf_range(2.0, 14.0)),
 						"vel": Vector2(randf_range(-0.6, 0.6), -randf_range(1.4, 2.6)), "t": 0, "life": randi_range(18, 30), "size": randf_range(10.0, 16.0)})
 			if pressed(KEY_ENTER) or pressed(KEY_KP_ENTER) or clicked("open"):
-				kiln.open()
+				kiln.results = run.fire()
 				state = "reveal"
 				reveal_t = 0
 				reveal_shown = 0
@@ -47,21 +54,62 @@ func _physics_process(_d: float) -> void:
 				_reveal_one(reveal_shown)
 				reveal_shown += 1
 			if reveal_shown >= kiln.results.size() and (pressed(KEY_ENTER) or pressed(KEY_KP_ENTER) or clicked("fight")):
-				battle = kiln.make_battle(int(Time.get_unix_time_from_system()))
-				state = "battle"
+				state = "prep"
+				banner = {}
 		"battle":
 			step_battle()
 			if battle.done:
-				state = "result"
+				run.end_night(battle)
+				state = "night_end"
 				banner = {}
-		"result":
-			if pressed(KEY_R) or pressed(KEY_ENTER) or clicked("retry"):
-				kiln.reset_slots()
-				battle = null
-				state = "shape"
+		"night_end":
+			if pressed(KEY_ENTER) or pressed(KEY_KP_ENTER) or clicked("next"):
+				if run.state == "prep":
+					state = "prep"
+					battle = null
+					selected = -1
+				else:
+					_new_run()
+			elif pressed(KEY_R) and run.state != "prep":
+				_new_run()
 	tick_fx()
 	queue_redraw()
 	end_input()
+
+
+func _prep_input() -> void:
+	for s in run.army:
+		if clicked("card%d" % s["id"]):
+			selected = s["id"] if selected != s["id"] else -1
+	if selected >= 0 and clicked("refire"):
+		run.refire(selected)
+	var groups: Array = run.merge_groups()
+	for i in groups.size():
+		if clicked("merge%d" % i):
+			var m: Dictionary = run.merge(groups[i])
+			if not m.is_empty():
+				selected = m["id"]
+				float_text(Vector2(150, 150), "합치기! %s %s" % [m["name"], "★".repeat(m["star"])], C["accent"], 24)
+				shake = 4.0
+			break
+	for r in PD.ROLES:
+		if clicked("role_" + r):
+			craft_role = r
+	for e in PD.ELEMENTS:
+		if clicked("el_" + e):
+			craft_element = e
+	if clicked("craft"):
+		run.craft(craft_role, craft_element)
+	for i in run.queue.size():
+		if clicked("uq%d" % i):
+			run.unqueue(i)
+			break
+	if not run.queue.is_empty() and (clicked("fire_go") or pressed(KEY_SPACE)):
+		state = "fire"
+	elif run.queue.is_empty() and not run.army.is_empty() and (clicked("night_go") or pressed(KEY_ENTER) or pressed(KEY_KP_ENTER)):
+		battle = run.start_night()
+		uv.clear()
+		state = "battle"
 
 
 func _slot_pos(i: int) -> Vector2:
@@ -75,12 +123,12 @@ func _reveal_one(i: int) -> void:
 		burst(p, C["clay"], 22, 3.5, 3.0)
 		float_text(p + Vector2(-24, -40), "깨짐… 파편 +1", C["dim"])
 		shake = maxf(shake, 3.0)
-	elif r["tier"] == "legend":
+	elif r["tier"] == "legend" and r.get("before", "") != "legend":
 		burst(p, C["accent"], 40, 4.5, 3.0)
 		do_flash(C["accent"], 18)
 		shake = maxf(shake, 9.0)
 		show_banner("요변!", "%s — 불이 우연히 만든 귀한 빛깔 · 힘 2.6배" % r["name"], C["accent"], 90)
-	elif r["tier"] == "fine":
+	elif r["tier"] == "fine" and r.get("before", "") != "fine":
 		burst(p, C[r["element"]].lightened(0.4), 14, 2.5)
 		float_text(p + Vector2(-12, -40), "상품", C["accent"])
 	else:
@@ -92,42 +140,118 @@ func _draw() -> void:
 	buttons.clear()
 	draw_rect(Rect2(Vector2.ZERO, VIEW), C["bg"])
 	match state:
-		"shape":
-			_draw_shape()
+		"prep":
+			_draw_prep()
 		"fire":
 			_draw_fire()
 		"reveal":
 			_draw_reveal()
-		"battle", "result":
+		"battle", "night_end":
 			draw_battle()
-			draw_battle_hud("가마의 병사 — 밤")
-			if state == "result":
-				draw_result(battle.result == "win", "R  다시 빚기 (파편은 남아요)")
+			draw_battle_hud("가마의 병사 — 밤 %d / %d" % [mini(run.night, PD.KILN_NIGHTS) if state == "battle" else run.night - (0 if run.state == "lost" else 1), PD.KILN_NIGHTS])
+			if state == "night_end":
+				_draw_night_end()
 	draw_fx()
 
 
-func _draw_shape() -> void:
-	text(Vector2(0, 34), "병사 빚기", C["accent"], 24, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
-	text(Vector2(0, 56), "모양 = 역할 · 유약 = 속성 · 같은 유약 3개면 합동 기술", C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
-	var counts := {}
-	for i in kiln.slots.size():
-		var s: Dictionary = kiln.slots[i]
-		counts[s["element"]] = counts.get(s["element"], 0) + 1
-		var x: float = 28.0 + i * 120.0
-		draw_rect(Rect2(x, 80, 104, 200), C["card"])
-		draw_rect(Rect2(x, 80, 104, 200), C["dim"], false, 1.0)
-		draw_ally_shape(Vector2(x + 52, 150), s["role"], s["element"], "normal", 2.2)
-		button(Rect2(x + 8, 206, 88, 26), "모양: " + PD.ROLE_NAME_KILN[s["role"]], "role%d" % i, C["text"])
-		button(Rect2(x + 8, 240, 88, 26), "유약: " + PD.GLAZE_NAME[s["element"]], "elem%d" % i, C[s["element"]].lightened(0.3))
-	var syn := []
-	for e in counts:
-		if counts[e] >= PD.SYNERGY_COUNT:
-			syn.append("%s %d → %s" % [PD.GLAZE_NAME[e], counts[e], PD.SYNERGY_NAME[e]])
-	text(Vector2(0, 306), ("합동 기술 준비됨: " + ", ".join(syn)) if not syn.is_empty() else "합동 기술 없음 (같은 유약 3개가 필요)",
-		C["accent"] if not syn.is_empty() else C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
-	button(Rect2(230, 328, 180, 30), "가마에 넣기  (Enter)", "go")
-	text(Vector2(0, 378), "요변(窯變): 가마 불 속에서 우연히 생기는 귀한 빛깔. 요변 병사는 힘 2.6배에 혼자 특수기를 쓴다", C["accent"].darkened(0.15), 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
-	text(Vector2(0, 394), "버튼을 눌러 모양과 유약을 바꾸세요 · Esc 처음으로", C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+func _power(s: Dictionary) -> float:
+	return PD.TIER_MUL[s["tier"]] * PD.STAR_MUL[s["star"]]
+
+
+func _draw_prep() -> void:
+	text(Vector2(10, 26), "밤 %d/%d 준비" % [run.night, PD.KILN_NIGHTS], C["accent"], 24)
+	text(Vector2(10, 40), "병사 %d / %d 자리" % [run.army.size(), run.cap()], C["text"])
+	text(Vector2(300, 16), "마을", C["dim"])
+	draw_rect(Rect2(332, 8, 110, 8), Color("3a2430"))
+	draw_rect(Rect2(332, 8, 110 * run.village_hp / PD.VILLAGE_HP, 8), C["good"])
+	text(Vector2(300, 36), "흙 %d" % run.clay, C["clay"].lightened(0.35), 12)
+	text(Vector2(460, 16), "파편 %d / %d" % [kiln.shards, PD.SHARDS_FOR_LEGEND], C["dim"])
+	text(Vector2(460, 34), "이번 밤: 도깨비 +%d%%%s" % [roundi(PD.NIGHT_HP_GROWTH * 100.0 * (run.night - 1)), " · 대장 출현!" if run.night >= PD.KILN_NIGHTS else ""], C["danger"] if run.night >= PD.KILN_NIGHTS else C["dim"])
+	# 군대
+	var cw := 76.0
+	var ch := 96.0
+	for i in run.cap():
+		var x: float = 10.0 + (i % 5) * (cw + 2.0)
+		var y: float = 46.0 + (i / 5) * (ch + 4.0)
+		var r := Rect2(x, y, cw, ch)
+		if i >= run.army.size():
+			draw_rect(r, C["card"].darkened(0.4))
+			draw_rect(r, C["dim"].darkened(0.4), false, 1.0)
+			continue
+		var s: Dictionary = run.army[i]
+		var queued: bool = run.is_queued(s["id"])
+		buttons.append({"rect": r, "id": "card%d" % s["id"]})
+		draw_rect(r, C["card"].lightened(0.06 if r.has_point(get_local_mouse_position()) else 0.0))
+		draw_rect(r, C["accent"] if selected == s["id"] else C["dim"], false, 2.0 if selected == s["id"] else 1.0)
+		draw_ally_shape(Vector2(x + cw / 2.0, y + 52), s["role"], s["element"], s["tier"], 2.0)
+		if s["tier"] != "normal":
+			text(Vector2(x + 4, y + 13), PD.TIER_NAME_KILN[s["tier"]], C["accent"] if s["tier"] == "legend" else C["text"])
+		text(Vector2(x, y + ch - 6), "★".repeat(s["star"]), C["accent"], 12, cw, HORIZONTAL_ALIGNMENT_CENTER)
+		if queued:
+			draw_rect(r, Color(0.05, 0.03, 0.02, 0.6))
+			text(Vector2(x, y + 54), "가마 안", C["fire"].lightened(0.3), 12, cw, HORIZONTAL_ALIGNMENT_CENTER)
+	# 고른 병사·합치기
+	var info_y := 256.0
+	var sel: Dictionary = run.soldier(selected) if selected >= 0 else {}
+	if not sel.is_empty():
+		text(Vector2(12, info_y), "%s %s · %s · 힘 ×%.1f" % [sel["name"], "★".repeat(sel["star"]), PD.TIER_NAME_KILN[sel["tier"]], _power(sel)], C["text"])
+		var why := "" if run.can_refire(selected) else ("요변은 더 오를 데가 없음" if sel["tier"] == "legend" else ("이미 가마 안" if run.is_queued(selected) else ("흙 부족" if run.clay < PD.CLAY_REFIRE else "가마가 가득 참")))
+		button(Rect2(10, info_y + 8, 190, 24), "다시 굽기 · 흙 %d" % PD.CLAY_REFIRE if why == "" else why, "refire", C["fire"].lightened(0.3), why == "")
+	else:
+		text(Vector2(12, info_y), "병사를 누르면 다시 굽기 (요변을 노린다 · 등급은 안 내려감)", C["dim"])
+	var groups: Array = run.merge_groups()
+	for i in mini(groups.size(), 2):
+		var g: Dictionary = run.soldier(groups[i][0])
+		button(Rect2(206 + i * 98, info_y + 8, 96, 24), "합치기 %s" % "★".repeat(g["star"] + 1), "merge%d" % i, C["accent"])
+	if groups.is_empty():
+		text(Vector2(206, info_y + 24), "같은 병사 3명 → 별 +1 (확정)", C["dim"])
+	# 가마에 넣을 것
+	panel(Rect2(406, 46, 226, 284))
+	text(Vector2(416, 64), "가마 (%d / %d)" % [run.queue.size(), PD.KILN_SLOTS], C["accent"])
+	for i in PD.KILN_SLOTS:
+		var ry: float = 72.0 + i * 24.0
+		if i >= run.queue.size():
+			draw_rect(Rect2(414, ry, 210, 20), C["card"].darkened(0.3))
+			continue
+		var q: Dictionary = run.queue[i]
+		draw_rect(Rect2(414, ry, 210, 20), C["card"])
+		draw_rect(Rect2(418, ry + 4, 12, 12), C[q["element"]])
+		text(Vector2(436, ry + 15), "%s · %s" % [KilnRun.soldier_name(q["role"], q["element"]), "새로" if q["kind"] == "new" else "다시 굽기"], C["text"])
+		button(Rect2(602, ry + 2, 18, 16), "×", "uq%d" % i, C["dim"])
+	text(Vector2(416, 210), "새 병사 빚기 · 흙 %d" % PD.CLAY_CRAFT, C["text"])
+	for i in PD.ROLES.size():
+		var r2: String = PD.ROLES[i]
+		button(Rect2(414 + i * 72, 218, 68, 22), PD.ROLE_NAME_KILN[r2], "role_" + r2, C["accent"] if craft_role == r2 else C["dim"])
+	for i in PD.ELEMENTS.size():
+		var e: String = PD.ELEMENTS[i]
+		button(Rect2(414 + i * 72, 244, 68, 22), PD.GLAZE_NAME[e], "el_" + e, C[e].lightened(0.4) if craft_element == e else C["dim"])
+	draw_ally_shape(Vector2(450, 300), craft_role, craft_element, "normal", 1.4)
+	var cwhy := "" if run.can_craft() else ("흙 부족" if run.clay < PD.CLAY_CRAFT else ("자리가 없음 — 합치기!" if run.army.size() + run.queued_new() >= run.cap() else "가마가 가득 참"))
+	button(Rect2(480, 286, 144, 30), ("빚기 → 가마") if cwhy == "" else cwhy, "craft", C["accent"], cwhy == "")
+	# 진행
+	button(Rect2(10, 344, 300, 30), "가마에 불 지피기  (스페이스)", "fire_go", C["fire"].lightened(0.3), not run.queue.is_empty())
+	button(Rect2(330, 344, 300, 30), "밤 맞이하기  (Enter)" if run.queue.is_empty() else "가마를 먼저 여세요", "night_go", C["accent"], run.queue.is_empty() and not run.army.is_empty())
+	text(Vector2(0, 392), "합치기: 같은 모양·유약·별 3명 → 별 +1 (확정) · 다시 굽기: 요변을 노림 (등급은 안 내려감, 불 5↑ 깨질 위험)", C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+
+
+func _draw_night_end() -> void:
+	panel(Rect2(120, 80, 400, 240))
+	var won_night: bool = run.state != "lost"
+	var title := "다섯 밤을 모두 지켰다!" if run.state == "won" else ("%d번째 밤을 지켰다!" % (run.night - 1) if won_night else "마을이 무너졌다")
+	text(Vector2(120, 120), title, C["good"] if won_night else C["danger"], 24, 400.0, HORIZONTAL_ALIGNMENT_CENTER)
+	var lines := [
+		"처치 %d · 합동 기술 %d번 · 요변 특수기 %d번" % [battle.stats["kills"], battle.stats["synergies"], battle.stats["specials"]],
+		"남은 마을 체력 %d%%" % roundi(100.0 * battle.village_hp / PD.VILLAGE_HP),
+	]
+	if run.state == "prep":
+		lines.append("흙 +%d  (기본 %d + 처치 %d마리당 1)" % [run.last_reward, PD.CLAY_PER_NIGHT, PD.CLAY_PER_KILLS])
+		lines.append("마을 수리 +%d · 병사 자리 +%d" % [roundi(PD.VILLAGE_REPAIR), PD.ARMY_CAP_PER_NIGHT])
+		lines.append("다음 밤: 도깨비가 더 강해진다" + (" · 도깨비 대장 출현!" if run.night >= PD.KILN_NIGHTS else ""))
+	var y := 156.0
+	for l in lines:
+		text(Vector2(120, y), l, C["text"], 12, 400.0, HORIZONTAL_ALIGNMENT_CENTER)
+		y += 22.0
+	button(Rect2(220, 280, 200, 28), "다음 밤 준비  (Enter)" if run.state == "prep" else "처음부터  (Enter)", "next")
 
 
 func _kiln_glow() -> Color:
@@ -380,7 +504,10 @@ func _draw_reveal() -> void:
 		draw_ally_shape(p, r["role"], r["element"], r["tier"], 2.0)
 		var tc: Color = C["accent"] if r["tier"] == "legend" else C["text"] if r["tier"] == "fine" else C["dim"]
 		text(p + Vector2(-50, 60), r["name"], C["text"], 12, 100.0, HORIZONTAL_ALIGNMENT_CENTER)
-		text(p + Vector2(-50, 78), PD.TIER_NAME_KILN[r["tier"]] + (" (파편 확정)" if r["lucky"] else ""), tc, 12, 100.0, HORIZONTAL_ALIGNMENT_CENTER)
+		var tier_label: String = PD.TIER_NAME_KILN[r["tier"]] + (" (파편 확정)" if r["lucky"] else "")
+		if r.get("refire", false):
+			tier_label = ("%s → %s" % [PD.TIER_NAME_KILN[r["before"]], PD.TIER_NAME_KILN[r["tier"]]]) if r["before"] != r["tier"] else ("%s 그대로" % PD.TIER_NAME_KILN[r["tier"]])
+		text(p + Vector2(-50, 78), tier_label, tc, 12, 100.0, HORIZONTAL_ALIGNMENT_CENTER)
 	if reveal_shown >= kiln.results.size():
 		var counts := {}
 		for r2 in kiln.results:
@@ -391,4 +518,4 @@ func _draw_reveal() -> void:
 			if counts[e] >= PD.SYNERGY_COUNT:
 				syn.append(PD.SYNERGY_NAME[e])
 		text(Vector2(0, 340), ("합동 기술: " + ", ".join(syn)) if not syn.is_empty() else "합동 기술 없음", C["accent"] if not syn.is_empty() else C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
-		button(Rect2(230, 352, 180, 30), "밤이 온다  (Enter)", "fight")
+		button(Rect2(230, 352, 180, 30), "준비로  (Enter)", "fight")

@@ -27,6 +27,8 @@ func setup(owner_node, layer_mode: String) -> void:
 		"front":
 			z_index = 2
 			texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		"top":
+			z_index = 3     # 맨 위: 합동 기술 컷신 (픽셀은 또렷하게)
 
 
 func _process(_d: float) -> void:

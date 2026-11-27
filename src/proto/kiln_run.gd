@@ -35,10 +35,35 @@ var last_bet := {}               # 방금 내기 결과 (화면용) {key, name, 
 var last_draw := {}              # 방금 뽑은 것 (화면용)
 
 
-func _init(seed_value: int) -> void:
+var meta := {}                   # 강화 나무 효과 (판 시작 때 받는다)
+var chapter_time := 0.0          # 이번 챕터 밤 전투 시간 합 (초) — 시간 기록
+var last_chapter_time := 0.0     # 방금 넘긴 챕터의 시간
+var total_kills := 0
+var nights_cleared := 0
+
+
+func _init(seed_value: int, meta_effects := {}) -> void:
 	rng.seed = seed_value
 	kiln = Kiln.new(seed_value + 7)
+	meta = meta_effects
+	clay += int(meta.get("start_clay", 0.0))
+	tickets += int(meta.get("start_tickets", 0.0))
+	pearls += int(meta.get("start_pearls", 0.0))
+	kiln.safe_bonus = int(meta.get("safe_heat", 0.0))
+	kiln.shard_need = maxi(1, D.SHARDS_FOR_LEGEND - int(meta.get("shard_need", 0.0)))
 	restock()
+
+
+func bet_pity() -> int:
+	return maxi(1, D.BET_PITY - int(meta.get("bet_pity", 0.0)))
+
+
+func price(key: String) -> int:
+	return maxi(1, D.SHOP_ITEMS[key]["price"] - int(meta.get("discount", 0.0)))
+
+
+func chapters_cleared() -> int:
+	return chapter - 1 + (1 if state == "won" else 0)
 
 
 # ---------------- 자리·찾기 ----------------
@@ -47,7 +72,7 @@ func day() -> int:
 
 
 func cap() -> int:
-	return mini(D.ARMY_CAP_MAX, D.ARMY_CAP_START + (day() - 1) * D.ARMY_CAP_PER_NIGHT)
+	return mini(D.ARMY_CAP_MAX, D.ARMY_CAP_START + (day() - 1) * D.ARMY_CAP_PER_NIGHT) + int(meta.get("cap", 0.0))
 
 
 func chapter_info() -> Dictionary:
@@ -244,7 +269,7 @@ func fire(bet := false) -> Array:
 	var o: Dictionary = kiln.odds()
 	var guarantee: bool = kiln.guaranteed_legend()
 	if guarantee:
-		kiln.shards -= D.SHARDS_FOR_LEGEND
+		kiln.shards -= kiln.shard_need
 	for i in queue.size():
 		var q: Dictionary = queue[i]
 		var rr: Dictionary = {"cracked": false, "tier": "legend"} if guarantee and i == 0 else kiln.roll(o)
@@ -280,7 +305,7 @@ func bet_odds() -> Array:
 ## 내기: 확률표대로 하나. 꽝이 BET_PITY 번이면 다음은 대박 확정
 func _bet(new_ids: Array) -> void:
 	var key := ""
-	if bet_busts >= D.BET_PITY:
+	if bet_busts >= bet_pity():
 		key = "jackpot"
 		bet_busts = 0
 	else:
@@ -330,6 +355,7 @@ func _bet(new_ids: Array) -> void:
 func start_night():
 	var b = Battle.new(rng.randi(), D.wave_plan(night, true, chapter))
 	b.village_hp = village_hp
+	b.village_guard = meta.get("village_guard", 0.0)
 	for s in army:
 		var home = s.get("home", null)
 		b.add_ally(s["role"], s["element"], s["tier"], s["name"], D.STAR_MUL[s["star"]], soldier_mods(s), home if home is Vector2 else Vector2.INF)
@@ -361,6 +387,9 @@ func soldier_mods(s: Dictionary) -> Dictionary:
 		m["atk"] = m.get("atk", 0.0) + D.PROMO_BONUS
 		m["hp"] = m.get("hp", 0.0) + D.PROMO_BONUS
 	m["star"] = s["star"]
+	for k in ["atk", "hp", "cdr"]:
+		if meta.has(k):
+			m[k] = m.get(k, 0.0) + meta[k]
 	return m
 
 
@@ -449,7 +478,7 @@ func buy(slot: int, soldier_id := -1) -> bool:
 	if state != "prep" or slot < 0 or slot >= shop.size() or shop[slot] == "":
 		return false
 	var it: Dictionary = D.SHOP_ITEMS[shop[slot]]
-	if pearls < it["price"]:
+	if pearls < price(shop[slot]):
 		return false
 	if it["stat"] == "ticket":
 		tickets += 1
@@ -461,7 +490,7 @@ func buy(slot: int, soldier_id := -1) -> bool:
 		if cur >= _upg_cap(it["stat"]):
 			return false
 		s["upg"][it["stat"]] = minf(_upg_cap(it["stat"]), cur + it["val"])
-	pearls -= it["price"]
+	pearls -= price(shop[slot])
 	shop[slot] = ""
 	return true
 
@@ -482,12 +511,15 @@ func set_home(id: int, pos) -> void:
 func end_night(b) -> void:
 	village_hp = maxf(0.0, b.village_hp)
 	last_kills = b.stats["kills"]
+	total_kills += last_kills
+	chapter_time += b.frame / float(D.FPS)
 	if b.result != "win" or village_hp <= 0.0:
 		state = "lost"
 		return
 	# 전리품: 뽑기권 · 흙 · (챕터 3부터) 장비
 	var boss_night := night >= D.KILN_NIGHTS
-	var tk: int = D.TICKETS_PER_NIGHT + last_kills / D.TICKET_PER_KILLS + (D.TICKETS_BOSS if boss_night else 0)
+	nights_cleared += 1
+	var tk: int = D.TICKETS_PER_NIGHT + last_kills / D.TICKET_PER_KILLS + (D.TICKETS_BOSS if boss_night else 0) + int(meta.get("night_tickets", 0.0))
 	tickets += tk
 	clay += D.CLAY_PER_NIGHT
 	last_reward = D.CLAY_PER_NIGHT
@@ -503,6 +535,8 @@ func end_night(b) -> void:
 	night += 1
 	chapter_cleared = false
 	if night > D.KILN_NIGHTS:
+		last_chapter_time = chapter_time
+		chapter_time = 0.0
 		chapter += 1
 		if chapter > D.CHAPTERS.size():
 			chapter = D.CHAPTERS.size()

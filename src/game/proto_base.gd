@@ -41,6 +41,9 @@ var lights: Array = []           # 순간 섬광 [{pos, radius, color, t, life}]
 var hitstop := 0                 # 큰 한 방에 전투를 잠깐 멈춘다 (손맛)
 var impacts: Array = []          # 맞는 순간의 십자 섬광 [{pos, t, life, size, color}]
 var wave_parts: Array = []       # 합동 기술 파도 입자 [{pos, vel, t, life, size, element}]
+var cutin := {}                  # 합동 기술 컷신 {element, name, count, who, t, life}
+const CUTIN_LEN := 84
+var rings: Array = []            # 스킬 충격파 고리 [{pos, r0, r1, t, life, color}]
 var beams: Array = []            # 청룡 물기둥 [{from, to, t, life, element}]
 var boss_seen := {}              # 등장을 알린 대장
 var anims: Array = []            # 이펙트 애니메이션 [{name, pos, frame_t, scale, add, flip}]
@@ -75,7 +78,7 @@ func _ready() -> void:
 		win.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 		win.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
 	var Layer = load("res://src/game/glow_layer.gd")
-	for mode in ["bg", "back", "glow", "front"]:
+	for mode in ["bg", "back", "glow", "front", "top"]:
 		var l: Node2D = Layer.new()
 		l.setup(self, mode)
 		add_child(l)
@@ -130,6 +133,8 @@ func draw_layer(ci: CanvasItem, mode: String) -> void:
 			draw_glow(ci)
 		"front":
 			draw_front(ci)
+		"top":
+			_draw_cutin(ci)
 
 
 ## 빛 층에 그릴 것: 장면마다 덮어써서 더한다 (super 호출)
@@ -139,6 +144,13 @@ func draw_glow(ci: CanvasItem) -> void:
 	var o := FIELD_OFFSET + _shake_now
 	_draw_ambient_lights(ci, o)
 	_draw_anims(ci, o, true)
+	for rg in rings:
+		var rk: float = float(rg["t"]) / rg["life"]
+		var rr: float = lerpf(rg["r0"], rg["r1"], 1.0 - pow(1.0 - rk, 2.0))
+		var rc: Color = rg["color"]
+		rc.a = (1.0 - rk) * 0.9
+		ci.draw_arc(rg["pos"] + o, rr, 0.0, TAU, 40, rc, 3.0 * (1.0 - rk) + 1.0)
+		glow(ci, rg["pos"] + o, rr * 0.9, Color(rc.r, rc.g, rc.b, rc.a * 0.25))
 	for bm in beams:
 		var bk: float = float(bm["t"]) / bm["life"]
 		var a0: Vector2 = bm["from"] + Vector2(14, -8)
@@ -523,6 +535,16 @@ func tick_fx() -> void:
 		m["atk"] = maxi(0, m.get("atk", 0) - 1)
 		m["kb"] *= 0.75
 		m["squash"] *= 0.8
+	if not cutin.is_empty():
+		cutin["t"] += 1
+		if cutin["t"] == cutin["life"] - 12:
+			do_flash(C.get(cutin["element"], Color.WHITE).lightened(0.5), 18)
+			shake = maxf(shake, 12.0)
+		if cutin["t"] >= cutin["life"]:
+			cutin = {}
+	for rg in rings:
+		rg["t"] += 1
+	rings = rings.filter(func(rg): return rg["t"] < rg["life"])
 	for bm in beams:
 		bm["t"] -= 1
 	beams = beams.filter(func(bm): return bm["t"] > 0)
@@ -751,10 +773,14 @@ func step_battle() -> void:
 				floats.append({"pos": e["pos"] + FIELD_OFFSET + Vector2(-20, -40), "text": "%s!" % ("요변" if view_style == "kiln" else "전설"),
 					"color": C["accent"], "size": 24, "t": 44, "life": 44, "pop": true})
 			"synergy":
-				shake = maxf(shake, 10.0)
-				hitstop = maxi(hitstop, 8)
-				do_flash(col, 22)
-				show_banner(e["name"] + "!", "%s %d — 합동 기술" % [(PD.GLAZE_NAME if view_style == "kiln" else PD.ELEMENT_NAME)[e["element"]], e["count"]], col, 70)
+				# 합동 기술 컷신: 전투를 잠깐 멈추고 그 유약의 병사들이 줄지어 달려든다
+				var who: Array = []
+				for u in battle.units:
+					if u.team == "ally" and u.alive and u.element == e["element"] and who.size() < 5:
+						who.append(soldier_sprite(u.kind, u.element))
+				cutin = {"element": e["element"], "name": e["name"], "count": e["count"], "who": who, "t": 0, "life": CUTIN_LEN}
+				hitstop = maxi(hitstop, CUTIN_LEN)
+				shake = maxf(shake, 4.0)
 				for u in battle.units:
 					if u.team == "enemy":
 						light(u.pos, 26.0, Color(col.r, col.g, col.b, 0.8), 18)
@@ -963,7 +989,7 @@ func _draw_tier_aura(_pos: Vector2, _tier: String, _scale_k: float) -> void:
 const ROLE_BASE := {"axe": "spear", "cavalry": "spear", "healer": "archer", "cannon": "archer",
 	"slinger": "archer", "twin": "spear", "general": "shield", "sniper": "archer", "cheoyong": "spear"}
 ## 사람 모양이 아닌 신화 짐승은 그림이 올 때까지 코드로 그린다
-const BEASTS := ["haetae", "dragon"]
+const BEASTS: Array = []   # 2026-11-29: 모든 병사를 같은 체형 도트로 (짐승 도형은 쓰지 않음)
 ## 등급 색 (일반 → 신화)
 const GRADE_COL := {"common": Color("cfc6b4"), "uncommon": Color("8fd88a"), "rare": Color("6fa8ff"),
 	"hero": Color("c58bff"), "legendary": Color("ffb347"), "mythic": Color("ff5f7a")}
@@ -1196,6 +1222,54 @@ const ATK_DUR := {"spear": 14, "axe": 18, "twin": 16, "general": 18, "cavalry": 
 	"haetae": 20, "hyeonmu": 22, "dragon": 20, "baekho": 18, "jujak": 14, "archer": 12, "slinger": 14, "sniper": 18, "cannon": 14, "healer": 18}
 
 
+## 합동 기술 컷신 (맨 위 층): 어두워짐 → 사선 띠 → 병사들이 줄지어 달려듦 + 집중선 → 큰 이름 → 번쩍
+func _draw_cutin(ci: CanvasItem) -> void:
+	if cutin.is_empty():
+		return
+	var k: float = float(cutin["t"]) / cutin["life"]
+	var col: Color = C.get(cutin["element"], C["accent"])
+	var inn: float = clampf(cutin["t"] / 10.0, 0.0, 1.0)
+	var out: float = clampf((cutin["life"] - cutin["t"]) / 10.0, 0.0, 1.0)
+	var a: float = minf(inn, out)
+	ci.draw_rect(Rect2(Vector2.ZERO, VIEW), Color(0, 0, 0, 0.62 * a))
+	# 사선 띠
+	var slide: float = (1.0 - pow(1.0 - inn, 3.0)) * 760.0 - 760.0
+	var band := PackedVector2Array([Vector2(slide - 40, 250), Vector2(slide + 700, 110), Vector2(slide + 700, 230), Vector2(slide - 40, 370)])
+	ci.draw_colored_polygon(band, Color(col.r * 0.35, col.g * 0.35, col.b * 0.35, 0.95 * a))
+	ci.draw_polyline(PackedVector2Array([band[0], band[1]]), Color(col.lightened(0.5).r, col.lightened(0.5).g, col.lightened(0.5).b, a), 3.0)
+	ci.draw_polyline(PackedVector2Array([band[3], band[2]]), Color(col.lightened(0.5).r, col.lightened(0.5).g, col.lightened(0.5).b, a), 3.0)
+	# 집중선
+	for i in 18:
+		var yy: float = 120.0 + fmod(i * 37.0 + cutin["t"] * 11.0, 240.0)
+		var xx: float = fmod(i * 97.0 - cutin["t"] * 34.0, 760.0) + 640.0 - 760.0
+		ci.draw_line(Vector2(xx, yy - (xx - 320.0) * 0.19), Vector2(xx + 90, yy - (xx + 90 - 320.0) * 0.19), Color(1, 1, 1, 0.35 * a), 2.0)
+	# 병사들: 오른쪽에서 줄지어 달려와 띠 위에 선다
+	var who: Array = cutin["who"]
+	for i in who.size():
+		var tx := tex(who[i])
+		if tx == null:
+			continue
+		var arrive: float = clampf((cutin["t"] - 6 - i * 5) / 14.0, 0.0, 1.0)
+		var e2: float = 1.0 - pow(1.0 - arrive, 3.0)
+		var x: float = lerpf(720.0, 120.0 + i * 92.0, e2)
+		var y: float = 250.0 - (x - 40.0) * 0.19 + sin(cutin["t"] * 0.5 + i) * 2.0
+		var sz: Vector2 = tx.get_size() * 3.0
+		ci.draw_texture_rect(tx, Rect2(Vector2(x - sz.x / 2.0, y - sz.y + 20.0), sz), false, Color(1.25, 1.25, 1.25, a))
+	# 이름
+	if cutin["t"] > 22:
+		var pop: float = clampf((cutin["t"] - 22) / 6.0, 0.0, 1.0)
+		var title: String = cutin["name"] + "!"
+		var sz2 := 36
+		var w: float = font_bold.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, sz2).x
+		var tp := Vector2(320.0 - w / 2.0 + (1.0 - pop) * 60.0, 112.0).round()
+		for oo in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 2), Vector2(2, 3)]:
+			ci.draw_string(font_bold, tp + oo, title, HORIZONTAL_ALIGNMENT_LEFT, -1, sz2, Color(0, 0, 0, a))
+		ci.draw_string(font_bold, tp, title, HORIZONTAL_ALIGNMENT_LEFT, -1, sz2, Color(col.lightened(0.6).r, col.lightened(0.6).g, col.lightened(0.6).b, a * pop))
+		var sub := "%s %d명 합동 기술" % [(PD.GLAZE_NAME if view_style == "kiln" else PD.ELEMENT_NAME)[cutin["element"]], cutin["count"]]
+		var w2: float = font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+		ci.draw_string(font, Vector2(320.0 - w2 / 2.0, 132.0).round(), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1, 1, 1, a * pop))
+
+
 ## 스킬 연출: 이름이 떠오르고, 역할마다 다른 빛·입자
 func _skill_fx(e: Dictionary) -> void:
 	var role: String = e["role"]
@@ -1205,6 +1279,16 @@ func _skill_fx(e: Dictionary) -> void:
 	floats.append({"pos": p + FIELD_OFFSET + Vector2(-30, -58), "text": e["name"] + ("" if e["lv"] == 0 else " +%d" % e["lv"]), "color": Color(1.0, 0.9, 0.55), "size": 12, "t": 50, "life": 50})
 	light(p, 40.0, Color(col.r, col.g, col.b, 0.8), 16)
 	start_attack_motion(e["unit"], role, (targets[0] - p) if not targets.is_empty() else Vector2.RIGHT)
+	var gi: int = PD.GRADES.find(PD.ROLE_GRADE.get(role, "common"))
+	rings.append({"pos": p, "r0": 6.0, "r1": 34.0 + gi * 10.0, "t": 0, "life": 18 + gi * 2, "color": col})
+	if gi >= 3:
+		rings.append({"pos": p, "r0": 4.0, "r1": 70.0 + gi * 12.0, "t": 0, "life": 26, "color": Color(1.0, 0.9, 0.6)})
+	# Codex 스킬 이펙트 그림이 있으면 재생 (assets/sprites/fx/skill_<역할>.png)
+	if play_fx("skill_" + role, p + Vector2(0, -8), 2.0, true):
+		pass
+	for tp in targets.slice(0, 8):
+		rings.append({"pos": tp, "r0": 2.0, "r1": 18.0, "t": 0, "life": 12, "color": col})
+		play_fx("skill_hit_" + role, tp, 1.6, true)
 	match role:
 		"archer", "cannon":
 			for tp in targets:
@@ -1330,7 +1414,7 @@ func _motion(u) -> Dictionary:
 	off += m["kb"]
 	# 순간이동 같은 스킬(돌격·덮치기·돌파)은 보이는 자리가 빠르게 따라간다
 	off += m.get("vis", u.pos) - u.pos
-	var flying: bool = u.team == "ally" and u.kind in ["dragon", "jujak"]
+	var flying := false
 	if flying:
 		off.y += sin(t * 0.06 + u.id) * 3.0 - 4.0                         # 떠서 출렁
 		if u.kind == "jujak":
@@ -1339,7 +1423,7 @@ func _motion(u) -> Dictionary:
 		if m.get("walking", false):
 			# 걸음: 발을 디딜 때마다 통통·좌우로 기우뚱·살짝 눌림, 가는 쪽으로 몸을 기울인다
 			var ph: float = m["walk"]
-			var four_legs: bool = u.kind in ["haetae", "baekho", "hyeonmu", "cavalry"]
+			var four_legs: bool = u.kind == "cavalry"
 			off.y -= absf(sin(ph)) * (1.5 if four_legs else 2.8)
 			rot += sin(ph) * (0.03 if four_legs else 0.07)
 			sq += (1.0 - absf(sin(ph))) * 0.05 - 0.025
@@ -1581,6 +1665,10 @@ func _draw_house(i: int) -> void:
 	draw_colored_polygon(PackedVector2Array([c + Vector2(-28, -4), c + Vector2(28, -4), c + Vector2(0, -26)]), C["roof"].darkened(dk))
 
 
+func D_SKILL_CD(u) -> float:
+	return maxf(1.0, PD.SKILLS[u.skills[0]]["cd"] * (1.0 - u.cdr))
+
+
 func _draw_ally_in_battle(u, base: Vector2) -> void:
 	var mo := _motion(u)
 	var p: Vector2 = u.pos + mo["off"]
@@ -1599,9 +1687,19 @@ func _draw_ally_in_battle(u, base: Vector2) -> void:
 		_draw_tier_aura(p + Vector2(0, -6), u.tier, ALLY_SCALE * 0.9)
 	else:
 		draw_ally_shape(p, u.kind, u.element, u.tier, 1.6, mo["white"])
-	if u.hp < u.max_hp:
-		draw_rect(Rect2(u.pos + Vector2(-14, 26), Vector2(28, 3)), Color("3a2430"))
-		draw_rect(Rect2(u.pos + Vector2(-14, 26), Vector2(28 * u.hp / u.max_hp, 3)), C["good"])
+	# 체력 바 + 그 밑에 스킬 재사용 바 (차오르면 금빛으로 반짝)
+	var bp: Vector2 = u.pos + Vector2(-14, 26)
+	draw_rect(Rect2(bp - Vector2(1, 1), Vector2(30, 8)), Color(0.04, 0.03, 0.05, 0.75))
+	draw_rect(Rect2(bp, Vector2(28, 3)), Color("3a2430"))
+	draw_rect(Rect2(bp, Vector2(28 * clampf(u.hp / u.max_hp, 0.0, 1.0), 3)), C["good"])
+	if u.shield_hp > 0.0:
+		draw_rect(Rect2(bp, Vector2(28 * clampf(u.shield_hp / u.max_hp, 0.0, 1.0), 1)), Color(0.7, 0.9, 1.0))
+	if not u.skills.is_empty():
+		var full: float = D_SKILL_CD(u)
+		var k2: float = clampf(1.0 - float(u.skill_t[0]) / full, 0.0, 1.0)
+		var ready: bool = u.skill_t[0] <= 20
+		draw_rect(Rect2(bp + Vector2(0, 4), Vector2(28, 2)), Color("1e2a3a"))
+		draw_rect(Rect2(bp + Vector2(0, 4), Vector2(28 * k2, 2)), Color(1.0, 0.85, 0.35) if ready else Color(0.45, 0.7, 1.0))
 
 
 ## 합동 기술 파도의 형태 (빛·입자는 빛층): 물은 하얀 물마루, 땅은 갈라진 줄과 돌조각

@@ -46,6 +46,16 @@ func _all() -> void:
 	var k = await _open("res://src/game/kiln_scene.tscn")
 	if k.get_script() == null:
 		print("kiln 불러오기 실패"); quit(1); return
+	await _snap("p00b_kiln_title")
+	k.meta.embers = 64
+	k.meta.levels = {"core": 1, "wall": 2, "clay": 1, "ticket": 1, "train": 1, "purse": 1, "fire": 1}
+	k.state = "meta"
+	k.meta_hover = ""
+	await _snap("p00c_kiln_meta")
+	k.meta.records = {"1": [{"time": 132.4, "date": "2026-11-29", "army": ""}, {"time": 151.0, "date": "2026-11-28", "army": ""}], "2": [{"time": 201.7, "date": "2026-11-29", "army": ""}]}
+	k.state = "records"
+	await _snap("p00d_kiln_records")
+	k.state = "prep"
 	var run = k.run
 	k.tut_seen = {}
 	await _snap("p01a_kiln_tutorial_draw")
@@ -142,6 +152,14 @@ func _all() -> void:
 			await _snap("p06b_kiln_synergy_wave")
 		if i == 700:
 			await _snap("p06c_kiln_battle_busy")
+			var who: Array = []
+			for u in k.battle.units:
+				if u.team == "ally" and u.element == "fire" and who.size() < 5:
+					who.append(k.soldier_sprite(u.kind, u.element))
+			k.cutin = {"element": "fire", "name": "화염 파도", "count": who.size(), "who": who, "t": 0, "life": k.CUTIN_LEN}
+			k.hitstop = k.CUTIN_LEN
+			await _frames(40)
+			await _snap("p06d_kiln_cutin")
 		if k.battle.done:
 			break
 	while not k.battle.done:

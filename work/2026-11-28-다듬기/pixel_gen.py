@@ -586,6 +586,150 @@ def hyeonmu():
     return g
 
 
+# ===================== 2026-11-29 사용자: "영웅 등급부터 신화까지 ... 생김새가 너무 이상해. 되게 이질적이야" =====================
+# → 크기·체형을 일반 병사와 똑같이 (32×32, 창병 그림의 얼굴·몸·받침을 그대로 쓴다). 등급은 머리 장식·무기·빛으로만 나타낸다.
+def base_doll():
+    from PIL import Image
+    root = pathlib.Path(__file__).resolve().parents[2]
+    im = Image.open(root / "assets/sprites/kiln/soldier_spear_fire.png").convert("RGBA")
+    M = {"282322": "o", "cd6851": "L", "a84438": "G", "67332e": "D", "f2f1e7": "w", "706258": "b", "929187": "f", "b9baad": "F"}
+    g = Grid()
+    for y in range(32):
+        for x in range(32):
+            px = im.getpixel((x, y))
+            if px[3] >= 128:
+                g.g[y][x] = M.get("%02x%02x%02x" % px[:3], "o")
+    for y in range(0, 14):            # 갓(모자) 지우기
+        for x in range(32):
+            g.g[y][x] = "."
+    for y in range(32):               # 창 지우기 (오른쪽 기둥)
+        for x in range(20, 32):
+            g.g[y][x] = "."
+    g.rect(19, 17, 19, 20, "G"); g.px(20, 19, "f")     # 오른손
+    return g
+
+
+def finish(g):
+    g.outline()
+    return g
+
+
+def general():       # 장수: 붉은 술 달린 쇠 투구, 어깨 갑옷, 등 뒤 망토, 치켜든 칼
+    g = base_doll()
+    g.rect(5, 17, 7, 25, "D"); g.rect(5, 17, 5, 25, "G")                 # 망토
+    g.ell(14, 11, 4, 3, "m"); g.rect(11, 9, 13, 10, "M")                 # 투구
+    g.rect(9, 13, 19, 13, "y"); g.px(14, 7, "y")                          # 금 테·꼭지
+    g.line(14, 6, 13, 3, "r"); g.line(15, 6, 15, 3, "r"); g.px(12, 3, "R") # 붉은 술
+    g.rect(8, 17, 10, 18, "m"); g.rect(17, 17, 19, 18, "m"); g.px(8, 17, "M"); g.px(17, 17, "M")
+    g.line(21, 8, 21, 17, "M"); g.px(21, 7, "w"); g.rect(20, 18, 22, 18, "y"); g.px(21, 19, "b")   # 칼
+    return finish(g)
+
+
+def sniper():        # 신궁: 깃 꽂은 검은 갓, 금빛 큰 활, 등의 화살통
+    g = base_doll()
+    g.rect(5, 15, 6, 22, "b"); g.px(4, 13, "w"); g.px(6, 13, "w"); g.px(5, 14, "M")   # 화살통
+    g.rect(8, 13, 20, 13, "k"); g.rect(11, 9, 17, 12, "k"); g.rect(11, 12, 17, 12, "y")   # 갓
+    g.line(16, 9, 19, 5, "w"); g.line(17, 9, 20, 6, "L")                  # 깃
+    for y in range(6, 27):                                                # 큰 활
+        t = (y - 16) / 10.0
+        g.px(int(round(25 - 3 * t * t)), y, "b")
+    g.px(22, 6, "y"); g.px(22, 26, "y")
+    g.line(22, 7, 21, 16, "y"); g.line(21, 16, 22, 25, "y")               # 시위
+    g.line(14, 19, 27, 19, "M"); g.px(28, 19, "w"); g.px(27, 18, "w"); g.px(27, 20, "w")   # 화살
+    return finish(g)
+
+
+def haetae():        # 해치 (전설): 해치 탈 투구 — 곱슬 갈기·금눈·뿔 하나, 불꽃 언월도
+    g = base_doll()
+    g.ell(14, 10, 5, 4, "D")                                              # 갈기
+    for (x, y) in ((9, 8), (10, 12), (19, 8), (18, 12), (14, 5)):
+        g.curl(x, y, "D", "L")
+    g.ell(14, 10, 3, 3, "G"); g.rect(12, 12, 16, 13, "G")                # 해치 얼굴
+    g.px(12, 9, "y"); g.px(16, 9, "y"); g.rect(13, 13, 15, 13, "w")      # 금눈·이빨
+    g.line(14, 6, 14, 2, "y"); g.px(14, 1, "w")                           # 뿔
+    g.rect(11, 17, 17, 17, "y"); g.px(14, 18, "Y")                        # 방울 목걸이
+    g.line(22, 4, 22, 26, "b")                                            # 언월도 자루
+    g.line(23, 3, 25, 6, "n"); g.line(23, 4, 24, 8, "y"); g.line(22, 2, 23, 3, "n"); g.px(25, 7, "n")   # 불꽃 날
+    return finish(g)
+
+
+def cheoyong():      # 처용 (전설): 꽃 꽂은 사모, 커다란 붉은 탈, 색동 한삼을 휘날림
+    g = base_doll()
+    g.ell(14, 11, 4, 5, "r")                                              # 탈
+    g.rect(11, 9, 13, 9, "k"); g.rect(15, 9, 17, 9, "k")                  # 눈썹
+    g.px(12, 10, "c"); g.px(16, 10, "c"); g.px(14, 12, "R")              # 눈·코
+    g.rect(12, 14, 16, 14, "c"); g.px(14, 14, "k")                        # 웃는 이
+    g.px(10, 12, "y"); g.px(18, 12, "y")                                  # 귀고리
+    g.rect(10, 4, 18, 6, "k"); g.rect(6, 5, 9, 5, "k"); g.rect(19, 5, 22, 5, "k")   # 사모
+    g.px(12, 3, "n"); g.px(13, 3, "y"); g.px(16, 3, "r")                  # 모란·복숭아
+    for k in range(3):                                                    # 오른쪽 한삼 (위로)
+        g.line(19, 18 + k, 25, 11 + k, "c")
+    g.rect(19, 17, 20, 18, "r"); g.px(21, 16, "y")                        # 색동
+    for k in range(2):                                                    # 왼쪽 한삼 (아래로)
+        g.line(8, 18 + k, 4, 25 + k, "c")
+    g.px(8, 18, "G")
+    return finish(g)
+
+
+def dragon():        # 청룡 (신화): 용 투구 — 금 사슴뿔·수염, 청룡언월도
+    g = base_doll()
+    g.ell(14, 10, 4, 3, "G"); g.rect(10, 12, 18, 13, "G"); g.rect(10, 13, 18, 13, "y")   # 용 투구
+    g.px(12, 9, "L"); g.px(16, 10, "y")                                   # 용 눈
+    g.line(11, 8, 9, 3, "y"); g.px(8, 4, "y"); g.line(17, 8, 19, 3, "y"); g.px(20, 4, "y")   # 뿔
+    g.line(18, 12, 21, 14, "w"); g.line(10, 12, 7, 14, "w")               # 수염
+    g.line(22, 6, 22, 26, "b"); g.px(22, 13, "G"); g.px(22, 14, "G")      # 자루 (용 감은 매듭)
+    for y in range(1, 8):                                                 # 언월도 날 (초승달)
+        w2 = 3 - abs(y - 4) // 2
+        g.rect(23, y, 23 + w2, y, "M")
+    g.px(23, 1, "w"); g.px(25, 3, "w"); g.px(22, 6, "G")
+    return finish(g)
+
+
+def baekho():        # 백호 (신화): 흰 범 가죽 두건(귀·줄무늬), 양손 범 발톱
+    g = base_doll()
+    g.ell(14, 10, 5, 4, "c"); g.rect(9, 12, 19, 13, "c")                 # 범 두건
+    g.px(10, 6, "c"); g.px(11, 5, "c"); g.px(18, 6, "c"); g.px(17, 5, "c")   # 귀
+    g.px(11, 6, "R"); g.px(17, 6, "R")
+    for x in (12, 14, 16):                                                # 이마 줄무늬 (유약 색)
+        g.line(x, 7, x, 9, "D")
+    g.px(10, 11, "D"); g.px(18, 11, "D")
+    g.px(12, 10, "y"); g.px(16, 10, "y")                                  # 범 눈
+    g.rect(8, 17, 19, 17, "c"); g.px(10, 17, "D"); g.px(14, 17, "D"); g.px(18, 17, "D")   # 어깨 가죽
+    g.line(21, 15, 24, 12, "M"); g.line(21, 17, 25, 15, "M"); g.line(21, 19, 24, 19, "M")   # 오른손 발톱
+    g.line(7, 19, 4, 16, "M"); g.line(7, 20, 3, 19, "M")                  # 왼손 발톱
+    return finish(g)
+
+
+def jujak():         # 주작 (신화): 봉황 깃 관, 등의 작은 불꽃 날개, 불꽃 부채
+    g = base_doll()
+    for k, c in enumerate(("n", "r", "y", "r", "n")):                    # 깃 관 (부채꼴)
+        g.line(14, 11, 10 + k * 2, 3 + abs(k - 2), c)
+    g.rect(10, 12, 18, 13, "y")                                           # 금 머리띠
+    g.px(14, 12, "r")
+    for k in range(4):                                                    # 등 날개
+        g.line(9, 18, 3 + k, 12 + k * 2, "r" if k % 2 else "n")
+    g.ell(23, 15, 3, 3, "n"); g.ell(23, 15, 1, 1, "y"); g.line(21, 18, 20, 19, "b")   # 불꽃 부채
+    g.px(25, 12, "y"); g.px(26, 14, "y")
+    return finish(g)
+
+
+def hyeonmu():       # 현무 (신화): 등딱지 투구, 육각 거북 방패, 검은 뱀이 감긴 지팡이
+    g = base_doll()
+    g.ell(14, 11, 4, 3, "D"); g.rect(10, 13, 18, 13, "L")                # 등딱지 투구
+    g.px(12, 10, "L"); g.px(16, 10, "L"); g.px(14, 9, "L")
+    g.line(6, 5, 6, 26, "b")                                              # 지팡이
+    import math as _m
+    for y in range(6, 24):                                                # 감긴 뱀
+        g.px(6 + int(round(_m.sin(y * 0.7) * 2)), y, "k")
+    g.ell(6, 5, 1, 1, "k"); g.px(7, 4, "y"); g.px(8, 5, "r")             # 뱀 머리·혀
+    g.ell(21, 21, 4, 5, "G")                                              # 거북 방패
+    for (cx, cy) in ((21, 19), (20, 23), (23, 22)):
+        for dx, dy in ((-1, -1), (1, -1), (-1, 1), (1, 1)):
+            g.px(cx + dx, cy + dy, "D")
+    g.px(21, 18, "L"); g.px(19, 20, "L")
+    return finish(g)
+
+
 SPR = {"general": general(), "sniper": sniper(), "cheoyong": cheoyong(),
        "haetae": haetae(), "dragon": dragon(), "baekho": baekho(), "jujak": jujak(), "hyeonmu": hyeonmu()}
 

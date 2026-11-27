@@ -576,3 +576,50 @@ func test_no_back_and_forth() -> bool:
 			last_dir = d
 	check(flips <= 12, "방향을 자꾸 바꾸지 않는다: %d번" % flips)
 	return true
+
+
+## 강화 나무: 앞 칸이 있어야 사고, 불씨가 들고, 효과가 다음 판에 들어간다. 저장·불러오기
+func test_meta_tree() -> bool:
+	var Meta = load("res://src/proto/meta.gd")
+	var m = Meta.new("user://test_meta.cfg")
+	m.embers = 100
+	check(not m.can_buy("command"), "앞 칸(성벽) 없이 지휘 한도는 못 산다")
+	check(m.buy("wall") and m.embers == 100 - Meta.NODES["wall"]["cost"][0], "성벽 1단계")
+	check(m.buy("command"), "이제 지휘 한도")
+	check(m.buy("clay") and m.buy("train"), "흙 창고·단련")
+	var e: Dictionary = m.effects()
+	var run = KilnRun.new(3, e)
+	check(run.clay == PD.CLAY_START + 6, "시작 흙 +6")
+	check(run.cap() == PD.ARMY_CAP_START + 1, "병사 자리 +1")
+	var s: Dictionary = run._add_soldier("spear", "fire", "normal")
+	var b = run.start_night()
+	check(b.units[0].atk > PD.ROLE_STATS["spear"]["atk"] * 1.04 and b.village_guard > 0.0, "단련 공격력·성벽 피해 감소")
+	m.save()
+	var m2 = Meta.new("user://test_meta.cfg")
+	m2.load_saved()
+	check(m2.level("command") == 1 and m2.embers == m.embers, "저장·불러오기")
+	check(Meta.embers_for(2, 12, 400) == 2 * 10 + 12 * 2 + 10, "불씨 = 챕터×10 + 밤×2 + 처치/40")
+	return true
+
+
+## 시간 기록: 챕터를 넘긴 전투 시간, 빠른 순 다섯 개, 순위를 돌려준다
+func test_time_records() -> bool:
+	var Meta = load("res://src/proto/meta.gd")
+	var m = Meta.new("user://test_meta2.cfg")
+	check(m.add_record(1, 120.0) == 1, "첫 기록 1위")
+	check(m.add_record(1, 90.0) == 1 and m.records["1"][1]["time"] == 120.0, "더 빠르면 1위, 앞 기록은 2위")
+	for i in 5:
+		m.add_record(1, 200.0 + i)
+	check(m.records["1"].size() == Meta.RECORDS_KEEP, "다섯 개만 남긴다")
+	check(m.add_record(1, 999.0) == -1, "느린 기록은 순위 밖")
+	var run = KilnRun.new(4)
+	run.night = PD.KILN_NIGHTS
+	var b = run.start_night()
+	b.units = []
+	b.spawn_queue = []
+	b.frame = 600
+	b.result = "win"
+	b.done = true
+	run.end_night(b)
+	check(run.chapter == 2 and absf(run.last_chapter_time - 10.0) < 0.01, "챕터 시간 = 밤 전투 시간 합: %.1f" % run.last_chapter_time)
+	return true

@@ -74,6 +74,7 @@ var stats := {"kills": 0, "specials": 0, "synergies": 0, "damage": 0.0}
 var _next_id := 1
 var synergy_power: float = D.SYNERGY_POWER
 var waves: Array = []           # 지나가는 합동 기술 파도 [{element, x, power}]
+var village_guard := 0.0       # 강화 나무: 마을이 받는 피해 감소
 var _summons: Array = []        # 이번 프레임에 대장이 부른 부하 [[종류, 자리, 능력치]]
 
 
@@ -104,7 +105,7 @@ func add_ally(role: String, element: String, tier: String, name: String, stat_mu
 	u.range = s["range"]
 	u.cd_max = maxi(6, roundi(s["cd"] / (1.0 + mods.get("haste", 0.0))))
 	u.speed = s["speed"]
-	u.radius = 9.0 + (3.0 if tier == "legend" else 0.0) + (5.0 if role in ["haetae", "dragon", "baekho", "jujak", "hyeonmu"] else 0.0)
+	u.radius = 9.0 + (3.0 if tier == "legend" else 0.0) 
 	u.base_atk = u.atk
 	u.base_hp = u.max_hp
 	u.special_t = D.SPECIAL_EVERY / 2
@@ -271,7 +272,7 @@ func _act(u: U) -> void:
 			if target != null and absf(target.pos.y - u.pos.y) > 4.0 and u.pos.distance_to(target.pos) < 120.0:
 				u.pos.y += signf(target.pos.y - u.pos.y) * spd * 0.6
 			if u.pos.x <= VILLAGE_X:
-				village_hp -= u.village_dmg
+				village_hp -= u.village_dmg * (1.0 - village_guard)
 				u.alive = false
 				events.append({"kind": "village_hit", "pos": u.pos, "amount": u.village_dmg, "unit": u.id})
 		return

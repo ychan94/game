@@ -39,12 +39,19 @@ func heat_up() -> void:
 	heat = mini(heat + 1, D.KILN_MAX_HEAT)
 
 
+var safe_bonus := 0            # 강화 나무: 안전한 불 +n
+var shard_need := D.SHARDS_FOR_LEGEND
+
+
 func odds() -> Dictionary:
-	return D.kiln_odds(heat)
+	var o: Dictionary = D.kiln_odds(heat)
+	if safe_bonus > 0:
+		o["crack"] = D.kiln_odds(maxi(0, heat - safe_bonus))["crack"]
+	return o
 
 
 func guaranteed_legend() -> bool:
-	return shards >= D.SHARDS_FOR_LEGEND
+	return shards >= shard_need
 
 
 ## 가마 열기: 병사마다 깨짐 → 요변 → 상품 순서로 굴린다
@@ -53,7 +60,7 @@ func open() -> Array:
 	results = []
 	var use_guarantee := guaranteed_legend()
 	if use_guarantee:
-		shards -= D.SHARDS_FOR_LEGEND
+		shards -= shard_need
 	for i in slots.size():
 		var s: Dictionary = slots[i]
 		var r := {"role": s["role"], "element": s["element"], "tier": "normal", "cracked": false, "lucky": false}

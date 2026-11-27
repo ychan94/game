@@ -85,3 +85,13 @@ func test_same_seed_same_result() -> bool:
 		hashes.append(w.state_hash())
 	check(hashes[0] == hashes[1], "같은 시드, 같은 입력이면 결과가 같아야 한다")
 	return true
+
+
+func test_every_screen_script_loads() -> bool:
+	for path in ["res://src/game/launcher.gd", "res://src/game/kiln_scene.gd", "res://src/game/nest_scene.gd",
+			"res://src/game/proto_base.gd", "res://src/game/main.gd"]:
+		var s = load(path)
+		check(s != null and s.can_instantiate(), "화면 스크립트를 읽지 못함 (문법 오류?): " + path)
+	for scene in ["res://src/game/launcher.tscn", "res://src/game/kiln_scene.tscn", "res://src/game/nest_scene.tscn", "res://src/game/main.tscn"]:
+		check(load(scene) != null, "장면을 읽지 못함: " + scene)
+	return true

@@ -60,7 +60,7 @@ func _mouse_pressed(button: int) -> bool:
 
 
 func _remember_keys() -> void:
-	for k in [KEY_0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE, KEY_SHIFT, KEY_R, KEY_F12]:
+	for k in [KEY_0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE, KEY_SHIFT, KEY_R, KEY_F12, KEY_ESCAPE]:
 		_prev[k] = _down(k)
 	_prev[-MOUSE_BUTTON_RIGHT] = Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
 
@@ -88,6 +88,9 @@ func _gather_inputs() -> Dictionary:
 func _physics_process(_delta: float) -> void:
 	if _pressed(KEY_F12):
 		_screenshot()
+	if _pressed(KEY_ESCAPE):
+		get_tree().change_scene_to_file("res://src/game/launcher.tscn")
+		return
 	match run.state:
 		"start":
 			_start_input()

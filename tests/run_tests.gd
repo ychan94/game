@@ -5,7 +5,7 @@ extends SceneTree
 
 const SUITES := {
 	"p0": ["res://tests/test_p0.gd"],
-	"p1": ["res://tests/test_p1.gd"],
+	"p1": ["res://tests/test_p1.gd", "res://tests/test_proto.gd"],
 	"boss": ["res://tests/test_boss.gd"],
 }
 

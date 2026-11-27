@@ -1,23 +1,113 @@
 {
   "_설명": "바뀐 파일 경로(glob) → 돌릴 단계. 위에 있는 규칙이 먼저 걸린다. 어디에도 안 걸리면 default.",
   "rules": [
-    { "glob": "src/core/*",           "stages": ["p0", "p1", "boss"] },
-    { "glob": "src/game/*",           "stages": ["p0"] },
-    { "glob": "tests/bots/*",         "stages": ["boss"] },
-    { "glob": "tests/test_boss.gd",   "stages": ["boss"] },
-    { "glob": "tests/test_p1.gd",     "stages": ["p1"] },
-    { "glob": "tests/suite.gd",       "stages": ["p0", "p1", "boss"] },
-    { "glob": "tests/run_tests.gd",   "stages": ["p0", "p1", "boss"] },
-    { "glob": "tests/*",              "stages": ["p0"] },
-    { "glob": "project.godot",        "stages": ["p0"] },
-    { "glob": "assets/*",             "stages": [] },
-    { "glob": "perf/*",               "stages": [] },
-    { "glob": "art/*",                "stages": [] },
-    { "glob": "work/*",               "stages": [] },
-    { "glob": "docs/*",               "stages": [] },
-    { "glob": "reports/*",            "stages": [] },
-    { "glob": "*.md",                 "stages": [] },
-    { "glob": "*.txt",                "stages": [] }
+    {
+      "glob": "src/core/*",
+      "stages": [
+        "p0",
+        "p1",
+        "boss"
+      ]
+    },
+    {
+      "glob": "src/proto/*",
+      "stages": [
+        "p0",
+        "p1"
+      ]
+    },
+    {
+      "glob": "src/game/*",
+      "stages": [
+        "p0"
+      ]
+    },
+    {
+      "glob": "tests/bots/*",
+      "stages": [
+        "boss"
+      ]
+    },
+    {
+      "glob": "tests/test_proto.gd",
+      "stages": [
+        "p1"
+      ]
+    },
+    {
+      "glob": "tests/test_boss.gd",
+      "stages": [
+        "boss"
+      ]
+    },
+    {
+      "glob": "tests/test_p1.gd",
+      "stages": [
+        "p1"
+      ]
+    },
+    {
+      "glob": "tests/suite.gd",
+      "stages": [
+        "p0",
+        "p1",
+        "boss"
+      ]
+    },
+    {
+      "glob": "tests/run_tests.gd",
+      "stages": [
+        "p0",
+        "p1",
+        "boss"
+      ]
+    },
+    {
+      "glob": "tests/*",
+      "stages": [
+        "p0"
+      ]
+    },
+    {
+      "glob": "project.godot",
+      "stages": [
+        "p0"
+      ]
+    },
+    {
+      "glob": "assets/*",
+      "stages": []
+    },
+    {
+      "glob": "perf/*",
+      "stages": []
+    },
+    {
+      "glob": "art/*",
+      "stages": []
+    },
+    {
+      "glob": "work/*",
+      "stages": []
+    },
+    {
+      "glob": "docs/*",
+      "stages": []
+    },
+    {
+      "glob": "reports/*",
+      "stages": []
+    },
+    {
+      "glob": "*.md",
+      "stages": []
+    },
+    {
+      "glob": "*.txt",
+      "stages": []
+    }
   ],
-  "default": ["p0"]
+  "default": [
+    "p0"
+  ]
 }

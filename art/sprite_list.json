@@ -1,0 +1,277 @@
+{
+ "version": 1,
+ "공통 규칙": [
+  "PNG, 정확히 적힌 크기 (예: 32×32). 크기가 다르면 검사에서 실패",
+  "투명 배경 (tile 이 true 인 바닥 타일만 꽉 채움)",
+  "픽셀 아트: 계단 현상을 그대로 둔다 (부드럽게 흐리지 않음, 안티에일리어싱 없음)",
+  "외곽선 1px (그림체 시안에서 정한 색)",
+  "그림 한 장에 색 24개 이하",
+  "캐릭터는 가운데, 발은 아래에서 3~5px 위",
+  "아군(병사·괴수)은 오른쪽, 적(도깨비)은 왼쪽을 본다"
+ ],
+ "files": [
+  {
+   "path": "assets/sprites/kiln/soldier_spear_water.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "가마의 병사",
+   "what": "흙으로 빚은 작은 인형 병사(창병). 창을 든 모습. 몸 전체에 청자 유약 — 비취빛 푸른 녹색, 은은한 광택. 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/kiln/soldier_spear_fire.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "가마의 병사",
+   "what": "흙으로 빚은 작은 인형 병사(창병). 창을 든 모습. 몸 전체에 진사 유약 — 구리빛 깊은 붉은색. 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/kiln/soldier_spear_earth.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "가마의 병사",
+   "what": "흙으로 빚은 작은 인형 병사(창병). 창을 든 모습. 몸 전체에 흑유 유약 — 검은 갈색, 기름 같은 광택. 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/kiln/soldier_archer_water.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "가마의 병사",
+   "what": "흙으로 빚은 작은 인형 병사(궁수). 활을 든 모습. 몸 전체에 청자 유약 — 비취빛 푸른 녹색, 은은한 광택. 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/kiln/soldier_archer_fire.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "가마의 병사",
+   "what": "흙으로 빚은 작은 인형 병사(궁수). 활을 든 모습. 몸 전체에 진사 유약 — 구리빛 깊은 붉은색. 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/kiln/soldier_archer_earth.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "가마의 병사",
+   "what": "흙으로 빚은 작은 인형 병사(궁수). 활을 든 모습. 몸 전체에 흑유 유약 — 검은 갈색, 기름 같은 광택. 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/kiln/soldier_shield_water.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "가마의 병사",
+   "what": "흙으로 빚은 작은 인형 병사(방패병). 둥근 방패를 든 모습. 몸 전체에 청자 유약 — 비취빛 푸른 녹색, 은은한 광택. 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/kiln/soldier_shield_fire.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "가마의 병사",
+   "what": "흙으로 빚은 작은 인형 병사(방패병). 둥근 방패를 든 모습. 몸 전체에 진사 유약 — 구리빛 깊은 붉은색. 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/kiln/soldier_shield_earth.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "가마의 병사",
+   "what": "흙으로 빚은 작은 인형 병사(방패병). 둥근 방패를 든 모습. 몸 전체에 흑유 유약 — 검은 갈색, 기름 같은 광택. 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/kiln/kiln_body.png",
+   "size": [
+    160,
+    160
+   ],
+   "group": "가마의 병사",
+   "what": "전통 장작 가마(오름가마/둥근 흙가마)의 앞모습. 가운데 아치형 문 자리(가로 가운데 55%, 위에서 20~78%)와 아래쪽 아궁이 자리는 거의 검은색으로 비워 둔다 — 문·불길·빛은 게임이 그 위에 그린다."
+  },
+  {
+   "path": "assets/sprites/nest/creature_spear_fire.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "알을 품는 성",
+   "what": "'불꽃 도마뱀' — 귀엽고 작은 괴수 새끼. 공격형(뾰족함). 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/nest/creature_spear_water.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "알을 품는 성",
+   "what": "'물살 수달' — 귀엽고 작은 괴수 새끼. 공격형(뾰족함). 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/nest/creature_spear_earth.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "알을 품는 성",
+   "what": "'가시 고슴도치' — 귀엽고 작은 괴수 새끼. 공격형(뾰족함). 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/nest/creature_archer_fire.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "알을 품는 성",
+   "what": "'불씨 박쥐' — 귀엽고 작은 괴수 새끼. 원거리형(떠다니거나 던짐). 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/nest/creature_archer_water.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "알을 품는 성",
+   "what": "'물방울 해파리' — 귀엽고 작은 괴수 새끼. 원거리형(떠다니거나 던짐). 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/nest/creature_archer_earth.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "알을 품는 성",
+   "what": "'돌팔매 원숭이' — 귀엽고 작은 괴수 새끼. 원거리형(떠다니거나 던짐). 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/nest/creature_shield_fire.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "알을 품는 성",
+   "what": "'용암 두꺼비' — 귀엽고 작은 괴수 새끼. 수비형(등딱지·단단함). 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/nest/creature_shield_water.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "알을 품는 성",
+   "what": "'조개 거북' — 귀엽고 작은 괴수 새끼. 수비형(등딱지·단단함). 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/nest/creature_shield_earth.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "알을 품는 성",
+   "what": "'바위 거북' — 귀엽고 작은 괴수 새끼. 수비형(등딱지·단단함). 오른쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/nest/egg_spear.png",
+   "size": [
+    32,
+    40
+   ],
+   "group": "알을 품는 성",
+   "what": "겉에 작은 뾰족 돌기가 있는 알. 아주 밝은 흰색/연회색으로만 칠한다 (게임이 기운 색으로 물들인다). 금은 그리지 않는다."
+  },
+  {
+   "path": "assets/sprites/nest/egg_archer.png",
+   "size": [
+    32,
+    40
+   ],
+   "group": "알을 품는 성",
+   "what": "길쭉하고 가는 알. 아주 밝은 흰색/연회색으로만 칠한다 (게임이 기운 색으로 물들인다). 금은 그리지 않는다."
+  },
+  {
+   "path": "assets/sprites/nest/egg_shield.png",
+   "size": [
+    32,
+    40
+   ],
+   "group": "알을 품는 성",
+   "what": "둥글고 넓적한 알. 아주 밝은 흰색/연회색으로만 칠한다 (게임이 기운 색으로 물들인다). 금은 그리지 않는다."
+  },
+  {
+   "path": "assets/sprites/enemy/goblin.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "공통 (적)",
+   "what": "한국 도깨비. 붉은 갈색 피부, 뿔 하나 또는 둘, 장난스럽고 사나운 얼굴. 왼쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/enemy/imp.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "공통 (적)",
+   "what": "도깨비불. 푸른 불꽃 모양의 작은 정령, 눈만 있다. 왼쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/enemy/brute.png",
+   "size": [
+    48,
+    48
+   ],
+   "group": "공통 (적)",
+   "what": "큰 도깨비. 덩치 크고 도깨비 방망이를 든다. 왼쪽을 본다."
+  },
+  {
+   "path": "assets/sprites/field/grass_a.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "공통 (들판)",
+   "tile": true,
+   "what": "밤의 풀밭 바닥 타일. 사방으로 이어 붙여도 이음새가 안 보여야 한다. 어둡고 차분하게 (캐릭터가 잘 보이도록)."
+  },
+  {
+   "path": "assets/sprites/field/grass_b.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "공통 (들판)",
+   "tile": true,
+   "what": "grass_a 와 거의 같고 풀 무늬만 조금 다른 타일 (번갈아 깐다)."
+  },
+  {
+   "path": "assets/sprites/field/house.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "공통 (들판)",
+   "what": "작은 초가집 또는 한옥 (지켜야 할 마을). 창에 불빛."
+  },
+  {
+   "path": "assets/sprites/field/house_broken.png",
+   "size": [
+    32,
+    32
+   ],
+   "group": "공통 (들판)",
+   "what": "house 가 부서지고 불이 꺼진 모습."
+  }
+ ]
+}

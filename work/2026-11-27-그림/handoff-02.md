@@ -1,0 +1,89 @@
+# Codex 작업 지시서 — 가마의 병사 그림 10장
+
+- 날짜: 2026-11-27 (그림체가 정해진 뒤에 넘긴다)
+- 작업 폴더: work/2026-11-27-그림/
+- 지시서 번호: 02
+
+## 먼저 읽을 것
+1. AGENTS.md
+2. **art/references/ — 사용자가 고른 그림체 시안. 이 그림체를 그대로 따른다** (없으면 시작하지 말고 `결과: 못 돌림`)
+3. docs/그림-목록.md 의 공통 규칙
+4. art/sprite_list.json (그림마다 크기와 설명)
+
+## 목표 (사용자 말 그대로)
+> "지금보니까 체험판이라기에 너무 디자인이 아쉬워. codex를 통해 이미지나 외형 디자인이 어느 정도 되야 느낌이 있을 것 같아."
+
+해석(참고용): 고른 그림체로 가마의 병사에 필요한 병사 9장과 가마 1장을 그린다.
+
+## 그리는 방법 (사용자가 정한 것)
+- [ ] 이미지 생성 기능(image_gen)으로 그린다
+- [ ] 코드로 직접 그린다
+- [ ] 이미지 생성 후 코드로 다듬기 (크기 맞추기·배경 투명·색 줄이기) ← Claude 추천
+
+정한 방법을 쓸 수 없으면 다른 방법으로 바꾸지 말고 `결과: 못 돌림` 으로 보고한다.
+
+## 만들 것 (10장)
+
+| 파일 | 크기 | 내용 |
+|---|---|---|
+| `assets/sprites/kiln/soldier_spear_water.png` | 32×32 | 흙으로 빚은 작은 인형 병사(창병). 창을 든 모습. 몸 전체에 청자 유약 — 비취빛 푸른 녹색, 은은한 광택. 오른쪽을 본다. |
+| `assets/sprites/kiln/soldier_spear_fire.png` | 32×32 | 흙으로 빚은 작은 인형 병사(창병). 창을 든 모습. 몸 전체에 진사 유약 — 구리빛 깊은 붉은색. 오른쪽을 본다. |
+| `assets/sprites/kiln/soldier_spear_earth.png` | 32×32 | 흙으로 빚은 작은 인형 병사(창병). 창을 든 모습. 몸 전체에 흑유 유약 — 검은 갈색, 기름 같은 광택. 오른쪽을 본다. |
+| `assets/sprites/kiln/soldier_archer_water.png` | 32×32 | 흙으로 빚은 작은 인형 병사(궁수). 활을 든 모습. 몸 전체에 청자 유약 — 비취빛 푸른 녹색, 은은한 광택. 오른쪽을 본다. |
+| `assets/sprites/kiln/soldier_archer_fire.png` | 32×32 | 흙으로 빚은 작은 인형 병사(궁수). 활을 든 모습. 몸 전체에 진사 유약 — 구리빛 깊은 붉은색. 오른쪽을 본다. |
+| `assets/sprites/kiln/soldier_archer_earth.png` | 32×32 | 흙으로 빚은 작은 인형 병사(궁수). 활을 든 모습. 몸 전체에 흑유 유약 — 검은 갈색, 기름 같은 광택. 오른쪽을 본다. |
+| `assets/sprites/kiln/soldier_shield_water.png` | 32×32 | 흙으로 빚은 작은 인형 병사(방패병). 둥근 방패를 든 모습. 몸 전체에 청자 유약 — 비취빛 푸른 녹색, 은은한 광택. 오른쪽을 본다. |
+| `assets/sprites/kiln/soldier_shield_fire.png` | 32×32 | 흙으로 빚은 작은 인형 병사(방패병). 둥근 방패를 든 모습. 몸 전체에 진사 유약 — 구리빛 깊은 붉은색. 오른쪽을 본다. |
+| `assets/sprites/kiln/soldier_shield_earth.png` | 32×32 | 흙으로 빚은 작은 인형 병사(방패병). 둥근 방패를 든 모습. 몸 전체에 흑유 유약 — 검은 갈색, 기름 같은 광택. 오른쪽을 본다. |
+| `assets/sprites/kiln/kiln_body.png` | 160×160 | 전통 장작 가마(오름가마/둥근 흙가마)의 앞모습. 가운데 아치형 문 자리(가로 가운데 55%, 위에서 20~78%)와 아래쪽 아궁이 자리는 거의 검은색으로 비워 둔다 — 문·불길·빛은 게임이 그 위에 그린다. |
+
+공통 규칙: PNG · 정확한 크기 · 투명 배경(바닥 타일만 꽉 채움) · 흐리게 다듬지 않은 픽셀 아트 · 한 장에 색 24개 이하 · 외곽선 1px · 캐릭터 가운데, 발은 아래에서 3~5px 위 · 아군은 오른쪽, 적은 왼쪽을 본다 · 요변/전설 빛·반짝임·맞을 때 번쩍임은 그리지 않는다(게임이 그림)
+
+같은 종류끼리(예: 병사 9장, 괴수 9장) **키·덩치·외곽선 굵기·빛 방향(왼쪽 위)을 맞춘다.** 나란히 놓았을 때 한 세트로 보여야 한다.
+
+## 고쳐도 되는 범위
+- `assets/sprites/kiln/soldier_spear_water.png` (새 파일)
+- `assets/sprites/kiln/soldier_spear_fire.png` (새 파일)
+- `assets/sprites/kiln/soldier_spear_earth.png` (새 파일)
+- `assets/sprites/kiln/soldier_archer_water.png` (새 파일)
+- `assets/sprites/kiln/soldier_archer_fire.png` (새 파일)
+- `assets/sprites/kiln/soldier_archer_earth.png` (새 파일)
+- `assets/sprites/kiln/soldier_shield_water.png` (새 파일)
+- `assets/sprites/kiln/soldier_shield_fire.png` (새 파일)
+- `assets/sprites/kiln/soldier_shield_earth.png` (새 파일)
+- `assets/sprites/kiln/kiln_body.png` (새 파일)
+
+이 목록에 없는 파일은 만들거나 고치지 않는다.
+
+## 보호 검사 결과 (Claude가 미리 확인함)
+- `python3 scripts/protected.py <위 파일들>` → 걸린 파일 없음 (모두 새 파일)
+- 이 검사는 Claude가 했다. Codex는 다시 돌리지 않는다.
+
+## 하면 안 되는 일
+- 범위 밖 파일 수정·삭제 (특히 `src/`, `tests/`, `art/references/`, `art/rubric.md`)
+- 게임 코드에 그림을 연결하는 작업 (이미 되어 있다 — 파일만 넣으면 게임이 쓴다)
+- 저장소의 Python 스크립트 실행 (검사는 Claude가 작업 후에 한다)
+- git commit / push
+- 못 했는데 했다고 보고하기
+
+## 끝나면 이 형식으로 보고
+```
+결과: 통과 | 실패 | 못 돌림   ← 셋 중 하나만
+바뀐 파일:
+- 경로 — 무엇을
+직접 확인한 것:
+- 예) 크기·투명 배경을 눈으로 확인
+그리는 데 쓴 방법:
+- 이미지 생성 / 코드 / 둘 다 (무엇을 어떻게)
+못 한 것 / 걱정되는 것:
+- …
+```
+- 통과: 목표대로 만들었다 / 실패: 만들었지만 목표에 못 미친다 (이유) / 못 돌림: 도구·권한·파일이 없어 작업 자체를 못 했다 (무엇이 없었는지)
+- 저장소의 Python 검사를 못 돌린 것만으로는 `못 돌림`이 아니다. 검사는 Claude가 한다.
+
+## Claude가 받은 뒤 할 일
+1. `git status` — 바뀐 파일이 위 범위뿐인지
+2. `python3 scripts/check_sprites.py --group "가마의 병사" --sheet <작업폴더>/sheet-02.png` (그룹마다 한 번씩) — 크기·투명·색 수·흐림
+3. `godot --path . --script res://tests/screens_proto.gd -- <폴더>` 로 게임 화면에 들어간 모습을 찍어 직접 열어 보기
+4. `python3 scripts/test.py --stage all`
+5. 사용자에게 비교 시트와 게임 화면을 보여 주고 "검사는 통과, 미술 판단은 사용자 몫" — 허락을 받은 뒤 커밋

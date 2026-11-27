@@ -101,6 +101,15 @@ func _draw() -> void:
 func _egg_shape(center: Vector2, e: Dictionary, size_k: float, wobble: float) -> void:
 	var c: Color = C[e["hint"]].lerp(Color("e8dcc8"), 0.55)
 	var rot := sin(t * 0.25) * wobble
+	var etex := tex("nest/egg_" + e["role"])
+	if etex != null:
+		# 알 그림(밝은 흰색 계열)을 기운 색으로 물들이고, 흔들림은 회전으로
+		var sz: Vector2 = etex.get_size() * size_k * 2.0
+		draw_set_transform(center, rot, Vector2.ONE)
+		draw_texture_rect(etex, Rect2(-sz / 2.0, sz), false, C[e["hint"]].lerp(Color.WHITE, 0.6))
+		draw_set_transform(Vector2.ZERO)
+		_draw_egg_cracks(center, e, size_k)
+		return
 	var pts := PackedVector2Array()
 	for i in 24:
 		var a := TAU * i / 24.0
@@ -118,6 +127,10 @@ func _egg_shape(center: Vector2, e: Dictionary, size_k: float, wobble: float) ->
 	draw_colored_polygon(pts, c)
 	for i in 3:
 		draw_circle(center + Vector2(-10 + i * 10, -6 + (i % 2) * 12).rotated(rot) * size_k, 4.0 * size_k, C[e["hint"]].lightened(0.1))
+	_draw_egg_cracks(center, e, size_k)
+
+
+func _draw_egg_cracks(center: Vector2, e: Dictionary, size_k: float) -> void:
 	var w: int = e["warmth"]
 	for k in mini(w, 8):
 		var a2 := 0.7 * k

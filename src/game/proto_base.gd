@@ -198,8 +198,52 @@ func draw_fx() -> void:
 		text(Vector2(0, 210), banner["sub"], Color(1, 1, 1, bc.a), 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
 
 
+# ---------------- 그림 (Codex 작업물) ----------------
+## assets/sprites/<name>.png 가 있으면 그 그림을, 없으면 null (도형으로 대신 그린다).
+## 편집기에서 가져오기(import) 전이라도 보이도록 파일을 직접 읽는 길도 둔다.
+var _tex_cache := {}
+
+
+func tex(name: String) -> Texture2D:
+	if _tex_cache.has(name):
+		return _tex_cache[name]
+	var path := "res://assets/sprites/%s.png" % name
+	var t: Texture2D = null
+	if ResourceLoader.exists(path):
+		t = load(path)
+	elif FileAccess.file_exists(path):
+		var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+		if img != null and not img.is_empty():
+			t = ImageTexture.create_from_image(img)
+	_tex_cache[name] = t
+	return t
+
+
+## 가운데 아래쪽 기준으로 그림을 그린다. 그림이 없으면 false.
+func draw_sprite(name: String, center: Vector2, scale_k := 1.0, tint: Color = Color.WHITE) -> bool:
+	var tx := tex(name)
+	if tx == null:
+		return false
+	var sz: Vector2 = tx.get_size() * scale_k
+	draw_texture_rect(tx, Rect2(center - Vector2(sz.x / 2.0, sz.y * 0.6), sz), false, tint)
+	return true
+
+
+func _draw_tier_aura(pos: Vector2, tier: String, scale_k: float) -> void:
+	if tier == "legend":
+		draw_arc(pos + Vector2(0, -2) * scale_k, 15.0 * scale_k, 0, TAU, 28, rainbow(t * 0.01), 2.0)
+		draw_arc(pos + Vector2(0, -2) * scale_k, 17.0 * scale_k, 0, TAU, 28, rainbow(t * 0.01 + 0.5), 1.0)
+	elif tier == "fine":
+		var sp := pos + Vector2.from_angle(t * 0.08) * 13.0 * scale_k
+		draw_rect(Rect2(sp, Vector2(2, 2)), C["accent"])
+
+
 # ---------------- 병사·괴수·적 그리기 ----------------
 func draw_ally_shape(pos: Vector2, role: String, element: String, tier: String, scale_k := 1.0, flash_white := false) -> void:
+	var sname := ("kiln/soldier_%s_%s" if view_style == "kiln" else "nest/creature_%s_%s") % [role, element]
+	if draw_sprite(sname, pos, scale_k, Color(2.5, 2.5, 2.5) if flash_white else Color.WHITE):
+		_draw_tier_aura(pos, tier, scale_k)
+		return
 	var col: Color = Color.WHITE if flash_white else C[element]
 	if view_style == "kiln":
 		# 흙 병사: 몸통 + 머리 + 역할 표시, 유약 색
@@ -234,12 +278,7 @@ func draw_ally_shape(pos: Vector2, role: String, element: String, tier: String, 
 		draw_circle(pos + Vector2(3.5, -2) * scale_k, 2.2 * scale_k, Color.WHITE)
 		draw_circle(pos + Vector2(-3.5, -1.5) * scale_k, 1.1 * scale_k, Color.BLACK)
 		draw_circle(pos + Vector2(3.5, -1.5) * scale_k, 1.1 * scale_k, Color.BLACK)
-	if tier == "legend":
-		draw_arc(pos + Vector2(0, -2) * scale_k, 15.0 * scale_k, 0, TAU, 28, rainbow(t * 0.01), 2.0)
-		draw_arc(pos + Vector2(0, -2) * scale_k, 17.0 * scale_k, 0, TAU, 28, rainbow(t * 0.01 + 0.5), 1.0)
-	elif tier == "fine":
-		var sp := pos + Vector2.from_angle(t * 0.08) * 13.0 * scale_k
-		draw_rect(Rect2(sp, Vector2(2, 2)), C["accent"])
+	_draw_tier_aura(pos, tier, scale_k)
 
 
 func draw_enemy_shape(u) -> void:
@@ -248,6 +287,16 @@ func draw_enemy_shape(u) -> void:
 	if u.hit_flash > 0:
 		col = Color.WHITE
 	var r: float = u.radius
+	var ename: String = "enemy/" + u.kind
+	if u.kind == "hostile":
+		ename = "nest/creature_spear_" + (u.element if u.element != "" else "fire")
+	var etint: Color = Color(2.5, 2.5, 2.5) if u.hit_flash > 0 else (Color(0.55, 0.35, 0.7) if u.kind == "hostile" else Color.WHITE)
+	if not draw_sprite(ename, p, 1.0, etint):
+		_draw_enemy_fallback(u, p, col, r)
+	_draw_enemy_status(u, p, r)
+
+
+func _draw_enemy_fallback(u, p: Vector2, col: Color, r: float) -> void:
 	match u.kind:
 		"imp":
 			draw_colored_polygon(PackedVector2Array([p + Vector2(-r, 2), p + Vector2(r, 2), p + Vector2(0, -r * 2.2 + sin(t * 0.3) * 2.0)]), col.lightened(0.2))
@@ -264,6 +313,9 @@ func draw_enemy_shape(u) -> void:
 			draw_circle(p + Vector2(r * 0.35 - 3.0, -r * 0.1), 1.6, Color.BLACK)
 			if u.kind == "brute":
 				draw_line(p + Vector2(-r, 0), p + Vector2(-r - 8, -12), C["clay"].darkened(0.3), 4.0)
+
+
+func _draw_enemy_status(u, p: Vector2, r: float) -> void:
 	if u.burn_t > 0 and t % 6 < 3:
 		draw_rect(Rect2(p + Vector2(randf_range(-r, r), -r - 3), Vector2(2, 2)), C["fire"].lightened(0.4))
 	if u.slow_t > 0:
@@ -279,14 +331,22 @@ func draw_enemy_shape(u) -> void:
 
 func draw_battle() -> void:
 	draw_set_transform(FIELD_OFFSET + shake_offset())
+	var ga := tex("field/grass_a")
+	var gb := tex("field/grass_b")
 	for x in 20:
 		for y in 9:
-			draw_rect(Rect2(x * 32, y * 32, 32, 32), C["grass_a"] if (x + y) % 2 == 0 else C["grass_b"])
+			var g: Texture2D = ga if (x + y) % 2 == 0 else (gb if gb != null else ga)
+			if g != null:
+				draw_texture_rect(g, Rect2(x * 32, y * 32, 32, 32), false)
+			else:
+				draw_rect(Rect2(x * 32, y * 32, 32, 32), C["grass_a"] if (x + y) % 2 == 0 else C["grass_b"])
 	# 마을
 	var vk: float = battle.village_hp / PD.VILLAGE_HP if battle != null else 1.0
 	for i in 4:
 		var hp_ok := vk > i * 0.25
 		var hpos := Vector2(8, 30 + i * 60)
+		if draw_sprite("field/house" if hp_ok else "field/house_broken", hpos + Vector2(12, 14)):
+			continue
 		draw_rect(Rect2(hpos, Vector2(24, 18)), C["village"] if hp_ok else C["village"].darkened(0.6))
 		draw_colored_polygon(PackedVector2Array([hpos + Vector2(-3, 0), hpos + Vector2(27, 0), hpos + Vector2(12, -12)]), C["roof"] if hp_ok else C["roof"].darkened(0.6))
 	draw_line(Vector2(40, 0), Vector2(40, 260), Color(1, 1, 1, 0.08), 1.0)

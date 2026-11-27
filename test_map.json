@@ -75,6 +75,12 @@
       ]
     },
     {
+      "glob": "assets/sprites/*",
+      "stages": [
+        "p0"
+      ]
+    },
+    {
       "glob": "assets/*",
       "stages": []
     },

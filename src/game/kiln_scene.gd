@@ -139,7 +139,16 @@ func _draw_kiln_body(offset: Vector2, door_open: float) -> void:
 		var ring := glow
 		ring.a = 0.06 * k * (4 - i)
 		draw_circle(o + Vector2(170, 190), 150.0 + i * 18.0, ring)
-	# 몸체 (벽돌)
+	# 몸체: 그림(kiln/kiln_body, 160×160)이 있으면 그림, 없으면 벽돌 도형. 문·불길·빛은 위에 코드로 그린다
+	var body := tex("kiln/kiln_body")
+	if body != null:
+		draw_texture_rect(body, Rect2(o + Vector2(20, 0), Vector2(300, 300)), false)
+	else:
+		_draw_brick_body(o)
+	_draw_kiln_front(o, glow, door_open)
+
+
+func _draw_brick_body(o: Vector2) -> void:
 	draw_rect(Rect2(o + Vector2(40, 120), Vector2(260, 150)), Color("5a3a2a"))
 	draw_circle(o + Vector2(170, 120), 130.0, Color("5a3a2a"))
 	for row in 6:
@@ -147,6 +156,10 @@ func _draw_kiln_body(offset: Vector2, door_open: float) -> void:
 			var bx := 48.0 + col * 36.0 + (18.0 if row % 2 == 1 else 0.0)
 			if bx < 290.0:
 				draw_rect(Rect2(o + Vector2(bx, 128 + row * 22), Vector2(32, 18)), Color("634232"), false, 1.0)
+
+
+func _draw_kiln_front(o: Vector2, glow: Color, door_open: float) -> void:
+	var k: float = float(kiln.heat) / PD.KILN_MAX_HEAT
 	# 문 (닫힘 → 열림): 문틈으로 불빛이 샌다
 	var door := Rect2(o + Vector2(80, 60), Vector2(180, 170))
 	draw_rect(door.grow(4.0), glow)

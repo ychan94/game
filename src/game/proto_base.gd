@@ -133,6 +133,12 @@ func draw_layer(ci: CanvasItem, mode: String) -> void:
 			draw_front(ci)
 		"top":
 			_draw_cutin(ci)
+			draw_top_ui(ci)
+
+
+## 맨 위 층에 그릴 UI (장면이 덮어쓴다): 안개·빛 층에 가리지 않아야 하는 글
+func draw_top_ui(_ci: CanvasItem) -> void:
+	pass
 
 
 ## 빛 층에 그릴 것: 장면마다 덮어써서 더한다 (super 호출)
@@ -793,6 +799,10 @@ func step_battle() -> void:
 					if u.team == "enemy":
 						light(u.pos, 26.0, Color(col.r, col.g, col.b, 0.8), 18)
 						_element_hit_fx(u.pos, e["element"], Vector2.LEFT, true)
+			"rout":
+				show_banner("병사가 모두 쓰러졌다", "도깨비가 마을을 약탈하고 물러간다 · 마을 -%d" % roundi(e["amount"]), C["danger"], 120)
+				shake = maxf(shake, 8.0)
+				do_flash(C["danger"], 12)
 			"village_hit":
 				shake = maxf(shake, 3.0)
 				do_flash(C["danger"], 8)
@@ -1160,6 +1170,38 @@ func draw_sprite(name: String, center: Vector2, scale_k := 1.0, tint: Color = Co
 	return true
 
 
+## 별(합치기) 단계가 겉모습에도 보이게 (2026-11-28 "합치기 했을 때 어떻게 보이게 되는지"):
+## ★2 발밑 은빛 고리 · ★3 은빛 뒷빛 · ★4 금빛 뒷빛 + 금 고리 · ★5 금빛 뒷빛 + 반짝이 둘
+func _draw_star_mark(pos: Vector2, k: float, star: int, behind: bool) -> void:
+	if star < 2:
+		return
+	var silver := Color(0.82, 0.86, 0.95)
+	var gold := Color(1.0, 0.8, 0.35)
+	if behind:
+		if star >= 3:
+			var gc: Color = silver if star == 3 else gold
+			glow(self, pos + Vector2(0, -5) * k, (14.0 + 2.0 * star) * k, Color(gc.r, gc.g, gc.b, 0.16 + 0.05 * (star - 3)))
+		var rc: Color = silver if star < 4 else gold
+		draw_set_transform(pos + Vector2(0, 12) * k, 0.0, Vector2(1.0, 0.3))
+		draw_arc(Vector2.ZERO, 9.0 * k, 0.0, TAU, 24, Color(rc.r, rc.g, rc.b, 0.75), maxf(1.0, k * 0.8))
+		draw_set_transform(Vector2.ZERO)
+	elif star >= 5:
+		for i in 2:
+			var a: float = t * 0.05 + i * PI
+			var sp: Vector2 = pos + Vector2(cos(a) * 10.0, -6.0 + sin(a) * 9.0) * k
+			draw_rect(Rect2(sp - Vector2(1, 1) * k * 0.5, Vector2(1, 1) * k), Color(1.0, 0.95, 0.7, 0.85))
+
+
+## 전직한 병사: 등 뒤에 칭호 깃발 (2026-11-28 "전직할 때 외형 ... 어떻게 변화되는지")
+func _draw_promo_flag(pos: Vector2, k: float, behind: bool) -> void:
+	if not behind:
+		return
+	var top: Vector2 = pos + Vector2(-8, -24) * k
+	draw_line(pos + Vector2(-8, 6) * k, top, Color("5a3a24"), maxf(1.0, k * 0.8))
+	draw_colored_polygon(PackedVector2Array([top, top + Vector2(-10, 3) * k, top + Vector2(0, 7) * k]), Color(0.95, 0.75, 0.25))
+	draw_line(top + Vector2(-1, 2) * k, top + Vector2(-7, 3) * k, Color(0.75, 0.25, 0.15), maxf(1.0, k * 0.5))
+
+
 ## 그림 둘레에 테두리(rim)를 두른 뒤 그림을 그린다. 그림이 없으면 false.
 func draw_sprite_rim(name: String, center: Vector2, scale_k: float, rim: Color, tint: Color = Color.WHITE) -> bool:
 	var tx := tex(name)
@@ -1376,7 +1418,10 @@ func draw_beast(role: String, pos: Vector2, scale_k: float, element: String, fla
 				draw_rect(Rect2(b2 + Vector2(lx, 11) * k, Vector2(5, 6) * k), dk)
 
 
-func draw_ally_shape(pos: Vector2, role: String, element: String, tier: String, scale_k := 1.0, flash_white := false) -> void:
+func draw_ally_shape(pos: Vector2, role: String, element: String, tier: String, scale_k := 1.0, flash_white := false, star := 0, promo := false) -> void:
+	_draw_star_mark(pos, scale_k, star, true)
+	if promo:
+		_draw_promo_flag(pos, scale_k, true)
 	if role in BEASTS and not has_own_sprite(role, element):
 		draw_backlight(pos, element, scale_k)
 		draw_beast(role, pos, scale_k, element, flash_white)
@@ -1393,6 +1438,9 @@ func draw_ally_shape(pos: Vector2, role: String, element: String, tier: String, 
 		if not own:
 			draw_role_prop(role, pos, scale_k, element, false)
 		_draw_tier_aura(pos, tier, scale_k)
+		_draw_star_mark(pos, scale_k, star, false)
+		if promo:
+			_draw_promo_flag(pos, scale_k, false)
 		return
 	var col: Color = Color.WHITE if flash_white else C[element]
 	if view_style == "kiln":
@@ -1823,6 +1871,13 @@ func _draw_enemy_status(u, p: Vector2, r: float, h := 20.0) -> void:
 				for k in 3:
 					var a := t * 0.15 + k * 2.1
 					draw_rect(Rect2(c + Vector2(cos(a) * 6.0, sin(a) * 2.0) - Vector2.ONE, Vector2(2, 2)), C["accent"])
+	# 몰래 파고드는 도깨비: 머리 위 붉은 화살표(마을 쪽) + 뒤로 흐릿한 꼬리
+	if u.sneak:
+		var hp2: Vector2 = p + Vector2(0, -h * 0.55 - 6.0 + sin(t * 0.25) * 1.5)
+		draw_colored_polygon(PackedVector2Array([hp2 + Vector2(-5, 0), hp2 + Vector2(1, -4), hp2 + Vector2(1, 4)]), Color(1.0, 0.35, 0.3, 0.9))
+		draw_rect(Rect2(hp2 + Vector2(1, -1.5), Vector2(5, 3)), Color(1.0, 0.35, 0.3, 0.9))
+		for i in 3:
+			draw_rect(Rect2(p + Vector2(r + 3 + i * 5, -2 + (i % 2) * 3), Vector2(3, 1)), Color(0.7, 0.6, 0.9, 0.5 - i * 0.12))
 	# 체력 바: 깎인 만큼 흰 꼬리가 남았다가 천천히 줄어든다 (얼마나 맞았는지 보이게)
 	var m := _mv(u.id)
 	var k: float = clampf(u.hp / u.max_hp, 0.0, 1.0)
@@ -1916,7 +1971,7 @@ func _draw_ally_in_battle(u, base: Vector2) -> void:
 			draw_role_prop(u.kind, p, ALLY_SCALE, u.element, false)
 		_draw_tier_aura(p + Vector2(0, -6), u.tier, ALLY_SCALE * 0.9)
 	else:
-		draw_ally_shape(p, u.kind, u.element, u.tier, 1.6, mo["white"])
+		draw_ally_shape(p, u.kind, u.element, u.tier, 1.6, mo["white"], u.star, u.skills.size() > 1)
 	# 체력 바 + 그 밑에 스킬 재사용 바 (차오르면 금빛으로 반짝)
 	var bp: Vector2 = u.pos + Vector2(-14, 26)
 	draw_rect(Rect2(bp - Vector2(1, 1), Vector2(30, 8)), Color(0.04, 0.03, 0.05, 0.75))

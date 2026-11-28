@@ -202,7 +202,8 @@ func test_chapters_advance() -> bool:
 	b.step()
 	run.end_night(b)
 	check(run.chapter == 2 and run.night == 1 and run.state == "prep" and run.chapter_cleared, "다섯째 밤 뒤 챕터 2, 아침 1")
-	check(run.village_hp == PD.VILLAGE_HP, "새 챕터는 마을이 다시 멀쩡")
+	# 2026-11-28 '완승 아니면 완패' 고치기: 챕터를 넘기면 마을을 다 고치지 않고 최대의 35% 만큼 고친다
+	check(absf(run.village_hp - minf(PD.VILLAGE_HP, 50.0 + PD.VILLAGE_HP * PD.CHAPTER_REPAIR)) < 0.01, "새 챕터는 마을을 %d%% 고친다 (%.0f)" % [roundi(PD.CHAPTER_REPAIR * 100.0), run.village_hp])
 	check(run.clay == clay0 + PD.CLAY_PER_NIGHT + PD.CLAY_PER_CHAPTER, "챕터 보너스 흙")
 	for c in range(1, PD.CHAPTERS.size()):
 		var a: Array = PD.wave_plan(1, true, c)
@@ -450,6 +451,19 @@ func test_balance_chapters() -> bool:
 	check(ch1 >= 4, "챕터 1은 대체로 넘긴다 (억울함 방지): %d/6" % ch1)
 	check(all_clear == 0, "안전하게만 해서 끝까지 다 깨면 긴장이 없다: %d/6" % all_clear)
 	check(avg >= 2.0 and avg <= 4.0, "평균 챕터 2~4 (챕터마다 어려워진다): %.2f" % avg)
+	# 완승 아니면 완패가 아니게 (2026-11-28): 한 밤에 잃는 마을 체력은 상한까지, 무너지기 전에 마을이 줄어드는 밤이 있다
+	var partial := 0
+	for r in runs:
+		var hp: Array = r["hp"]
+		var prev: float = PD.VILLAGE_HP
+		for v in hp:
+			check(prev - v <= PD.VILLAGE_HP * PD.ROUT_CAP + 0.5, "한 밤에 마을이 %.0f 넘게 줄지 않는다 (%s)" % [PD.VILLAGE_HP * PD.ROUT_CAP, str(hp)])
+			if v > 0 and v < PD.VILLAGE_HP * 0.9:
+				partial += 1
+			prev = v
+		if r["state"] == "lost" and hp.size() >= 2:
+			check(hp[-2] < PD.VILLAGE_HP, "무너진 판은 그 전 밤에 이미 마을이 줄어 있었다 (%s)" % str(hp))
+	check(partial >= runs.size(), "마을이 줄어든 채로 끝난 밤이 있다 (%d번)" % partial)
 	return true
 
 
@@ -634,10 +648,10 @@ func test_meta_tree() -> bool:
 	var Meta = load("res://src/proto/meta.gd")
 	var m = Meta.new("user://test_meta.cfg")
 	m.embers = 100
-	check(not m.can_buy("command"), "앞 칸(성벽) 없이 지휘 한도는 못 산다")
+	check(not m.can_buy("repair"), "앞 칸(성벽) 없이 마을 수리는 못 산다")
 	check(m.buy("wall") and m.embers == 100 - Meta.NODES["wall"]["cost"][0], "성벽 1단계")
-	check(not m.can_buy("command"), "마을 수리 없이 지휘 한도는 못 산다")
-	check(m.buy("repair") and m.buy("command"), "마을 수리 → 지휘 한도")
+	check(not m.can_buy("recruit"), "지휘 한도 없이 신병 모집은 못 산다")
+	check(m.buy("command"), "지휘 한도 (부대 가지 첫 칸)")
 	check(m.buy("clay") and m.buy("train"), "흙 창고·단련")
 	var e: Dictionary = m.effects()
 	var run = KilnRun.new(3, e)
@@ -650,7 +664,8 @@ func test_meta_tree() -> bool:
 	var m2 = Meta.new("user://test_meta.cfg")
 	m2.load_saved()
 	check(m2.level("command") == 1 and m2.embers == m.embers, "저장·불러오기")
-	check(Meta.NODES.size() >= 22 and Meta.BRANCH_NAME.size() == 6, "전술 강화 %d칸 · 가지 6개" % Meta.NODES.size())
+	check(Meta.NODES.size() >= 30 and Meta.BRANCH_NAME.size() == 7, "전술 강화 %d칸 · 가지 7개" % Meta.NODES.size())
+	check(Meta.NODES["command"]["max"] >= 3 and Meta.NODES["command"]["key"] == "cap", "부대 자리 +3 까지")
 	for id in Meta.NODES:
 		var n: Dictionary = Meta.NODES[id]
 		check(n["cost"].size() == n["max"] and n["cost"].all(func(c): return c <= 6), "%s 값은 불씨 6 이하 (★3 밤마다 1개)" % id)
@@ -962,4 +977,67 @@ func test_equipment_flow() -> bool:
 		var ua = b.units.filter(func(o): return o.team == "ally")[0]
 		var uc = b.units.filter(func(o): return o.team == "ally")[1]
 		check(ua.atk > uc.atk or ua.max_hp > uc.max_hp or ua.cd_max < uc.cd_max or ua.regen > uc.regen, "%s 장비가 전투에 들어간다" % t)
+	return true
+
+
+## 합동 기술 피해 = 조합에 드는 병사들의 공격력 합 × pct (2026-11-28)
+func test_combo_damage_from_atk_sum() -> bool:
+	var b = Battle.new(31, [])
+	b.spawn_queue = []
+	b.combo_id = "blaze"
+	var sum := 0.0
+	for r in ["slinger", "cannon", "archer", "archer"]:
+		var u = b.add_ally(r, "fire", "normal", r, 2.5)
+		u.max_hp = 1000000.0
+		u.hp = u.max_hp
+		sum += u.atk
+	var spear = b.add_ally("spear", "fire", "normal", "창병", 1.0)   # 조합에 없는 병사는 안 센다
+	spear.max_hp = 1000000.0
+	spear.hp = spear.max_hp
+	var t = b.add_enemy("goblin", 130.0)
+	t.hp = 1000000.0
+	t.max_hp = 1000000.0
+	t.armor = 0.0
+	t.speed = 0.0
+	var ev := {}
+	for i in PD.SYNERGY_FIRST + 120:
+		t.pos = Vector2(400, 130)
+		var hp0: float = t.hp
+		b.step()
+		for e in b.events:
+			if e["kind"] == "synergy":
+				ev = e
+	check(not ev.is_empty() and absf(ev["atk_sum"] - sum) < 0.01, "참여 병사 공격력 합 %.1f (창병 제외)" % sum)
+	check(absf(ev["dmg"] - sum * PD.COMBOS["blaze"]["pct"]) < 0.01, "피해 = 합 × %d%%" % roundi(PD.COMBOS["blaze"]["pct"] * 100.0))
+	check(PD.combo_dmg_text("blaze").find("%d%%" % roundi(PD.COMBOS["blaze"]["pct"] * 100.0)) >= 0, "설명에 같은 %")
+	var run = KilnRun.new(32)
+	for r in ["slinger", "cannon", "archer"]:
+		run.draw(r, "fire")
+	run.fire()
+	var cp: Dictionary = run.combo_power("blaze")
+	check(cp["n"] == 3 and cp["dmg"] > 0.0, "로비에서 지금 피해를 미리 본다 (%d)" % roundi(cp["dmg"]))
+	return true
+
+
+
+## 새 전술 강화 효과가 실제로 들어간다
+func test_meta_new_effects() -> bool:
+	var e := {"start_soldier": 2.0, "skill": 0.2, "regen": 0.004, "shield": 0.08, "boss_dmg": 0.15, "night_clay": 2.0, "pearl_rate": 2.0, "legend_bonus": 0.04, "combo_heal": 0.1, "cap": 3.0}
+	var run = KilnRun.new(41, e)
+	check(run.army.size() == 2 and run.army.all(func(s): return PD.ROLE_GRADE[s["role"]] == "common"), "신병 모집: 일반 병사 2명으로 시작")
+	check(run.cap() == PD.ARMY_CAP_START + 3, "지휘 한도 +3")
+	check(run.kiln.odds()["legend"] >= PD.kiln_odds(0)["legend"] + 0.04 - 1e-6, "요변 기운 +4%p")
+	var b = run.start_night()
+	var u = b.units.filter(func(o): return o.team == "ally")[0]
+	check(u.regen > 0.0 and u.shield_hp > 0.0 and u.boss_dmg > 0.0 and u.skill_pow > 1.0, "회복·보호막·대장 피해·스킬 위력")
+	check(b.combo_heal > 0.0, "합동 기술 회복")
+	b.spawn_queue = []
+	b.units = b.units.filter(func(o): return o.team == "ally")
+	b.stats["kills"] = 8
+	b.step()
+	var c0: int = run.clay
+	var p0: int = run.pearls
+	run.end_night(b)
+	check(run.clay >= c0 + PD.CLAY_PER_NIGHT + 2, "흙 수레 +2")
+	check(run.pearls >= p0 + 8 / (PD.PEARL_PER_KILLS - 2), "진주 사냥꾼: %d마리마다 진주" % (PD.PEARL_PER_KILLS - 2))
 	return true

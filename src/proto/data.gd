@@ -318,17 +318,18 @@ const KNOCKBACK := 14.0
 const SPECIAL_EVERY := 360       # 요변·전설은 6초마다 혼자 특수기
 const SYNERGY_COUNT := 3         # (예전) 같은 속성 3이면 합동 기술 — 2026-11-28 부터 병사 조합 합동 기술(COMBOS)로 바뀜
 ## 합동 기술: 부대에 필요한 병사가 모두 있으면, 로비에서 고른 하나만 쓴다 (2026-11-28 "병사 조합에 따른 합동 공격 ... 무조건 1개만 선택")
-## needs: 꼭 있어야 하는 병사들, any: [후보 병사들, 몇 종] (신화처럼 고르는 조건), element: 파도·컷신 빛깔, pow: 파도 위력 배율
+## needs: 꼭 있어야 하는 병사들, any: [후보 병사들, 몇 종] (신화처럼 고르는 조건), element: 파도·컷신 빛깔
+## pct: 파도가 적 하나에 주는 피해 = 조합에 드는 병사들(부대에 있는 그 종류 모두)의 공격력 합 × pct (2026-11-28 "조합에 들어가는 병사와 유닛의 공격력을 합한 거에 퍼센트 데미지")
 ## bonus: 파도와 함께 오는 효과 (atk 모든 아군 공격력 / shield 보호막 / heal 회복 / stun 기절 / slow 느리게)
 const COMBOS := {
-	"tide": {"name": "해일 진격", "needs": ["spear", "shield", "archer"], "element": "water", "pow": 1.0, "bonus": "slow", "desc": "물마루가 전장을 휩쓸어 적을 밀어내고 느리게 한다"},
-	"blaze": {"name": "화염 폭풍", "needs": ["slinger", "cannon", "archer"], "element": "fire", "pow": 1.3, "bonus": "", "desc": "불길이 전장을 훑고 지나가며 모두 불태운다"},
-	"quake": {"name": "대지 가르기", "needs": ["axe", "shield", "cavalry"], "element": "earth", "pow": 1.0, "bonus": "stun", "desc": "땅을 갈라 적을 1.5초 기절시킨다"},
-	"march": {"name": "진군의 함성", "needs": ["general", "spear", "cavalry"], "element": "fire", "pow": 0.8, "bonus": "atk", "desc": "불 파도와 함께 모든 아군 6초간 공격력 +40%"},
-	"fortress": {"name": "철벽진", "needs": ["shield", "haetae", "hyeonmu"], "element": "earth", "pow": 0.7, "bonus": "shield", "desc": "흙 파도와 함께 모든 아군에게 최대 체력 25% 보호막"},
-	"rite": {"name": "큰 굿판", "needs": ["healer", "cheoyong", "twin"], "element": "water", "pow": 0.8, "bonus": "heal", "desc": "맑은 물결과 함께 모든 아군 체력 40% 회복"},
-	"volley": {"name": "명궁 일제 사격", "needs": ["archer", "sniper", "slinger"], "element": "water", "pow": 1.4, "bonus": "slow", "desc": "화살비가 물결처럼 쏟아져 적을 느리게 한다"},
-	"guardians": {"name": "사신 강림", "needs": [], "any": [["dragon", "baekho", "jujak", "hyeonmu"], 2], "element": "fire", "pow": 2.2, "bonus": "atk", "desc": "신화 둘이 힘을 합쳐 거대한 불 파도 + 공격력 +40%"},
+	"tide": {"name": "해일 진격", "needs": ["spear", "shield", "archer"], "element": "water", "pct": 0.5, "bonus": "slow", "desc": "물마루가 전장을 휩쓸어 적을 밀어내고 느리게 한다"},
+	"blaze": {"name": "화염 폭풍", "needs": ["slinger", "cannon", "archer"], "element": "fire", "pct": 0.65, "bonus": "", "desc": "불길이 전장을 훑고 지나가며 모두 불태운다"},
+	"quake": {"name": "대지 가르기", "needs": ["axe", "shield", "cavalry"], "element": "earth", "pct": 0.5, "bonus": "stun", "desc": "땅을 갈라 적을 1.5초 기절시킨다"},
+	"march": {"name": "진군의 함성", "needs": ["general", "spear", "cavalry"], "element": "fire", "pct": 0.4, "bonus": "atk", "desc": "불 파도와 함께 모든 아군 6초간 공격력 +40%"},
+	"fortress": {"name": "철벽진", "needs": ["shield", "haetae", "hyeonmu"], "element": "earth", "pct": 0.3, "bonus": "shield", "desc": "흙 파도와 함께 모든 아군에게 최대 체력 25% 보호막"},
+	"rite": {"name": "큰 굿판", "needs": ["healer", "cheoyong", "twin"], "element": "water", "pct": 0.4, "bonus": "heal", "desc": "맑은 물결과 함께 모든 아군 체력 40% 회복"},
+	"volley": {"name": "명궁 일제 사격", "needs": ["archer", "sniper", "slinger"], "element": "water", "pct": 0.7, "bonus": "slow", "desc": "화살비가 물결처럼 쏟아져 적을 느리게 한다"},
+	"guardians": {"name": "사신 강림", "needs": [], "any": [["dragon", "baekho", "jujak", "hyeonmu"], 2], "element": "fire", "pct": 1.0, "bonus": "atk", "desc": "신화 둘이 힘을 합쳐 거대한 불 파도 + 공격력 +40%"},
 }
 const COMBO_ATK := 0.4             # atk: 공격력 +40%
 const COMBO_ATK_FRAMES := 360      # 6초
@@ -367,6 +368,13 @@ static func combo_roles(id: String) -> Array:
 
 
 ## 조건을 글로: "창병 + 방패병 + 궁수" / "청룡·백호·주작·현무 중 2"
+## 합동 기술 설명 (실제 계산과 같은 수치)
+static func combo_dmg_text(id: String) -> String:
+	var c: Dictionary = COMBOS[id]
+	var e: String = {"water": "밀어내고 느리게", "fire": "화상", "earth": "1.5초 기절"}[c["element"]]
+	return "참여 병사 공격력 합의 %d%% 피해 + %s" % [roundi(c["pct"] * 100.0), e]
+
+
 static func combo_need_text(id: String) -> String:
 	var c: Dictionary = COMBOS[id]
 	var parts: Array = c["needs"].map(func(r): return ROLE_NAME_KILN[r])
@@ -401,10 +409,10 @@ const BOSSES := ["chief", "gumiho", "imugi", "reaper", "king"]
 ## 챕터: 아침 5번·밤 5번. 다섯째 밤에 대장. hp: 도깨비 체력 배율 (챕터 첫 밤 기준)
 const CHAPTERS := [
 	{"name": "마을 어귀", "new": "", "boss": "chief", "hp": 1.0, "boss_hp": 1.0},
-	{"name": "여우골 숲", "new": "fox", "boss": "gumiho", "hp": 2.1, "boss_hp": 0.8},
-	{"name": "안개 늪", "new": "armored", "boss": "imugi", "hp": 4.3, "boss_hp": 0.65},
-	{"name": "얼음 고개", "new": "ghost", "boss": "reaper", "hp": 6.6, "boss_hp": 0.65},
-	{"name": "도깨비 성", "new": "giant", "boss": "king", "hp": 9.0, "boss_hp": 0.65},
+	{"name": "여우골 숲", "new": "fox", "boss": "gumiho", "hp": 2.4, "boss_hp": 0.8},
+	{"name": "안개 늪", "new": "armored", "boss": "imugi", "hp": 5.2, "boss_hp": 0.65},
+	{"name": "얼음 고개", "new": "ghost", "boss": "reaper", "hp": 11.0, "boss_hp": 0.65},
+	{"name": "도깨비 성", "new": "giant", "boss": "king", "hp": 15.0, "boss_hp": 0.65},
 ]
 const CHAPTER_NEW_EVERY := 3      # 챕터의 새 적: 도깨비 3마리마다 1마리가 새 적으로
 const CLAY_PER_CHAPTER := 12      # 챕터를 넘기면 흙 보너스
@@ -435,7 +443,10 @@ static func wave_plan(night := 1, big_army := false, chapter := 1) -> Array:
 	while f <= 1100:
 		k += 1
 		var kind: String = ch["new"] if ch["new"] != "" and k % CHAPTER_NEW_EVERY == 0 else "goblin"
-		plan.append([f, kind, st.call(kind)])
+		var o: Dictionary = st.call(kind).duplicate()
+		if n >= 2 and k % SNEAK_EVERY == 3:
+			o["sneak"] = true
+		plan.append([f, kind, o])
 		f += every
 	var imps: Array = WAVE_IMPS.duplicate()
 	var brutes: Array = WAVE_BRUTES.duplicate()
@@ -458,6 +469,13 @@ static func wave_plan(night := 1, big_army := false, chapter := 1) -> Array:
 # ---------- 여러 밤 (가마의 병사 한 판) ----------
 const KILN_NIGHTS := 5            # 다섯째 밤에 도깨비 대장
 const NIGHT_HP_GROWTH := 0.45     # 챕터 안에서 밤마다 도깨비 체력 +45% (봇 균형 검사)
+## '완승 아니면 완패' 막기 (2026-11-28 "완승 아니면 완패 현상은 고쳐야"):
+##   1) 몰래 파고드는 도깨비: 둘째 밤부터 일부가 아군을 피해 마을로 → 잡는 힘이 모자란 만큼만 조금씩 샌다
+##   2) 한 밤에 마을이 잃는 체력은 ROUT_CAP 까지 (아군이 다 쓰러져도 남은 도깨비는 약탈하고 물러간다)
+const SNEAK_EVERY := 6            # 둘째 밤부터 도깨비 6마리 중 1마리가 몰래 파고든다
+const SNEAK_SPEED := 1.25         # 몰래 파고드는 도깨비는 조금 빠르다
+const ROUT_CAP := 0.6            # 한 밤에 마을이 잃는 체력 상한 (최대 체력의 60%) — 아무리 나빠도 한 밤에 끝나지는 않는다
+const CHAPTER_REPAIR := 0.35      # 챕터를 넘기면 마을 체력을 최대의 35% 만큼 고친다 (예전: 다 고침)
 const ARMY_CAP_START := 9         # 병사 자리 (사용자: "병사 종류랑 갯수도 좀 더 많아야")
 const ARMY_CAP_PER_NIGHT := 2     # 밤마다 자리 +2
 const ARMY_CAP_MAX := 18          # 자리는 여기까지 (그다음 성장은 별·등급·요변으로)

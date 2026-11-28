@@ -57,6 +57,11 @@ func _init(seed_value: int, meta_effects := {}) -> void:
 	pearls += int(meta.get("start_pearls", 0.0))
 	kiln.safe_bonus = int(meta.get("safe_heat", 0.0))
 	kiln.fine_bonus = meta.get("fine_bonus", 0.0)
+	kiln.legend_bonus = meta.get("legend_bonus", 0.0)
+	# 신병 모집: 판을 시작할 때 일반 병사
+	for i in int(meta.get("start_soldier", 0.0)):
+		var cr: Array = D.grade_roles("common")
+		_add_soldier(cr[rng.randi() % cr.size()], D.ELEMENTS[rng.randi() % D.ELEMENTS.size()], "normal")
 	kiln.shard_need = maxi(1, D.SHARDS_FOR_LEGEND - int(meta.get("shard_need", 0.0)))
 	restock()
 	free_rerolls = int(meta.get("free_reroll", 0.0))
@@ -205,11 +210,23 @@ func set_combo(id: String) -> bool:
 	return true
 
 
-## 지금 부대로 쓸 수 있는 합동 기술 중 가장 센 것 (봇·처음 고를 때)
+## 지금 부대로 이 합동 기술을 쓰면: 참여 병사 공격력 합, 적 하나에 주는 피해
+func combo_power(id: String) -> Dictionary:
+	var cr: Array = D.combo_roles(id)
+	var atk_sum := 0.0
+	var n := 0
+	for s in army:
+		if cr.has(s["role"]):
+			atk_sum += soldier_stats(s)["atk"]
+			n += 1
+	return {"atk_sum": atk_sum, "dmg": atk_sum * D.COMBOS[id]["pct"] * (1.0 + meta.get("combo_pow", 0.0)), "n": n}
+
+
+## 지금 부대로 쓸 수 있는 합동 기술 중 피해가 가장 큰 것 (봇·처음 고를 때)
 func best_combo() -> String:
 	var best := ""
 	for id in D.COMBOS:
-		if combo_ready(id) and (best == "" or D.COMBOS[id]["pow"] > D.COMBOS[best]["pow"]):
+		if combo_ready(id) and (best == "" or combo_power(id)["dmg"] > combo_power(best)["dmg"]):
 			best = id
 	return best
 
@@ -489,9 +506,10 @@ func start_night():
 	var b = Battle.new(rng.randi(), D.wave_plan(night, true, chapter))
 	b.village_hp = village_hp
 	b.combo_id = combo
-	b.synergy_power *= 1.0 + meta.get("combo_pow", 0.0)
+	b.combo_pow_mul = 1.0 + meta.get("combo_pow", 0.0)
 	b.combo_cd_mul = maxf(0.4, 1.0 - meta.get("combo_cd", 0.0))
 	b.combo_first_cut = int(meta.get("combo_first", 0.0))
+	b.combo_heal = meta.get("combo_heal", 0.0)
 	b.village_guard = meta.get("village_guard", 0.0)
 	for s in army:
 		var home = s.get("home", null)
@@ -524,7 +542,7 @@ func soldier_mods(s: Dictionary) -> Dictionary:
 		m["atk"] = m.get("atk", 0.0) + D.PROMO_BONUS
 		m["hp"] = m.get("hp", 0.0) + D.PROMO_BONUS
 	m["star"] = s["star"]
-	for k in ["atk", "hp", "cdr", "haste", "range"]:
+	for k in ["atk", "hp", "cdr", "haste", "range", "skill", "regen", "shield", "boss_dmg"]:
 		if meta.has(k):
 			m[k] = m.get(k, 0.0) + meta[k]
 	return m
@@ -675,7 +693,7 @@ func end_night(b) -> void:
 	last_kills = b.stats["kills"]
 	total_kills += last_kills
 	chapter_time += b.frame / float(D.FPS)
-	if b.result != "win" or village_hp <= 0.0:
+	if (b.result != "win" and b.result != "hold") or village_hp <= 0.0:
 		state = "lost"
 		return
 	# 전리품: 뽑기권 · 흙 · (챕터 3부터) 장비
@@ -691,6 +709,7 @@ func end_night(b) -> void:
 		embers_earned += 1   # 불씨: ★3 밤마다 1개 (화면이 전술 강화에 더한다)
 	village_hp = minf(D.VILLAGE_HP, village_hp + D.VILLAGE_HP * meta.get("night_repair", 0.0))
 	pearls += int(meta.get("night_pearls", 0.0))
+	clay += int(meta.get("night_clay", 0.0))
 	tickets += tk
 	clay += cl
 	last_reward = cl
@@ -699,7 +718,7 @@ func end_night(b) -> void:
 		for i in (D.EQUIP_BOSS if boss_night else D.EQUIP_PER_NIGHT):
 			got.append(_roll_equip(boss_night and i == 0))
 	inventory.append_array(got)
-	var pr: int = last_kills / D.PEARL_PER_KILLS + (D.PEARL_BOSS if boss_night else 0)
+	var pr: int = last_kills / maxi(2, D.PEARL_PER_KILLS - int(meta.get("pearl_rate", 0.0))) + (D.PEARL_BOSS if boss_night else 0)
 	pearls += pr
 	restock()
 	free_rerolls = int(meta.get("free_reroll", 0.0))
@@ -719,7 +738,7 @@ func end_night(b) -> void:
 		chapter_cleared = true
 		clay += D.CLAY_PER_CHAPTER
 		last_loot["chapter_clay"] = D.CLAY_PER_CHAPTER
-		village_hp = D.VILLAGE_HP
+		village_hp = minf(D.VILLAGE_HP, village_hp + D.VILLAGE_HP * D.CHAPTER_REPAIR)
 		state = "prep"
 		return
 	village_hp = minf(D.VILLAGE_HP, village_hp + D.VILLAGE_REPAIR)

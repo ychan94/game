@@ -33,6 +33,9 @@ class U:
 	var heal := 0.0
 	var regen := 0.0         # 장비(약 호리병): 초당 최대 체력의 몇 할을 회복
 	var armor := 0.0         # 적: 한 대마다 이만큼 피해를 깎는다
+	var sneak := false       # 적: 아군을 피해 마을로 파고든다
+	var boss_dmg := 0.0      # 아군: 대장에게 주는 피해 +
+	var star := 1            # 아군: 별 (화면 표시)
 	var heavy := false       # 적: 밀리지 않는다 (대장·거인·원귀)
 	var summon_kind := ""    # 적 대장: 부하를 부른다
 	var summon_every := 0
@@ -70,6 +73,11 @@ var village_hp := D.VILLAGE_HP
 var spawn_queue: Array = []
 var synergy_t := {}             # 합동 기술 남은 시간 {combo_id: 프레임}
 var combo_id := ""               # 고른 합동 기술 (D.COMBOS), 없으면 ""
+var no_rout := false             # 시험용: 아군이 없어도 전투를 끝내지 않는다
+var night_loss := 0.0             # 이번 밤 마을이 잃은 체력 (상한 ROUT_CAP)
+var had_allies := false           # 아군이 한 번이라도 있었나 (아군 없는 시험 전투는 약탈로 끝내지 않는다)
+var combo_pow_mul := 1.0          # 전술 강화: 합동 기술 피해 배율
+var combo_heal := 0.0             # 전술 강화: 합동 기술 때 모든 아군 회복
 var combo_cd_mul := 1.0          # 전술 강화: 합동 기술 재사용 배율
 var combo_first_cut := 0         # 전술 강화: 첫 발동 앞당김 (프레임)
 var done := false
@@ -91,6 +99,7 @@ func _init(seed_value: int, plan: Array = []) -> void:
 ## mods: 장비·상점·진영·전직 배율 {atk, hp, haste, regen, shield, cdr, skill, skills(추가 스킬), star}
 ## home: 사용자가 배치한 자리 (없으면 대열에 맞춰 자동)
 func add_ally(role: String, element: String, tier: String, name: String, stat_mul := 1.0, mods := {}, home := Vector2.INF) -> U:
+	had_allies = true
 	var s: Dictionary = D.ROLE_STATS[role]
 	var u := U.new()
 	u.id = _next_id
@@ -105,6 +114,7 @@ func add_ally(role: String, element: String, tier: String, name: String, stat_mu
 	u.hp = u.max_hp
 	u.atk = s["atk"] * m * (1.0 + mods.get("atk", 0.0))
 	u.regen = mods.get("regen", 0.0)
+	u.boss_dmg = mods.get("boss_dmg", 0.0)
 	u.heal = D.HEAL_AMOUNT * (1.0 + (m - 1.0) * D.HEAL_SCALE) if role == "healer" else 0.0
 	u.range = s["range"] * (1.0 + mods.get("range", 0.0))
 	u.cd_max = maxi(6, roundi(s["cd"] / (1.0 + mods.get("haste", 0.0))))
@@ -117,6 +127,7 @@ func add_ally(role: String, element: String, tier: String, name: String, stat_mu
 	# 고유 스킬은 가마의 병사(챕터 한 판)에만: kiln_run 이 별(star)을 넘겨줄 때. 1분 시험판·둥지 괴수는 스킬 없음
 	u.skills = ([role] + mods.get("skills", [])) if mods.has("star") and D.SKILLS.has(role) else []
 	u.skill_lv = D.skill_level(mods.get("star", 1))
+	u.star = mods.get("star", 1)
 	u.skill_pow = 1.0 + mods.get("skill", 0.0)
 	u.cdr = clampf(mods.get("cdr", 0.0), 0.0, 0.6)
 	for r in u.skills:
@@ -183,6 +194,9 @@ func add_enemy(kind: String, y: float, stat_override := {}) -> U:
 	u.village_dmg = s.get("village", 8.0)
 	u.armor = s.get("armor", 0.0)
 	u.heavy = s.get("heavy", false)
+	u.sneak = s.get("sneak", false)
+	if u.sneak:
+		u.speed *= D.SNEAK_SPEED
 	if s.has("summon"):
 		u.summon_kind = s["summon"][0]
 		u.summon_every = s["summon"][1]
@@ -223,6 +237,21 @@ func step() -> void:
 	elif spawn_queue.is_empty() and _count("enemy") == 0:
 		done = true
 		result = "win"
+	elif had_allies and _count("ally") == 0 and not no_rout:
+		# 아군 전멸: 남은 도깨비(+ 아직 안 온 도깨비)가 약탈하고 물러간다. 한 밤 약탈은 상한까지
+		var loot := 0.0
+		for u in units:
+			if u.alive and u.team == "enemy":
+				loot += u.village_dmg
+		for e in spawn_queue:
+			loot += D.ENEMIES[e[1]].get("village", 8.0)
+		var lost: float = minf(loot, maxf(0.0, D.VILLAGE_HP * D.ROUT_CAP - night_loss))
+		night_loss += lost
+		village_hp -= lost
+		events.append({"kind": "rout", "amount": lost})
+		done = true
+		result = "lose" if village_hp <= 0.0 else "hold"
+		village_hp = maxf(0.0, village_hp)
 	frame += 1
 
 
@@ -274,6 +303,8 @@ func _act(u: U) -> void:
 		_heal(u)
 		return
 	var target = _pick_target(u)
+	if u.team == "enemy" and u.sneak:
+		target = null   # 몰래 파고드는 도깨비는 싸우지 않고 마을로
 	if u.team == "enemy":
 		if target != null and u.pos.x <= ENEMY_ATTACK_X and u.pos.distance_to(target.pos) <= u.range + target.radius + u.radius:
 			u.tgt = target
@@ -284,9 +315,12 @@ func _act(u: U) -> void:
 			if target != null and absf(target.pos.y - u.pos.y) > 4.0 and u.pos.distance_to(target.pos) < 120.0:
 				u.pos.y += signf(target.pos.y - u.pos.y) * spd * 0.6
 			if u.pos.x <= VILLAGE_X:
-				village_hp -= u.village_dmg * (1.0 - village_guard)
+				# 한 밤에 잃는 마을 체력은 상한까지 (그 뒤로 들어온 도깨비는 약탈하고 물러간다)
+				var dmg: float = minf(u.village_dmg * (1.0 - village_guard), maxf(0.0, D.VILLAGE_HP * D.ROUT_CAP - night_loss))
+				village_hp -= dmg
+				night_loss += dmg
 				u.alive = false
-				events.append({"kind": "village_hit", "pos": u.pos, "amount": u.village_dmg, "unit": u.id})
+				events.append({"kind": "village_hit", "pos": u.pos, "amount": dmg, "unit": u.id})
 		return
 	# 아군: 목표를 붙잡고, 적이 정말 없을 때만 잠깐 기다렸다가 제자리로 (앞뒤로 오가지 않게)
 	_tick_skills(u)
@@ -447,6 +481,8 @@ func _hurt(t: U, amount: float, src, show: bool) -> void:
 	if not t.alive:
 		return
 	var a := amount
+	if src != null and src.boss_dmg > 0.0 and t.kind in D.BOSSES:
+		a *= 1.0 + src.boss_dmg   # 전술 강화 '봉화'
 	if t.kind == "shield" and t.team == "ally":
 		a *= 1.0 - D.SHIELD_REDUCE
 	if t.armor > 0.0:
@@ -507,10 +543,17 @@ func _synergy() -> void:
 	synergy_t[combo_id] = roundi(D.SYNERGY_EVERY * combo_cd_mul)
 	stats["synergies"] += 1
 	var c: Dictionary = D.COMBOS[combo_id]
-	# 위력: 조건 병사가 많을수록 (3명 기준, 최대 2배)
-	var power: float = synergy_power * c["pow"] * clampf(n / 3.0, 1.0, 2.0)
-	events.append({"kind": "synergy", "element": c["element"], "count": n, "name": c["name"], "combo": combo_id})
-	waves.append({"element": c["element"], "x": VILLAGE_X, "power": power, "bonus": c["bonus"]})
+	# 피해: 조합에 드는 병사(살아 있는 그 종류 모두)의 공격력 합 × pct × 전술 강화
+	var atk_sum := 0.0
+	for u in units:
+		if u.alive and u.team == "ally" and cr.has(u.kind):
+			atk_sum += u.atk
+	var dmg: float = atk_sum * c["pct"] * combo_pow_mul
+	events.append({"kind": "synergy", "element": c["element"], "count": n, "name": c["name"], "combo": combo_id, "dmg": dmg, "atk_sum": atk_sum})
+	waves.append({"element": c["element"], "x": VILLAGE_X, "power": dmg, "bonus": c["bonus"], "combo": true})
+	if combo_heal > 0.0:
+		for u2 in _allies():
+			u2.hp = minf(u2.max_hp, u2.hp + u2.max_hp * combo_heal)
 	for u in _allies():
 		match c["bonus"]:
 			"atk":
@@ -531,7 +574,10 @@ func _move_waves() -> void:
 		for u in units:
 			if u.alive and u.team == "enemy" and u.pos.x > x0 and u.pos.x <= w["x"] and not hit.has(u.id):
 				hit.append(u.id)   # 한 파도는 한 적을 한 번만 (해일에 밀린 적을 또 맞혀 끝까지 끌고 가지 않게)
-				_element_burst(u, w["element"], w["power"], null)
+				if w.get("combo", false):
+					_combo_hit(u, w["element"], w["power"])
+				else:
+					_element_burst(u, w["element"], w["power"], null)
 				match w.get("bonus", ""):
 					"stun":
 						u.stun_t = maxi(u.stun_t, D.COMBO_STUN)
@@ -572,6 +618,19 @@ func _element_burst(t: U, element: String, power: float, src) -> void:
 		"earth":
 			_hurt(t, power * 0.6, src, true)
 			t.stun_t = 90
+
+
+## 합동 기술 파도 한 대: 계산한 피해 그대로 + 유약 효과 (불 화상 · 물 밀기·느리게 · 흙 기절)
+func _combo_hit(t: U, element: String, dmg: float) -> void:
+	_hurt(t, dmg, null, true)
+	match element:
+		"fire":
+			t.burn_t = D.BURN_FRAMES
+		"water":
+			_push(t, 80.0)
+			t.slow_t = D.SLOW_FRAMES * 2
+		"earth":
+			t.stun_t = maxi(t.stun_t, 90)
 
 
 func state_hash() -> String:

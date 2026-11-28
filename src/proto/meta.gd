@@ -10,30 +10,46 @@ const SAVE := "user://meta.cfg"
 ## 불씨는 아침·밤을 ★3(마을 90% 이상)으로 넘길 때마다 1개 (2026-11-28 사용자) → 한 판 최대 25개라 값은 1~6
 const NODES := {
 	"core": {"name": "가마터", "branch": "core", "desc": "전술 강화의 뿌리", "key": "", "per": 0.0, "max": 1, "cost": [0], "need": ""},
+	# 마을
 	"wall": {"name": "마을 성벽", "branch": "core", "desc": "도깨비가 마을에 주는 피해 -10%", "key": "village_guard", "per": 0.1, "max": 3, "cost": [1, 2, 4], "need": "core"},
 	"repair": {"name": "마을 수리", "branch": "core", "desc": "밤을 넘길 때마다 마을 체력 +5%", "key": "night_repair", "per": 0.05, "max": 2, "cost": [2, 4], "need": "wall"},
-	"command": {"name": "지휘 한도", "branch": "core", "desc": "부대 자리 +1", "key": "cap", "per": 1.0, "max": 2, "cost": [3, 6], "need": "repair"},
+	"beacon": {"name": "봉화", "branch": "core", "desc": "도깨비 대장에게 주는 피해 +15%", "key": "boss_dmg", "per": 0.15, "max": 2, "cost": [3, 5], "need": "repair"},
+	# 부대 (2026-11-28 "부대원 수도 늘려주는 것")
+	"command": {"name": "지휘 한도", "branch": "army", "desc": "부대 자리 +1", "key": "cap", "per": 1.0, "max": 3, "cost": [2, 4, 6], "need": "core"},
+	"recruit": {"name": "신병 모집", "branch": "army", "desc": "판을 시작할 때 일반 병사 +1", "key": "start_soldier", "per": 1.0, "max": 2, "cost": [2, 4], "need": "command"},
+	"drill": {"name": "정예 훈련", "branch": "army", "desc": "모든 병사 스킬 위력 +10%", "key": "skill", "per": 0.1, "max": 3, "cost": [2, 3, 5], "need": "recruit"},
+	"mend": {"name": "회복의 기운", "branch": "army", "desc": "모든 병사 초당 체력 0.4% 회복", "key": "regen", "per": 0.004, "max": 2, "cost": [3, 5], "need": "drill"},
+	"bulwark": {"name": "방패 진", "branch": "army", "desc": "전투 시작 때 보호막 (최대 체력 8%)", "key": "shield", "per": 0.08, "max": 2, "cost": [3, 5], "need": "mend"},
+	# 보급
 	"clay": {"name": "흙 창고", "branch": "supply", "desc": "판을 시작할 때 흙 +6", "key": "start_clay", "per": 6.0, "max": 3, "cost": [1, 2, 3], "need": "core"},
 	"ticket": {"name": "뽑기권 꾸러미", "branch": "supply", "desc": "판을 시작할 때 뽑기권 +1", "key": "start_tickets", "per": 1.0, "max": 3, "cost": [2, 3, 4], "need": "clay"},
 	"night_pearl": {"name": "밤 사냥", "branch": "supply", "desc": "밤을 넘길 때마다 진주 +1", "key": "night_pearls", "per": 1.0, "max": 2, "cost": [2, 4], "need": "ticket"},
-	"bounty": {"name": "밤 보상", "branch": "supply", "desc": "★3 밤마다 뽑기권 +1", "key": "night_tickets", "per": 1.0, "max": 1, "cost": [6], "need": "night_pearl"},
+	"night_clay": {"name": "흙 수레", "branch": "supply", "desc": "밤을 넘길 때마다 흙 +2", "key": "night_clay", "per": 2.0, "max": 2, "cost": [2, 4], "need": "night_pearl"},
+	"bounty": {"name": "밤 보상", "branch": "supply", "desc": "★3 밤마다 뽑기권 +1", "key": "night_tickets", "per": 1.0, "max": 1, "cost": [6], "need": "night_clay"},
+	# 병사
 	"train": {"name": "단련", "branch": "unit", "desc": "모든 병사 공격력 +5%", "key": "atk", "per": 0.05, "max": 3, "cost": [1, 2, 4], "need": "core"},
 	"tough": {"name": "튼튼한 몸", "branch": "unit", "desc": "모든 병사 체력 +8%", "key": "hp", "per": 0.08, "max": 3, "cost": [1, 2, 4], "need": "train"},
 	"swift": {"name": "날랜 손", "branch": "unit", "desc": "모든 병사 공격 속도 +5%", "key": "haste", "per": 0.05, "max": 3, "cost": [2, 3, 5], "need": "tough"},
 	"eagle": {"name": "매의 눈", "branch": "unit", "desc": "모든 병사 사거리 +8%", "key": "range", "per": 0.08, "max": 2, "cost": [2, 4], "need": "swift"},
 	"focus": {"name": "스킬 숙련", "branch": "unit", "desc": "스킬 재사용 -5%", "key": "cdr", "per": 0.05, "max": 2, "cost": [3, 5], "need": "eagle"},
+	# 상점
 	"purse": {"name": "진주 주머니", "branch": "shop", "desc": "판을 시작할 때 진주 +3", "key": "start_pearls", "per": 3.0, "max": 3, "cost": [1, 2, 3], "need": "core"},
-	"reroll": {"name": "단골 손님", "branch": "shop", "desc": "아침마다 다시 진열 1번 공짜", "key": "free_reroll", "per": 1.0, "max": 1, "cost": [3], "need": "purse"},
+	"hunter": {"name": "진주 사냥꾼", "branch": "shop", "desc": "진주를 얻는 처치 수 -1 (6 → 5 → 4)", "key": "pearl_rate", "per": 1.0, "max": 2, "cost": [2, 4], "need": "purse"},
+	"reroll": {"name": "단골 손님", "branch": "shop", "desc": "아침마다 다시 진열 1번 공짜", "key": "free_reroll", "per": 1.0, "max": 1, "cost": [3], "need": "hunter"},
 	"haggle": {"name": "흥정", "branch": "shop", "desc": "상점 값 -1 (최소 1)", "key": "discount", "per": 1.0, "max": 1, "cost": [5], "need": "reroll"},
+	# 가마
 	"fire": {"name": "불 다스리기", "branch": "kiln", "desc": "안전한 불 +1 (그만큼 덜 깨진다)", "key": "safe_heat", "per": 1.0, "max": 2, "cost": [2, 4], "need": "core"},
 	"glaze": {"name": "고운 유약", "branch": "kiln", "desc": "상품이 될 몫 +5%p", "key": "fine_bonus", "per": 0.05, "max": 2, "cost": [2, 4], "need": "fire"},
-	"shard": {"name": "파편 모으기", "branch": "kiln", "desc": "요변 확정에 필요한 파편 -1", "key": "shard_need", "per": 1.0, "max": 1, "cost": [5], "need": "glaze"},
+	"aura": {"name": "요변 기운", "branch": "kiln", "desc": "요변이 될 몫 +2%p", "key": "legend_bonus", "per": 0.02, "max": 2, "cost": [3, 5], "need": "glaze"},
+	"shard": {"name": "파편 모으기", "branch": "kiln", "desc": "요변 확정에 필요한 파편 -1", "key": "shard_need", "per": 1.0, "max": 1, "cost": [5], "need": "aura"},
 	"favor": {"name": "가마신의 총애", "branch": "kiln", "desc": "내기 꽝 천장 -1", "key": "bet_pity", "per": 1.0, "max": 3, "cost": [2, 3, 4], "need": "shard"},
-	"c_pow": {"name": "합을 맞추다", "branch": "combo", "desc": "합동 기술 위력 +15%", "key": "combo_pow", "per": 0.15, "max": 3, "cost": [1, 3, 5], "need": "core"},
+	# 합동
+	"c_pow": {"name": "합을 맞추다", "branch": "combo", "desc": "합동 기술 피해 +15%", "key": "combo_pow", "per": 0.15, "max": 3, "cost": [1, 3, 5], "need": "core"},
 	"c_cd": {"name": "손발이 척척", "branch": "combo", "desc": "합동 기술 재사용 -10%", "key": "combo_cd", "per": 0.1, "max": 2, "cost": [3, 5], "need": "c_pow"},
 	"c_first": {"name": "선제 신호", "branch": "combo", "desc": "첫 합동 기술이 2초 빨리", "key": "combo_first", "per": 120.0, "max": 1, "cost": [4], "need": "c_cd"},
+	"c_heal": {"name": "함께 숨 고르기", "branch": "combo", "desc": "합동 기술 때 모든 아군 체력 10% 회복", "key": "combo_heal", "per": 0.1, "max": 1, "cost": [5], "need": "c_first"},
 }
-const BRANCH_NAME := {"core": "마을", "supply": "보급", "unit": "병사", "shop": "상점", "kiln": "가마", "combo": "합동"}
+const BRANCH_NAME := {"core": "마을", "army": "부대", "supply": "보급", "unit": "병사", "shop": "상점", "kiln": "가마", "combo": "합동"}
 const RECORDS_KEEP := 5          # 챕터마다 남기는 기록 수
 
 var embers := 0                  # 불씨

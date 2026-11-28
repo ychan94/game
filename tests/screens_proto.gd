@@ -185,6 +185,23 @@ func _all() -> void:
 		k.codex_tab = tb[0]
 		k.codex_role = tb[1]
 		await _snap("p05k_codex_" + tb[0])
+	# 스킬 영상 · 합동 기술 영상
+	k.codex_tab = "skill"
+	k.codex_role = "cannon"
+	k._preview_start("skill", "cannon", "fire", "")
+	await _frames(40)
+	await _snap("p05m_preview_skill")
+	k.pv_close_now()
+	k._preview_start("combo", "", "", "blaze")
+	for i in 120:
+		await physics_frame
+		if not k.cutin.is_empty() and k.cutin["t"] > 40:
+			break
+	await _frames(60)
+	await _snap("p05n_preview_combo")
+	k.pv_close_now()
+	k.state = "combo"
+	await _snap("p05o_combo_pick")
 	# 상점 목록·확률표
 	k.state = "shop"
 	k.shop_table = true

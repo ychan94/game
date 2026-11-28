@@ -41,6 +41,7 @@ func heat_up() -> void:
 
 var safe_bonus := 0            # 전술 강화: 안전한 불 +n
 var fine_bonus := 0.0          # 전술 강화: 상품 몫 +
+var legend_bonus := 0.0        # 전술 강화: 요변 몫 +
 var shard_need := D.SHARDS_FOR_LEGEND
 
 
@@ -50,6 +51,8 @@ func odds() -> Dictionary:
 		o["crack"] = D.kiln_odds(maxi(0, heat - safe_bonus))["crack"]
 	if fine_bonus > 0.0:
 		o["fine"] = minf(0.95, o["fine"] + fine_bonus)
+	if legend_bonus > 0.0:
+		o["legend"] = minf(0.9, o["legend"] + legend_bonus)
 	return o
 
 

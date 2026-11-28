@@ -1234,3 +1234,1560 @@ Name                                 FullName
 
 
 
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Copy-Item -LiteralPath 'C:/Users/pc/.codex/generated_images/01a220c6-9502-7c20-9e26-ad8e88fc0407/exec-e817aaad-9a6c-481d-93ba-acf61f95991b.png' -Destination 'work/2026-11-28-표지/far-generated.png'
+Get-Content -Encoding UTF8 'src/game/kiln_scene.gd' | Select-Object -Skip 775 -First 90
+Get-ChildItem 'C:/Users/pc' -Filter '*Godot*' -Directory -ErrorAction SilentlyContinue | Select-Object FullName
+Get-Content -Encoding UTF8 'work/2026-11-28-표지/NOTES.md' -TotalCount 16" in C:\Users\pc\Documents\game
+ succeeded in 448ms:
+	"같은 병사 셋을 합쳐 별을 올리고, 진영을 맞춰라.",
+	"다섯 밤을 버티면 다음 챕터로.",
+]
+
+
+func _draw_title() -> void:
+	# 표지 그림 (Codex, 지시서 10): 세 겹(먼 하늘·산 / 마을·가마 언덕 / 앞쪽 병사들)이 있으면 천천히 서로 다르게 흐른다
+	var far := tex("ui/title_far")
+	if far != null:
+		var sway: float = sin(t * 0.004)
+		_draw_layer_fit(far, Vector2(sway * 12.0, 0))
+		var mid := tex("ui/title_mid")
+		if mid != null:
+			_draw_layer_fit(mid, Vector2(sway * 24.0, sin(t * 0.006) * 1.5))
+		# 가마 불빛이 숨 쉬듯
+		glow(self, Vector2(470 + sway * 24.0, 230), 70.0 + 8.0 * sin(t * 0.09), Color(1.0, 0.55, 0.2, 0.10 + 0.04 * sin(t * 0.13)))
+		var front := tex("ui/title_front")
+		if front != null:
+			_draw_layer_fit(front, Vector2(sway * 40.0, 0))
+		_draw_title_front(false)
+		return
+	var tbg := tex("ui/title_bg")
+	if tbg != null:
+		draw_texture_rect(tbg, Rect2(Vector2.ZERO, VIEW), false)
+	for i in (0 if tbg != null else 10):
+		draw_rect(Rect2(0, i * 30, 640, 30), Color("0b0a14").lerp(Color("2a1a30"), i / 10.0))
+	if tbg != null:
+		_draw_title_front(false)
+		return
+	var moon := Vector2(470, 64)
+	glow(self, moon, 90.0, Color(0.9, 0.85, 0.7, 0.10))
+	draw_circle(moon, 18.0, Color("efe6c8"))
+	draw_circle(moon + Vector2(6, -4), 16.0, Color("e2d6b4"))
+	for i in 30:
+		var sp := Vector2(fmod(i * 97.0, 640.0), fmod(i * 53.0, 170.0))
+		draw_rect(Rect2(sp, Vector2(1, 1)), Color(1, 1, 1, 0.3 + 0.3 * sin(t * 0.05 + i)))
+	# 먼 산 (천천히 흐름)
+	for layer in 2:
+		var pts := PackedVector2Array()
+		var off: float = fmod(t * (0.05 + layer * 0.08), 640.0)
+		for k in 34:
+			var x: float = k * 20.0 - off
+			pts.append(Vector2(x, 220 - layer * 10 - absf(sin(x * 0.012 + layer)) * (50 - layer * 16) - sin(x * 0.04) * 6))
+		pts.append(Vector2(700, 400))
+		pts.append(Vector2(-20, 400))
+		draw_colored_polygon(pts, Color("15121e") if layer == 0 else Color("1c1622"))
+	# 땅
+	draw_rect(Rect2(0, 262, 640, 138), Color("16130f"))
+	draw_rect(Rect2(0, 262, 640, 2), Color("2a2418"))
+	# 왼쪽 마을 (창문 불빛)
+	for i in 4:
+		var hp := Vector2(26 + i * 42, 248 - (i % 2) * 8)
+		if not draw_sprite("field/house", hp, 1.4, Color(0.45, 0.4, 0.45)):
+			draw_rect(Rect2(hp - Vector2(16, 12), Vector2(32, 22)), Color("221c24"))
+		glow(self, hp + Vector2(4, 2), 14.0, Color(1.0, 0.65, 0.3, 0.35 + 0.1 * sin(t * 0.2 + i)))
+	# 오른쪽 언덕 위 가마 (불길·연기)
+	var kp := Vector2(560, 236)
+	draw_colored_polygon(PackedVector2Array([Vector2(480, 262), Vector2(520, 222), Vector2(600, 214), Vector2(640, 240), Vector2(640, 262)]), Color("1a1510"))
+	var kt := tex("kiln/kiln_body")
+	if kt != null:
+		draw_texture_rect(kt, Rect2(kp - Vector2(36, 62), Vector2(72, 72)), false, Color(0.75, 0.68, 0.62))
+	else:
+		draw_circle(kp - Vector2(0, 20), 26.0, Color("4a3c30"))
+	glow(self, kp + Vector2(0, -12), 34.0 + 6.0 * sin(t * 0.3), Color(1.0, 0.5, 0.15, 0.5))
+	for i in 5:
+		var ph: float = fmod(t * 0.006 + i * 0.2, 1.0)
+		glow(self, kp + Vector2(-6 + ph * 30.0, -70 - ph * 110.0), 12.0 + ph * 26.0, Color(0.5, 0.45, 0.5, 0.25 * (1.0 - ph)))
+	_draw_title_front(false)   # 도트 병사 행렬은 빼 둔다 (사용자: "기본 도트 병사를 그대로 보여줬는데" → 표지 그림이 대신)
+
+
+## 시작 화면 앞쪽: 행군하는 병사 · 도깨비 눈빛 · 반딧불 · 제목 · 버튼 · 소개 문장
+## 표지 한 겹: 화면 높이에 맞추고 가운데 정렬 (넓은 그림은 좌우로 흐를 여유가 된다)
+func _draw_layer_fit(tx: Texture2D, off: Vector2) -> void:
+	var k: float = VIEW.y / tx.get_height()
+	var sz: Vector2 = tx.get_size() * k
+	draw_texture_rect(tx, Rect2(Vector2((VIEW.x - sz.x) / 2.0, VIEW.y - sz.y) + off, sz), false)
+
+
+func _draw_title_front(marchers := true) -> void:
+	# 표지 그림이 없을 때만: 언덕 위 실루엣 병사들 (도트 인형을 그대로 보이지 않게 어둡게)
+	var roles := ["shield", "spear", "spear", "archer", "axe", "general", "cavalry", "healer", "dragon"]
+	var els := ["earth", "fire", "water", "water", "fire", "fire", "earth", "water", "water"]
+	for i in (roles.size() if marchers else 0):
+		var x: float = fmod(t * 0.45 + i * 34.0, 760.0) - 60.0
+		var bob: float = absf(sin(t * 0.18 + i)) * 2.0
+		var nm := soldier_sprite(roles[i], els[i])
+		if not draw_sprite(nm, Vector2(x, 296 - bob), 1.5, Color(0.16, 0.13, 0.18)):
+			draw_ally_shape(Vector2(x, 296 - bob), roles[i], els[i], "normal", 1.5)
+	# 멀리서 다가오는 도깨비 눈빛
+	for i in 6:
+# 표지 10 작업 메모
+
+- 2026-11-28 "세 장은 한 장면을 세 층으로 나눈 것이라 같은 팔레트·같은 빛이어야 해."
+  → 공통 팔레트, 오른쪽 가마 주광과 약한 푸른 달빛으로 맞춘다.
+- 2026-11-28 "지시서의 '먼저 읽을 것'을 모두 읽은 뒤 시작하고, '고쳐도 되는 범위' 밖의 파일은 절대 건드리지 마."
+  → 출력 3장과 이 작업 폴더만 사용. Python 스크립트·커밋·푸시 실행하지 않음.
+
+## 작업 시작 git status --porcelain
+```
+ M reports/boss/history.csv
+ M "work/2026-11-27-\352\267\270\353\246\274/NOTES.md"
+ M "work/2026-11-27-\352\267\270\353\246\274/handoff-03.md"
+?? assets/sprites/fx/cutin_earth.png
+?? assets/sprites/fx/cutin_earth.png.import
+?? assets/sprites/fx/cutin_fire.png
+?? assets/sprites/fx/cutin_fire.png.import
+
+apply patch
+patch: completed
+C:\Users\pc\Documents\game\work\2026-11-28-표지\finish-layers.ps1
+diff --git a/work/2026-11-28-표지/finish-layers.ps1 b/work/2026-11-28-표지/finish-layers.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..6e5ccf9c66d2914c2ffb1183b46e7a1b5d3d72b1
+--- /dev/null
++++ b/work/2026-11-28-표지/finish-layers.ps1
+@@ -0,0 +1,69 @@
++param([switch]$Publish)
++$ErrorActionPreference = 'Stop'
++Add-Type -AssemblyName System.Drawing
++Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
++using System;
++using System.Drawing;
++using System.Drawing.Imaging;
++using System.Collections.Generic;
++public static class TitleLayers {
++ static string[] hex={"120e16","1c1622","282322","171c2b","252d3d","354354","536675","6f7f87","b0b8c0","dfe6ee","2a2236","5a4630","8a6a48","a8862e","e8c35a","fff1c4","b98a5e","7a5a44","e8dcb8","f2e6c8","6f6c66","b8463a","7a2a24","6b9878","a6c5a3","ff9a3c","304b43","456d58","302b27","494039","736357"};
++ static Color[] Palette(){var p=new Color[hex.Length];for(int i=0;i<p.Length;i++)p[i]=ColorTranslator.FromHtml("#"+hex[i]);return p;}
++ public static void Convert(string input,string output,string layer){
++  var p=Palette(); using(var src=new Bitmap(input)) using(var dst=new Bitmap(704,400,PixelFormat.Format32bppArgb)){
++   var a=new int[704*400];
++   for(int y=0;y<400;y++)for(int x=0;x<704;x++){
++    Color c=src.GetPixel(Math.Min(src.Width-1,(int)((x+.5)*src.Width/704)),Math.Min(src.Height-1,(int)((y+.5)*src.Height/400)));
++    if((layer!="far" && c.A<128)||(layer=="front"&&y<200)){a[y*704+x]=0;continue;}
++    double best=Double.MaxValue; int k=0;
++    for(int j=0;j<p.Length;j++){
++     if(layer=="far"&&j>9)continue;
++     double dr=c.R-p[j].R,dg=c.G-p[j].G,db=c.B-p[j].B;
++     double d=dr*dr*.30+dg*dg*.50+db*db*.20;
++     if(d<best){best=d;k=j;}
++    }
++    a[y*704+x]=p[k].ToArgb();
++   }
++   var clean=(int[])a.Clone();
++   int removed=0;
++   for(int y=1;y<399;y++)for(int x=1;x<703;x++){
++    int n=y*704+x, c=a[n]; if(c==0)continue;
++    Color co=Color.FromArgb(c); // Preserve intentional bright eyes, stars and glaze reflections.
++    if(co.R>175||co.G>175||co.B>175)continue;
++    int[] near={a[n-1],a[n+1],a[n-704],a[n+704]}; bool match=false;
++    foreach(int v in near)if(v==c)match=true;
++    if(match)continue;
++    for(int j=0;j<4;j++){int count=0;foreach(int v in near)if(v==near[j])count++;
++     if(count>=3){clean[n]=near[j];removed++;break;}}
++   }
++   for(int y=0;y<400;y++)for(int x=0;x<704;x++)dst.SetPixel(x,y,Color.FromArgb(clean[y*704+x]));
++   dst.Save(output,ImageFormat.Png);Console.WriteLine(layer+": isolated dark pixels cleaned="+removed);
++  }
++ }
++ public static string Inspect(string path){using(var b=new Bitmap(path)){
++  var colors=new HashSet<int>();int clear=0,partial=0,top=0;
++  for(int y=0;y<b.Height;y++)for(int x=0;x<b.Width;x++){var c=b.GetPixel(x,y);colors.Add(c.ToArgb());if(c.A==0)clear++;else {if(y<200)top++;if(c.A!=255)partial++;}}
++  return System.IO.Path.GetFileName(path)+": "+b.Width+"x"+b.Height+", RGBA colors="+colors.Count+", transparent="+clear+", partial-alpha="+partial+", top-half-visible="+top;
++ }}
++ public static void Composite(string dir,string output){using(var b=new Bitmap(704,400))using(var g=Graphics.FromImage(b)){
++  foreach(var name in new[]{"far","mid","front"})using(var a=new Bitmap(System.IO.Path.Combine(dir,"title_"+name+".png")))g.DrawImageUnscaled(a,0,0);
++  b.Save(output,ImageFormat.Png);
++ }}
++}
++'@
++$taskDir = $PSScriptRoot
++foreach ($layer in @('far','mid','front')) {
++ [TitleLayers]::Convert((Join-Path $taskDir "$layer-generated.png"),(Join-Path $taskDir "title_$layer.png"),$layer)
++}
++[TitleLayers]::Composite($taskDir,(Join-Path $taskDir 'preview.png'))
++$results = foreach ($layer in @('far','mid','front')) { [TitleLayers]::Inspect((Join-Path $taskDir "title_$layer.png")) }
++$results | Set-Content -Encoding UTF8 (Join-Path $taskDir 'validation.txt')
++$results
++if ($Publish) {
++ $assetDir = Join-Path (Split-Path (Split-Path $taskDir)) 'assets/sprites/ui'
++ foreach ($layer in @('far','mid','front')) {
++  $dest = Join-Path $assetDir "title_$layer.png"
++  if (Test-Path -LiteralPath $dest) { throw "Refusing to overwrite existing asset: $dest" }
++ }
++ foreach ($layer in @('far','mid','front')) { Copy-Item -LiteralPath (Join-Path $taskDir "title_$layer.png") -Destination (Join-Path $assetDir "title_$layer.png") }
++}
+
+codex
+기준 그림과 병사 전체, 상인, 현재 시작 화면까지 확인했습니다. 하늘·먼 산을 먼저 만들었고, 같은 밤색 팔레트로 마을과 가마 층을 생성 중입니다. 세 층을 겹쳐 제목 자리와 병사 실루엣이 겹치지 않는지 확인하겠습니다.
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Copy-Item -LiteralPath 'C:/Users/pc/.codex/generated_images/01a220c6-9502-7c20-9e26-ad8e88fc0407/exec-ada70295-3fcf-436d-988f-4e755f3de92c.png' -Destination 'work/2026-11-28-표지/mid-generated.png'
+Get-Content -Raw -Encoding UTF8 'scripts/godot_cmd.py'
+Get-Content -Encoding UTF8 'tests/screens_proto.gd' -TotalCount 100
+Get-Content -Raw -Encoding UTF8 'project.godot'" in C:\Users\pc\Documents\game
+ succeeded in 324ms:
+"""Godot 실행 파일 찾기 + 화면 없이 스크립트 돌리기 (test.py, perf/bench.py 가 함께 쓴다).
+
+찾는 순서: 환경 변수 GODOT → PATH 의 godot / godot4 → Windows 기본 위치의 *console*.exe
+"""
+import glob
+import json
+import os
+import pathlib
+import shutil
+import subprocess
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+
+def find_godot():
+    env = os.environ.get("GODOT")
+    if env and pathlib.Path(env).exists():
+        return env
+    for name in ("godot", "godot4", "Godot"):
+        p = shutil.which(name)
+        if p:
+            return p
+    if sys.platform == "win32":
+        home = pathlib.Path.home()
+        pats = [str(home / "**" / "Godot_v4*_console.exe"), "C:/Godot/**/Godot_v4*_console.exe",
+                "C:/Program Files/Godot/**/Godot_v4*_console.exe"]
+        for pat in pats:
+            hits = sorted(glob.glob(pat, recursive=True))
+            if hits:
+                return hits[-1]
+    return None
+
+
+def run_script(script, args=(), capture=True):
+    """res://... 스크립트를 화면 없이 돌린다. (종료 코드, 출력 줄들, RESULT_JSON 목록)"""
+    godot = find_godot()
+    if not godot:
+        print("Godot 를 찾지 못했습니다. 환경 변수 GODOT 에 Godot 실행 파일(Windows는 *_console.exe) 경로를 넣어 주세요.")
+        return 3, [], []
+    env = {**os.environ, "PYTHONUTF8": "1"}
+    if not (ROOT / ".godot").exists():
+        subprocess.run([godot, "--headless", "--path", str(ROOT), "--import"], cwd=ROOT,
+                       capture_output=True, env=env, timeout=600)
+    r = subprocess.run([godot, "--headless", "--path", str(ROOT), "--script", script, "--", *args], cwd=ROOT,
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, timeout=1800)
+    lines = (r.stdout + r.stderr).splitlines()
+    results, shown = [], []
+    for line in lines:
+        if line.startswith("RESULT_JSON:"):
+            results.append(json.loads(line[len("RESULT_JSON:"):]))
+        elif not line.startswith("Godot Engine") and line.strip():
+            shown.append(line)
+    return r.returncode, shown, results
+
+extends SceneTree
+## 1분 시험판 장면별 스크린샷 (화면 확인용).
+##   godot --path . --rendering-driver opengl3 --script res://tests/screens_proto.gd -- <저장 폴더>
+
+var out_dir := ""
+
+
+func _initialize() -> void:
+	var args := OS.get_cmdline_user_args()
+	out_dir = args[0] if args.size() > 0 else OS.get_user_data_dir()
+	DirAccess.make_dir_recursive_absolute(out_dir)
+	create_timer(240.0).timeout.connect(func(): print("시간 초과"); quit(1))
+	_all.call_deferred()
+
+
+func _frames(n: int) -> void:
+	for i in n:
+		await physics_frame  # 게임 시간 기준 (그리기는 더 빠를 수 있다)
+
+
+func _snap(name: String) -> void:
+	await _frames(2)
+	await RenderingServer.frame_post_draw  # 화면이 실제로 다 그려진 뒤에 찍는다
+	await RenderingServer.frame_post_draw
+	root.get_viewport().get_texture().get_image().save_png(out_dir.path_join(name + ".png"))
+	print("saved ", name)
+
+
+func _open(path: String) -> Node:
+	for c in root.get_children():
+		c.queue_free()
+	await _frames(1)
+	var n: Node = load(path).instantiate()
+	root.add_child(n)
+	await _frames(2)
+	return n
+
+
+func _all() -> void:
+
+	# ---- B 가마의 병사 (밤 5번) ----
+	var k = await _open("res://src/game/kiln_scene.tscn")
+	if k.get_script() == null:
+		print("kiln 불러오기 실패"); quit(1); return
+	await _snap("p00b_kiln_title")
+	k.meta.embers = 64
+	k.meta.levels = {"core": 1, "wall": 2, "clay": 1, "ticket": 1, "train": 1, "purse": 1, "fire": 1}
+	k.state = "meta"
+	k.meta_hover = ""
+	await _snap("p00c_kiln_meta")
+	k.meta.records = {"1": [{"time": 132.4, "date": "2026-11-29", "army": ""}, {"time": 151.0, "date": "2026-11-28", "army": ""}], "2": [{"time": 201.7, "date": "2026-11-29", "army": ""}]}
+	k.state = "records"
+	await _snap("p00d_kiln_records")
+	k.state = "prep"
+	var run = k.run
+	k.tut_seen = {}
+	await _snap("p01a_kiln_tutorial_draw")
+	# 7종이 다 보이게 정해서 뽑는다 (실제 게임은 무작위)
+	for f in [["shield", "earth"], ["spear", "fire"], ["axe", "fire"], ["cavalry", "fire"], ["archer", "water"], ["healer", "water"], ["cannon", "earth"], ["spear", "fire"]]:
+		run.draw(f[0], f[1])
+	run.since["rare"] = 5
+	await _snap("p01_kiln_prep_first")
+	k.state = "gacha"
+	await _snap("p01b_kiln_gacha")
+	k.state = "load"
+	k.load_t = 0
+	await _frames(28)
+	await _snap("p01c_kiln_load")
+	k.state = "fire"
+	for i in 6:
+		k.kiln.heat_up()
+	await _frames(70)
+	await _snap("p02_kiln_fire")
+	for i in 3:
+		k.kiln.heat_up()
+	await _frames(70)
+	k.bet_on = true
+	await _snap("p02b_kiln_fire_hot")
+	run.kiln.heat = 4
+	run.bet_busts = 3   # 대박이 나오는 장면
+	k.kiln.results = run.fire(true)
+	k.bet_on = false
+	k.bet_told = false
+	k.kiln.results[1]["tier"] = "legend"
+	run.army[1]["tier"] = "legend"
+	k.kiln.results[3]["cracked"] = true
+	k.state = "reveal"
+	k.reveal_t = 0
+	k.reveal_shown = 0
+	await _frames(40)
+	await _snap("p02c_kiln_open")
+	await _frames(75)
+	await _snap("p03_kiln_reveal_legend")
+	k.reveal_t = 400
+	await _frames(4)
+	if not k.gfx.is_empty():
+		k.gfx["taps"] = 1
+		k.gfx["need"] = 3
+		await _frames(2)
+		await _snap("p03a_kiln_gacha_tap")
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="KILNBORN"
+run/main_scene="res://src/game/launcher.tscn"
+config/features=PackedStringArray("4.7")
+
+[display]
+
+window/size/viewport_width=640
+window/size/viewport_height=400
+window/size/window_width_override=1280
+window/size/window_height_override=800
+window/stretch/mode="viewport"
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=0
+
+
+apply patch
+patch: completed
+C:\Users\pc\Documents\game\work\2026-11-28-표지\PROMPTS.md
+diff --git a/work/2026-11-28-표지/PROMPTS.md b/work/2026-11-28-표지/PROMPTS.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..ebcb43d59d57f5f8181bdd0eb6dd4b3f08586b5a
+--- /dev/null
++++ b/work/2026-11-28-표지/PROMPTS.md
+@@ -0,0 +1,22 @@
++# 생성 방식
++
++내장 image_gen 사용. 이후 PowerShell/C# System.Drawing으로 704×400 최근접 축소, 공통 팔레트 제한, 알파 이진화, 외톨이 어두운 픽셀 정리.
++
++## far
++
++Use case: stylized-concept. Create the FAR BACKGROUND ONLY for a three-layer Korean pixel-art game title illustration. This is one continuous scene, canvas aspect 704:400 (wide 1.76:1), preferably render 1408x800 with an actual 704x400 pixel grid. No text, logo, interface, border or signature.
++Art direction follows the viewed references: restrained ink/navy and clay colors, crisp intentional pixel clusters, hand-crafted 1px contours when relevant, no blur, noise, dithering or painterly texture. This layer is entirely OPAQUE.
++Scene: quiet Korean night sky, just 8 tiny dim stars away from central area, a small pale cool moon at x560 y64 in 704x400 coordinates, one narrow cloud band beside the moon, two distant rolling mountain silhouettes across lower half. First mountains muted deep navy, nearer mountains almost black ink. Bottom third dark mountain shadow. Center x200..440 y40..230 must be extremely dark, simple, and visually quiet for later title/buttons. Mountain ridges near y230..270. No buildings, kiln, fire, soldiers, plants, ground details or goblins in this layer.
++Palette shared across all later layers: ink #120e16 #1c1622 #282322, navy #171c2b #252d3d #354354, slate #536675 #6f7f87, weak moon #b0b8c0 #dfe6ee. Flat discrete shadow steps, at most 64 colors. Lunar light is weak blue ambient fill; the eventual main orange light will come from an offscreen kiln on the right at x560,y250. This background stays subtle, atmospheric and almost still. Make sophisticated broad shapes, not a generic starry wallpaper.
++
++## mid
++
++Use case: stylized-concept. Generate the MIDGROUND layer of the same Korean pixel art title scene as the immediately preceding generated night sky. Only midground objects, on genuine TRANSPARENT background. Canvas wide 704:400 proportions, coordinates below on a 704x400 pixel grid. Do not include sky, moon, mountains, characters, words, borders, logos, or checkerboard. Preserve empty transparent space, do not crop to objects.
++Scene construction: in lower LEFT x0..205 a small Korean hamlet of 4 thatched/curved tiled hanok homes, connected stone walls and gate. Silhouettes begin near y200, foundations y270. Only a few warm lit paper windows; most roofs are dark neutral. On RIGHT a traditional wood-fired rounded brick pottery kiln sitting on a small hill, kiln bounds roughly x520..625 y190..270, flame visible in its arched open mouth near x567 y250, chimney above right side and a narrow, restrained dark smoke ribbon to x615 y145. A winding earthen path connects village to kiln across y265..365. Dark continuous earth fills from uneven ground line y265..280 to bottom edge all across width; sparse stones, broad coherent clusters rather than speckled texture. Center x200..440 y0..230 stays 100% transparent for UI and the underlying empty sky.
++Lighting: unified main orange light from kiln at right x565 y250, warm pools on its brick doorstep and path to its left; weak blue moon fill from upper right. No second sun, no daylight. Pixel illustration at least as designed and legible as the viewed merchant, clean 1px dark ink-brown contours, crisp pixel edges. Three flat shadow steps, no blur, no gradients, no noise, no decorative clutter.
++Use this fixed palette: #120e16 #1c1622 #282322 #171c2b #252d3d #354354 #536675 #6f7f87 #5a4630 #7a5a44 #8a6a48 #b98a5e #6f6c66 #b0b8c0 #e8dcb8 #f2e6c8 #a8862e #e8c35a #fff1c4 #ff9a3c #b8463a #7a2a24. Inky desaturated night with fire/windows as the only high-chroma accents. The generated background above is the compositional and palette reference only, do NOT paint it into this transparent layer.
++
++## front
++
++undefined
++
+diff --git a/work/2026-11-28-표지/finish-layers.ps1 b/work/2026-11-28-표지/finish-layers.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..6e5ccf9c66d2914c2ffb1183b46e7a1b5d3d72b1
+--- /dev/null
++++ b/work/2026-11-28-표지/finish-layers.ps1
+@@ -0,0 +1,69 @@
++param([switch]$Publish)
++$ErrorActionPreference = 'Stop'
++Add-Type -AssemblyName System.Drawing
++Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
++using System;
++using System.Drawing;
++using System.Drawing.Imaging;
++using System.Collections.Generic;
++public static class TitleLayers {
++ static string[] hex={"120e16","1c1622","282322","171c2b","252d3d","354354","536675","6f7f87","b0b8c0","dfe6ee","2a2236","5a4630","8a6a48","a8862e","e8c35a","fff1c4","b98a5e","7a5a44","e8dcb8","f2e6c8","6f6c66","b8463a","7a2a24","6b9878","a6c5a3","ff9a3c","304b43","456d58","302b27","494039","736357"};
++ static Color[] Palette(){var p=new Color[hex.Length];for(int i=0;i<p.Length;i++)p[i]=ColorTranslator.FromHtml("#"+hex[i]);return p;}
++ public static void Convert(string input,string output,string layer){
++  var p=Palette(); using(var src=new Bitmap(input)) using(var dst=new Bitmap(704,400,PixelFormat.Format32bppArgb)){
++   var a=new int[704*400];
++   for(int y=0;y<400;y++)for(int x=0;x<704;x++){
++    Color c=src.GetPixel(Math.Min(src.Width-1,(int)((x+.5)*src.Width/704)),Math.Min(src.Height-1,(int)((y+.5)*src.Height/400)));
++    if((layer!="far" && c.A<128)||(layer=="front"&&y<200)){a[y*704+x]=0;continue;}
++    double best=Double.MaxValue; int k=0;
++    for(int j=0;j<p.Length;j++){
++     if(layer=="far"&&j>9)continue;
++     double dr=c.R-p[j].R,dg=c.G-p[j].G,db=c.B-p[j].B;
++     double d=dr*dr*.30+dg*dg*.50+db*db*.20;
++     if(d<best){best=d;k=j;}
++    }
++    a[y*704+x]=p[k].ToArgb();
++   }
++   var clean=(int[])a.Clone();
++   int removed=0;
++   for(int y=1;y<399;y++)for(int x=1;x<703;x++){
++    int n=y*704+x, c=a[n]; if(c==0)continue;
++    Color co=Color.FromArgb(c); // Preserve intentional bright eyes, stars and glaze reflections.
++    if(co.R>175||co.G>175||co.B>175)continue;
++    int[] near={a[n-1],a[n+1],a[n-704],a[n+704]}; bool match=false;
++    foreach(int v in near)if(v==c)match=true;
++    if(match)continue;
++    for(int j=0;j<4;j++){int count=0;foreach(int v in near)if(v==near[j])count++;
++     if(count>=3){clean[n]=near[j];removed++;break;}}
++   }
++   for(int y=0;y<400;y++)for(int x=0;x<704;x++)dst.SetPixel(x,y,Color.FromArgb(clean[y*704+x]));
++   dst.Save(output,ImageFormat.Png);Console.WriteLine(layer+": isolated dark pixels cleaned="+removed);
++  }
++ }
++ public static string Inspect(string path){using(var b=new Bitmap(path)){
++  var colors=new HashSet<int>();int clear=0,partial=0,top=0;
++  for(int y=0;y<b.Height;y++)for(int x=0;x<b.Width;x++){var c=b.GetPixel(x,y);colors.Add(c.ToArgb());if(c.A==0)clear++;else {if(y<200)top++;if(c.A!=255)partial++;}}
++  return System.IO.Path.GetFileName(path)+": "+b.Width+"x"+b.Height+", RGBA colors="+colors.Count+", transparent="+clear+", partial-alpha="+partial+", top-half-visible="+top;
++ }}
++ public static void Composite(string dir,string output){using(var b=new Bitmap(704,400))using(var g=Graphics.FromImage(b)){
++  foreach(var name in new[]{"far","mid","front"})using(var a=new Bitmap(System.IO.Path.Combine(dir,"title_"+name+".png")))g.DrawImageUnscaled(a,0,0);
++  b.Save(output,ImageFormat.Png);
++ }}
++}
++'@
++$taskDir = $PSScriptRoot
++foreach ($layer in @('far','mid','front')) {
++ [TitleLayers]::Convert((Join-Path $taskDir "$layer-generated.png"),(Join-Path $taskDir "title_$layer.png"),$layer)
++}
++[TitleLayers]::Composite($taskDir,(Join-Path $taskDir 'preview.png'))
++$results = foreach ($layer in @('far','mid','front')) { [TitleLayers]::Inspect((Join-Path $taskDir "title_$layer.png")) }
++$results | Set-Content -Encoding UTF8 (Join-Path $taskDir 'validation.txt')
++$results
++if ($Publish) {
++ $assetDir = Join-Path (Split-Path (Split-Path $taskDir)) 'assets/sprites/ui'
++ foreach ($layer in @('far','mid','front')) {
++  $dest = Join-Path $assetDir "title_$layer.png"
++  if (Test-Path -LiteralPath $dest) { throw "Refusing to overwrite existing asset: $dest" }
++ }
++ foreach ($layer in @('far','mid','front')) { Copy-Item -LiteralPath (Join-Path $taskDir "title_$layer.png") -Destination (Join-Path $assetDir "title_$layer.png") }
++}
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$env:GODOT
+rg --files '"'C:/Users/pc/Downloads' 'C:/Users/pc/Documents' 'C:/Godot' 'C:/Program Files/Godot' -g '*console.exe' -g '"'!node_modules'"' -g '"'!.git'"' -g '"'!work'"' -g '"'!Library'"' 2>"'$null' in C:\Users\pc\Documents\game
+ exited 1 in 186ms:
+C:\Users\pc\Documents\Godot\Godot_v4.7.2-stable_win64_console.exe
+C:/Users/pc/Documents\Godot\Godot_v4.7.2-stable_win64_console.exe
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rg -n 'user://|save\\(|save_|load_|_ready|meta =' src/game/kiln_scene.gd src/proto/meta.gd src/game/proto_base.gd
+& "'$env:GODOT --help | Select-String -Pattern '"'user|path|rendering|editor|import|log|quit'" in C:\Users\pc\Documents\game
+ succeeded in 1795ms:
+src/proto/meta.gd:4:## 저장: user://meta.cfg (테스트는 path 를 바꿔 쓴다)
+src/proto/meta.gd:6:const SAVE := "user://meta.cfg"
+src/proto/meta.gd:35:func _init(save_path := SAVE) -> void:
+src/proto/meta.gd:36:	path = save_path
+src/proto/meta.gd:91:func save() -> void:
+src/proto/meta.gd:96:	cf.save(path)
+src/proto/meta.gd:99:func load_saved() -> void:
+src/game/kiln_scene.gd:43:var load_t := 0          # 흙 인형이 가마로 들어가는 연출 시간
+src/game/kiln_scene.gd:53:const TUT_FILE := "user://kiln_tutorial.cfg"
+src/game/kiln_scene.gd:59:func _ready() -> void:
+src/game/kiln_scene.gd:60:	super._ready()
+src/game/kiln_scene.gd:66:	meta = Meta.new()
+src/game/kiln_scene.gd:67:	meta.load_saved()
+src/game/kiln_scene.gd:79:	cf.save(TUT_FILE)
+src/game/kiln_scene.gd:137:			load_t += 1
+src/game/kiln_scene.gd:140:				if load_t == _load_start(i) + LOAD_FLY:
+src/game/kiln_scene.gd:144:			if load_t >= _load_start(nq - 1) + LOAD_FLY + 16:
+src/game/kiln_scene.gd:223:				meta.save()
+src/game/kiln_scene.gd:274:				meta.save()
+src/game/kiln_scene.gd:412:		load_t = 0
+src/game/kiln_scene.gd:2141:func _load_start(i: int) -> int:
+src/game/kiln_scene.gd:2154:		var k := clampf(float(load_t - _load_start(i)) / LOAD_FLY, 0.0, 1.0)
+src/game/proto_base.gd:54:func _ready() -> void:
+src/game/proto_base.gd:57:	font = _load_font("Pretendard-Medium.otf", "Galmuri11.ttf")
+src/game/proto_base.gd:58:	font_bold = _load_font("Pretendard-Bold.otf", "Galmuri11-Bold.ttf")
+src/game/proto_base.gd:59:	font_head = _load_font("DoHyeon-Regular.ttf", "Galmuri11-Bold.ttf")
+src/game/proto_base.gd:495:		img.save_png("user://shot_%d.png" % Time.get_unix_time_from_system())
+src/game/proto_base.gd:830:func _load_font(file: String, fallback: String) -> FontFile:
+src/game/proto_base.gd:837:		f.load_dynamic_font(ProjectSettings.globalize_path(path))
+src/game/proto_base.gd:1144:		var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+
+  C:\Users\pc\Documents\Godot\Godot_v4.7.2-stable_win64.exe [96m[options] [path to "project.godot" file][0m
+[1;93mOption legend (this build = editor):[0m
+  [1;92mR[0m  Available in editor builds, debug export templates and release export templates.
+  [1;94mD[0m  Available in editor builds and debug export templates only.
+  [1;93mX[0m  Only available in editor builds, and export templates compiled with `disable_path_overrides=false`.
+  [1;91mE[0m  Only available in editor builds.
+  [92m--no-header                       [1;92mR[0m  Do not print engine version and rendering driver/method header on startup.
+  [92m--, ++                            [1;92mR[0m  Separator for user-provided arguments. Following arguments are n
+ot used by the engine, but can be read from `OS.get_cmdline_user_args()`.
+  [92m-e, --editor                      [1;91mE[0m  Start the editor instead of running the scene.
+  [92m--recovery-mode                   [1;91mE[0m  Start the editor in recovery mode, which disables features that 
+can typically cause startup crashes, such as tool scripts, editor plugins, GDExtension addons, and others.
+  [92m--debug-server [95m<uri>[0m              [1;91mE[0m  Start the editor debug server (<protocol>://<host/IP>[:
+port], e.g. tcp://127.0.0.1:6007)
+  [92m--quit                            [1;92mR[0m  Quit after the first iteration.
+  [92m--quit-after [95m<int>[0m                [1;92mR[0m  Quit after the given number of iterations. Set to 0 to disable.
+  [92m--path [95m<directory>[0m                [1;93mX[0m  Path to a project (<directory> must contain a "project.godot" file).
+  [92m--scene [95m<path>[0m                    [1;93mX[0m  Path or UID of a scene in the project that should be started.
+  [92m--main-pack [95m<file>[0m                [1;93mX[0m  Path to a pack (.pck) file to load.
+  [92m--display-driver [95m<driver>[0m         [1;92mR[0m  Display driver (and rendering driver) ["windows" ("vulk
+an", "d3d12", "opengl3", "opengl3_angle", "dummy"), "headless" ("dummy")].
+  [92m--rendering-method [95m<renderer>[0m     [1;92mR[0m  Renderer name. Requires driver support.
+  [92m--rendering-driver [95m<driver>[0m       [1;92mR[0m  Rendering driver (depends on display driver).
+  [92m--text-driver [95m<driver>[0m            [1;92mR[0m  Text driver (used for font rendering, bidirectional support and shaping).
+  [92m--log-file [95m<file>[0m                 [1;92mR[0m  Write output/error log to the specified path instead of
+ the default location defined by the project.
+  [92m                                   [0m  [90m<file> path should be absolute or relative to the project directory.
+  [92m--write-movie [95m<file>[0m              [1;92mR[0m  Write a video to the specified path (usually with .avi or .png extension).
+  [92m                                   [0m  [90m--quit-after can be used to specify the number of frames to write.
+  [92m--gpu-profile                     [1;92mR[0m  Show a GPU profile of the tasks that took the most time during frame rendering.
+  [92m--extra-gpu-memory-tracking       [1;92mR[0m  Enables additional memory tracking (see class reference for `Ren
+deringDevice.get_driver_and_device_memory_report()` and linked methods). Currently only implemented for Vulkan. Enablin
+g this feature may cause crashes on some systems due to buggy drivers or bugs in the Vulkan Loader. See https://github.
+com/godotengine/godot/issues/95967
+  [92m--debug-paths                     [1;94mD[0m  Show path lines when running the scene.
+  [92m--debug-stringnames               [1;94mD[0m  Print all StringName allocations to stdout when the engine quits.
+  [92m--disable-render-loop             [1;92mR[0m  Disable render loop so rendering only occurs when called explicitly from script.
+  [92m--editor-pseudolocalization       [1;91mE[0m  Enable pseudolocalization for the editor and the project manager.
+  [92m--check-only                      [1;93mX[0m  Only parse for errors and quit (use with --script).
+  [92m--import                          [1;91mE[0m  Starts the editor, waits for any resources to be imported, and then quits.
+  [92m--export-release [95m<preset>[0m [95m<path>[0m  [1;91mE[0m  Export the project in release mode using the g
+iven preset and output path. The preset name should match one defined in "export_presets.cfg".
+  [92m                                   [0m  [90m<path> should be absolute or relative to the project directory, an
+d include the filename for the binary (e.g. "builds/game.exe").
+  [92m--export-debug [95m<preset>[0m [95m<path>[0m    [1;91mE[0m  Export the project in debug mode using the giv
+en preset and output path. See --export-release description for other considerations.
+  [92m--export-pack [95m<preset>[0m [95m<path>[0m     [1;91mE[0m  Export the project data only using the given p
+reset and output path. The <path> extension determines whether it will be in PCK or ZIP format.
+  [92m--export-patch [95m<preset>[0m [95m<path>[0m    [1;91mE[0m  Export pack with changed files only. See --exp
+ort-pack description for other considerations.
+  [92m--patches [95m<paths>[0m                 [1;91mE[0m  List of patches to use with --export-patch. The list is comma-separated.
+  [92m--doctool [96m[path][0m                  [1;91mE[0m  Dump the engine API reference to the given <path> (defa
+ults to current directory) in XML format, merging if existing files are found.
+  [92m--gdscript-docs [95m<path>[0m            [1;91mE[0m  Rather than dumping the engine API, generate API refere
+nce from the inline documentation in the GDScript files found in <path> (used with --doctool).
+  [92m--build-solutions                 [1;91mE[0m  Build the scripting solutions (e.g. for C# projects). Implies --
+editor and requires a valid project to edit.
+  [92m--validate-extension-api [95m<path>[0m   [1;91mE[0m  Validate an extension API file dumped (with one of the 
+two previous options) from a previous version of the engine to ensure API compatibility.
+  [92m--benchmark-file [95m<path>[0m           [1;91mE[0m  Benchmark the run time and save it to a given file in J
+SON format. The path should be absolute.
+
+
+
+apply patch
+patch: completed
+C:\Users\pc\Documents\game\work\2026-11-28-표지\finish-layers.ps1
+diff --git a/work/2026-11-28-표지/PROMPTS.md b/work/2026-11-28-표지/PROMPTS.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..ebcb43d59d57f5f8181bdd0eb6dd4b3f08586b5a
+--- /dev/null
++++ b/work/2026-11-28-표지/PROMPTS.md
+@@ -0,0 +1,22 @@
++# 생성 방식
++
++내장 image_gen 사용. 이후 PowerShell/C# System.Drawing으로 704×400 최근접 축소, 공통 팔레트 제한, 알파 이진화, 외톨이 어두운 픽셀 정리.
++
++## far
++
++Use case: stylized-concept. Create the FAR BACKGROUND ONLY for a three-layer Korean pixel-art game title illustration. This is one continuous scene, canvas aspect 704:400 (wide 1.76:1), preferably render 1408x800 with an actual 704x400 pixel grid. No text, logo, interface, border or signature.
++Art direction follows the viewed references: restrained ink/navy and clay colors, crisp intentional pixel clusters, hand-crafted 1px contours when relevant, no blur, noise, dithering or painterly texture. This layer is entirely OPAQUE.
++Scene: quiet Korean night sky, just 8 tiny dim stars away from central area, a small pale cool moon at x560 y64 in 704x400 coordinates, one narrow cloud band beside the moon, two distant rolling mountain silhouettes across lower half. First mountains muted deep navy, nearer mountains almost black ink. Bottom third dark mountain shadow. Center x200..440 y40..230 must be extremely dark, simple, and visually quiet for later title/buttons. Mountain ridges near y230..270. No buildings, kiln, fire, soldiers, plants, ground details or goblins in this layer.
++Palette shared across all later layers: ink #120e16 #1c1622 #282322, navy #171c2b #252d3d #354354, slate #536675 #6f7f87, weak moon #b0b8c0 #dfe6ee. Flat discrete shadow steps, at most 64 colors. Lunar light is weak blue ambient fill; the eventual main orange light will come from an offscreen kiln on the right at x560,y250. This background stays subtle, atmospheric and almost still. Make sophisticated broad shapes, not a generic starry wallpaper.
++
++## mid
++
++Use case: stylized-concept. Generate the MIDGROUND layer of the same Korean pixel art title scene as the immediately preceding generated night sky. Only midground objects, on genuine TRANSPARENT background. Canvas wide 704:400 proportions, coordinates below on a 704x400 pixel grid. Do not include sky, moon, mountains, characters, words, borders, logos, or checkerboard. Preserve empty transparent space, do not crop to objects.
++Scene construction: in lower LEFT x0..205 a small Korean hamlet of 4 thatched/curved tiled hanok homes, connected stone walls and gate. Silhouettes begin near y200, foundations y270. Only a few warm lit paper windows; most roofs are dark neutral. On RIGHT a traditional wood-fired rounded brick pottery kiln sitting on a small hill, kiln bounds roughly x520..625 y190..270, flame visible in its arched open mouth near x567 y250, chimney above right side and a narrow, restrained dark smoke ribbon to x615 y145. A winding earthen path connects village to kiln across y265..365. Dark continuous earth fills from uneven ground line y265..280 to bottom edge all across width; sparse stones, broad coherent clusters rather than speckled texture. Center x200..440 y0..230 stays 100% transparent for UI and the underlying empty sky.
++Lighting: unified main orange light from kiln at right x565 y250, warm pools on its brick doorstep and path to its left; weak blue moon fill from upper right. No second sun, no daylight. Pixel illustration at least as designed and legible as the viewed merchant, clean 1px dark ink-brown contours, crisp pixel edges. Three flat shadow steps, no blur, no gradients, no noise, no decorative clutter.
++Use this fixed palette: #120e16 #1c1622 #282322 #171c2b #252d3d #354354 #536675 #6f7f87 #5a4630 #7a5a44 #8a6a48 #b98a5e #6f6c66 #b0b8c0 #e8dcb8 #f2e6c8 #a8862e #e8c35a #fff1c4 #ff9a3c #b8463a #7a2a24. Inky desaturated night with fire/windows as the only high-chroma accents. The generated background above is the compositional and palette reference only, do NOT paint it into this transparent layer.
++
++## front
++
++undefined
++
+diff --git a/work/2026-11-28-표지/finish-layers.ps1 b/work/2026-11-28-표지/finish-layers.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..0199c6f0ee4c71f166a4ae0cf3ab9cb2f91c2e9c
+--- /dev/null
++++ b/work/2026-11-28-표지/finish-layers.ps1
+@@ -0,0 +1,71 @@
++param([switch]$Publish)
++$ErrorActionPreference = 'Stop'
++Add-Type -AssemblyName System.Drawing
++Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
++using System;
++using System.Drawing;
++using System.Drawing.Imaging;
++using System.Collections.Generic;
++public static class TitleLayers {
++ static string[] hex={"120e16","1c1622","282322","171c2b","252d3d","354354","536675","6f7f87","b0b8c0","dfe6ee","2a2236","5a4630","8a6a48","a8862e","e8c35a","fff1c4","b98a5e","7a5a44","e8dcb8","f2e6c8","6f6c66","b8463a","7a2a24","6b9878","a6c5a3","ff9a3c","304b43","456d58","302b27","494039","736357"};
++ static Color[] Palette(){var p=new Color[hex.Length];for(int i=0;i<p.Length;i++)p[i]=ColorTranslator.FromHtml("#"+hex[i]);return p;}
++ public static void Convert(string input,string output,string layer){
++  var p=Palette(); using(var src=new Bitmap(input)) using(var dst=new Bitmap(704,400,PixelFormat.Format32bppArgb)){
++   var a=new int[704*400];
++   for(int y=0;y<400;y++)for(int x=0;x<704;x++){
++    double logicalY=layer=="front"?(y+.5-100)/.75:layer=="mid"?(y+.5)/.85:y+.5;
++    if(logicalY<0){a[y*704+x]=0;continue;}
++    Color c=src.GetPixel(Math.Min(src.Width-1,(int)((x+.5)*src.Width/704)),Math.Min(src.Height-1,(int)(logicalY*src.Height/400)));
++    if((layer!="far" && c.A<128)||(layer=="front"&&y<200)){a[y*704+x]=0;continue;}
++    double best=Double.MaxValue; int k=0;
++    for(int j=0;j<p.Length;j++){
++     if(layer=="far"&&j>9)continue;
++     double dr=c.R-p[j].R,dg=c.G-p[j].G,db=c.B-p[j].B;
++     double d=dr*dr*.30+dg*dg*.50+db*db*.20;
++     if(d<best){best=d;k=j;}
++    }
++    a[y*704+x]=p[k].ToArgb();
++   }
++   var clean=(int[])a.Clone();
++   int removed=0;
++   for(int y=1;y<399;y++)for(int x=1;x<703;x++){
++    int n=y*704+x, c=a[n]; if(c==0)continue;
++    Color co=Color.FromArgb(c); // Preserve intentional bright eyes, stars and glaze reflections.
++    if(co.R>175||co.G>175||co.B>175)continue;
++    int[] near={a[n-1],a[n+1],a[n-704],a[n+704]}; bool match=false;
++    foreach(int v in near)if(v==c)match=true;
++    if(match)continue;
++    for(int j=0;j<4;j++){int count=0;foreach(int v in near)if(v==near[j])count++;
++     if(count>=3){clean[n]=near[j];removed++;break;}}
++   }
++   for(int y=0;y<400;y++)for(int x=0;x<704;x++)dst.SetPixel(x,y,Color.FromArgb(clean[y*704+x]));
++   dst.Save(output,ImageFormat.Png);Console.WriteLine(layer+": isolated dark pixels cleaned="+removed);
++  }
++ }
++ public static string Inspect(string path){using(var b=new Bitmap(path)){
++  var colors=new HashSet<int>();int clear=0,partial=0,top=0;
++  for(int y=0;y<b.Height;y++)for(int x=0;x<b.Width;x++){var c=b.GetPixel(x,y);colors.Add(c.ToArgb());if(c.A==0)clear++;else {if(y<200)top++;if(c.A!=255)partial++;}}
++  return System.IO.Path.GetFileName(path)+": "+b.Width+"x"+b.Height+", RGBA colors="+colors.Count+", transparent="+clear+", partial-alpha="+partial+", top-half-visible="+top;
++ }}
++ public static void Composite(string dir,string output){using(var b=new Bitmap(704,400))using(var g=Graphics.FromImage(b)){
++  foreach(var name in new[]{"far","mid","front"})using(var a=new Bitmap(System.IO.Path.Combine(dir,"title_"+name+".png")))g.DrawImageUnscaled(a,0,0);
++  b.Save(output,ImageFormat.Png);
++ }}
++}
++'@
++$taskDir = $PSScriptRoot
++foreach ($layer in @('far','mid','front')) {
++ [TitleLayers]::Convert((Join-Path $taskDir "$layer-generated.png"),(Join-Path $taskDir "title_$layer.png"),$layer)
++}
++[TitleLayers]::Composite($taskDir,(Join-Path $taskDir 'preview.png'))
++$results = foreach ($layer in @('far','mid','front')) { [TitleLayers]::Inspect((Join-Path $taskDir "title_$layer.png")) }
++$results | Set-Content -Encoding UTF8 (Join-Path $taskDir 'validation.txt')
++$results
++if ($Publish) {
++ $assetDir = Join-Path (Split-Path (Split-Path $taskDir)) 'assets/sprites/ui'
++ foreach ($layer in @('far','mid','front')) {
++  $dest = Join-Path $assetDir "title_$layer.png"
++  if (Test-Path -LiteralPath $dest) { throw "Refusing to overwrite existing asset: $dest" }
++ }
++ foreach ($layer in @('far','mid','front')) { Copy-Item -LiteralPath (Join-Path $taskDir "title_$layer.png") -Destination (Join-Path $assetDir "title_$layer.png") }
++}
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Copy-Item -LiteralPath 'C:/Users/pc/.codex/generated_images/01a220c6-9502-7c20-9e26-ad8e88fc0407/exec-23042aa4-a7d2-4d4a-aeab-e932c925a22e.png' -Destination 'work/2026-11-28-표지/front-generated.png'
+& 'work/2026-11-28-표지/finish-layers.ps1'" in C:\Users\pc\Documents\game
+ exited 1 in 347ms:
+& : 이 시스템에서 스크립트를 실행할 수 없으므로 C:\Users\pc\Documents\game\work\2026-11-28-표지\finish-layers.ps1 파일을 로드할 수 없습니다. 자세한 내용은 ab
+out_Execution_Policies(https://go.microsoft.com/fwlink/?LinkID=135170)를 참조하십시오.
+위치 줄:3 문자:3
++ & 'work/2026-11-28-표지/finish-layers.ps1'
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : 보안 오류: (:) [], PSSecurityException
+    + FullyQualifiedErrorId : UnauthorizedAccess
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "powershell -NoProfile -ExecutionPolicy Bypass -File 'work/2026-11-28-표지/finish-layers.ps1'" in C:\Users\pc\Documents\game
+ succeeded in 1923ms:
+far: isolated dark pixels cleaned=558
+mid: isolated dark pixels cleaned=875
+front: isolated dark pixels cleaned=1221
+title_far.png: 704x400, RGBA colors=10, transparent=0, partial-alpha=0, top-half-visible=140800
+title_mid.png: 704x400, RGBA colors=27, transparent=150128, partial-alpha=0, top-half-visible=6108
+title_front.png: 704x400, RGBA colors=32, transparent=211453, partial-alpha=0, top-half-visible=0
+
+codex
+세 층을 겹친 미리보기를 확인했습니다. 공통 팔레트로 정리한 결과는 far 10색, mid 27색, front 32색이며, 앞층의 위쪽 절반은 완전히 투명합니다. 병사 크기도 지정 범위에 맞췄습니다. 이제 작업 폴더 안에 만든 실행용 복사본으로 실제 제목·버튼과의 배치를 확인하겠습니다.
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$stageDir = '"'work/2026-11-28-표지/render-project'
+New-Item -ItemType Directory -Path "'$stageDir -Force | Out-Null
+Copy-Item -LiteralPath '"'src','assets' -Destination "'$stageDir -Recurse
+Copy-Item -LiteralPath '"'project.godot' -Destination "'$stageDir
+Copy-Item -Path '"'work/2026-11-28-표지/title_*.png' -Destination \""'$stageDir/assets/sprites/ui"
+$projectText = Get-Content -Raw -Encoding UTF8 "$stageDir/project.godot"
+$userDir = (Join-Path (Resolve-Path '"'work/2026-11-28-표지') 'render-user').Replace('\\','/')
+"'$projectText = $projectText.Replace('"'[application]', \"[application]"'`nconfig/use_custom_user_dir=true`nconfig/custom_user_dir=`"$userDir`"")
+Set-Content -Encoding UTF8 "$stageDir/project.godot" $projectText
+$logPath = Join-Path (Resolve-Path '"'work/2026-11-28-표지') 'render-import.log'
+& "'$env:GODOT --headless --path $stageDir --editor --import --log-file $logPath 2>&1 | Select-Object -Last 12' in C:\Users\pc\Documents\game
+ exited 1 in 6670ms:
+[   0% ] [90m[1mreimport[22m | 다시 가져오기 후 작업을 수행 중...[39m[0m
+[92m[ DONE ][39m [1mreimport[22m
+[0m
+[   0% ] [90m[1mloading_editor_layout[22m | Started 편집기를 불러오는 중 (5 steps)[39m[0m
+[   0% ] [90m[1mloading_editor_layout[22m | 편집기 레이아웃을 불러오는 중...[39m[0m
+[  16% ] [90m[1mloading_editor_layout[22m | 독을 불러오는 중...[39m[0m
+[92m[ DONE ][39m [1mloading_editor_layout[22m
+[0m
+ERROR: Cannot save file 'C:/Users/pc/AppData/Roaming/Godot/editor_settings-4.7.tres'.
+   at: save (scene/resources/resource_format_text.cpp:1768)
+ERROR: Error saving editor settings to C:/Users/pc/AppData/Roaming/Godot/editor_settings-4.7.tres
+   at: save (editor/settings/editor_settings.cpp:1525)
+
+apply patch
+patch: completed
+C:\Users\pc\Documents\game\work\2026-11-28-표지\render-project\capture_title.gd
+diff --git a/work/2026-11-28-표지/PROMPTS.md b/work/2026-11-28-표지/PROMPTS.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..ebcb43d59d57f5f8181bdd0eb6dd4b3f08586b5a
+--- /dev/null
++++ b/work/2026-11-28-표지/PROMPTS.md
+@@ -0,0 +1,22 @@
++# 생성 방식
++
++내장 image_gen 사용. 이후 PowerShell/C# System.Drawing으로 704×400 최근접 축소, 공통 팔레트 제한, 알파 이진화, 외톨이 어두운 픽셀 정리.
++
++## far
++
++Use case: stylized-concept. Create the FAR BACKGROUND ONLY for a three-layer Korean pixel-art game title illustration. This is one continuous scene, canvas aspect 704:400 (wide 1.76:1), preferably render 1408x800 with an actual 704x400 pixel grid. No text, logo, interface, border or signature.
++Art direction follows the viewed references: restrained ink/navy and clay colors, crisp intentional pixel clusters, hand-crafted 1px contours when relevant, no blur, noise, dithering or painterly texture. This layer is entirely OPAQUE.
++Scene: quiet Korean night sky, just 8 tiny dim stars away from central area, a small pale cool moon at x560 y64 in 704x400 coordinates, one narrow cloud band beside the moon, two distant rolling mountain silhouettes across lower half. First mountains muted deep navy, nearer mountains almost black ink. Bottom third dark mountain shadow. Center x200..440 y40..230 must be extremely dark, simple, and visually quiet for later title/buttons. Mountain ridges near y230..270. No buildings, kiln, fire, soldiers, plants, ground details or goblins in this layer.
++Palette shared across all later layers: ink #120e16 #1c1622 #282322, navy #171c2b #252d3d #354354, slate #536675 #6f7f87, weak moon #b0b8c0 #dfe6ee. Flat discrete shadow steps, at most 64 colors. Lunar light is weak blue ambient fill; the eventual main orange light will come from an offscreen kiln on the right at x560,y250. This background stays subtle, atmospheric and almost still. Make sophisticated broad shapes, not a generic starry wallpaper.
++
++## mid
++
++Use case: stylized-concept. Generate the MIDGROUND layer of the same Korean pixel art title scene as the immediately preceding generated night sky. Only midground objects, on genuine TRANSPARENT background. Canvas wide 704:400 proportions, coordinates below on a 704x400 pixel grid. Do not include sky, moon, mountains, characters, words, borders, logos, or checkerboard. Preserve empty transparent space, do not crop to objects.
++Scene construction: in lower LEFT x0..205 a small Korean hamlet of 4 thatched/curved tiled hanok homes, connected stone walls and gate. Silhouettes begin near y200, foundations y270. Only a few warm lit paper windows; most roofs are dark neutral. On RIGHT a traditional wood-fired rounded brick pottery kiln sitting on a small hill, kiln bounds roughly x520..625 y190..270, flame visible in its arched open mouth near x567 y250, chimney above right side and a narrow, restrained dark smoke ribbon to x615 y145. A winding earthen path connects village to kiln across y265..365. Dark continuous earth fills from uneven ground line y265..280 to bottom edge all across width; sparse stones, broad coherent clusters rather than speckled texture. Center x200..440 y0..230 stays 100% transparent for UI and the underlying empty sky.
++Lighting: unified main orange light from kiln at right x565 y250, warm pools on its brick doorstep and path to its left; weak blue moon fill from upper right. No second sun, no daylight. Pixel illustration at least as designed and legible as the viewed merchant, clean 1px dark ink-brown contours, crisp pixel edges. Three flat shadow steps, no blur, no gradients, no noise, no decorative clutter.
++Use this fixed palette: #120e16 #1c1622 #282322 #171c2b #252d3d #354354 #536675 #6f7f87 #5a4630 #7a5a44 #8a6a48 #b98a5e #6f6c66 #b0b8c0 #e8dcb8 #f2e6c8 #a8862e #e8c35a #fff1c4 #ff9a3c #b8463a #7a2a24. Inky desaturated night with fire/windows as the only high-chroma accents. The generated background above is the compositional and palette reference only, do NOT paint it into this transparent layer.
++
++## front
++
++undefined
++
+diff --git a/work/2026-11-28-표지/finish-layers.ps1 b/work/2026-11-28-표지/finish-layers.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..0199c6f0ee4c71f166a4ae0cf3ab9cb2f91c2e9c
+--- /dev/null
++++ b/work/2026-11-28-표지/finish-layers.ps1
+@@ -0,0 +1,71 @@
++param([switch]$Publish)
++$ErrorActionPreference = 'Stop'
++Add-Type -AssemblyName System.Drawing
++Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
++using System;
++using System.Drawing;
++using System.Drawing.Imaging;
++using System.Collections.Generic;
++public static class TitleLayers {
++ static string[] hex={"120e16","1c1622","282322","171c2b","252d3d","354354","536675","6f7f87","b0b8c0","dfe6ee","2a2236","5a4630","8a6a48","a8862e","e8c35a","fff1c4","b98a5e","7a5a44","e8dcb8","f2e6c8","6f6c66","b8463a","7a2a24","6b9878","a6c5a3","ff9a3c","304b43","456d58","302b27","494039","736357"};
++ static Color[] Palette(){var p=new Color[hex.Length];for(int i=0;i<p.Length;i++)p[i]=ColorTranslator.FromHtml("#"+hex[i]);return p;}
++ public static void Convert(string input,string output,string layer){
++  var p=Palette(); using(var src=new Bitmap(input)) using(var dst=new Bitmap(704,400,PixelFormat.Format32bppArgb)){
++   var a=new int[704*400];
++   for(int y=0;y<400;y++)for(int x=0;x<704;x++){
++    double logicalY=layer=="front"?(y+.5-100)/.75:layer=="mid"?(y+.5)/.85:y+.5;
++    if(logicalY<0){a[y*704+x]=0;continue;}
++    Color c=src.GetPixel(Math.Min(src.Width-1,(int)((x+.5)*src.Width/704)),Math.Min(src.Height-1,(int)(logicalY*src.Height/400)));
++    if((layer!="far" && c.A<128)||(layer=="front"&&y<200)){a[y*704+x]=0;continue;}
++    double best=Double.MaxValue; int k=0;
++    for(int j=0;j<p.Length;j++){
++     if(layer=="far"&&j>9)continue;
++     double dr=c.R-p[j].R,dg=c.G-p[j].G,db=c.B-p[j].B;
++     double d=dr*dr*.30+dg*dg*.50+db*db*.20;
++     if(d<best){best=d;k=j;}
++    }
++    a[y*704+x]=p[k].ToArgb();
++   }
++   var clean=(int[])a.Clone();
++   int removed=0;
++   for(int y=1;y<399;y++)for(int x=1;x<703;x++){
++    int n=y*704+x, c=a[n]; if(c==0)continue;
++    Color co=Color.FromArgb(c); // Preserve intentional bright eyes, stars and glaze reflections.
++    if(co.R>175||co.G>175||co.B>175)continue;
++    int[] near={a[n-1],a[n+1],a[n-704],a[n+704]}; bool match=false;
++    foreach(int v in near)if(v==c)match=true;
++    if(match)continue;
++    for(int j=0;j<4;j++){int count=0;foreach(int v in near)if(v==near[j])count++;
++     if(count>=3){clean[n]=near[j];removed++;break;}}
++   }
++   for(int y=0;y<400;y++)for(int x=0;x<704;x++)dst.SetPixel(x,y,Color.FromArgb(clean[y*704+x]));
++   dst.Save(output,ImageFormat.Png);Console.WriteLine(layer+": isolated dark pixels cleaned="+removed);
++  }
++ }
++ public static string Inspect(string path){using(var b=new Bitmap(path)){
++  var colors=new HashSet<int>();int clear=0,partial=0,top=0;
++  for(int y=0;y<b.Height;y++)for(int x=0;x<b.Width;x++){var c=b.GetPixel(x,y);colors.Add(c.ToArgb());if(c.A==0)clear++;else {if(y<200)top++;if(c.A!=255)partial++;}}
++  return System.IO.Path.GetFileName(path)+": "+b.Width+"x"+b.Height+", RGBA colors="+colors.Count+", transparent="+clear+", partial-alpha="+partial+", top-half-visible="+top;
++ }}
++ public static void Composite(string dir,string output){using(var b=new Bitmap(704,400))using(var g=Graphics.FromImage(b)){
++  foreach(var name in new[]{"far","mid","front"})using(var a=new Bitmap(System.IO.Path.Combine(dir,"title_"+name+".png")))g.DrawImageUnscaled(a,0,0);
++  b.Save(output,ImageFormat.Png);
++ }}
++}
++'@
++$taskDir = $PSScriptRoot
++foreach ($layer in @('far','mid','front')) {
++ [TitleLayers]::Convert((Join-Path $taskDir "$layer-generated.png"),(Join-Path $taskDir "title_$layer.png"),$layer)
++}
++[TitleLayers]::Composite($taskDir,(Join-Path $taskDir 'preview.png'))
++$results = foreach ($layer in @('far','mid','front')) { [TitleLayers]::Inspect((Join-Path $taskDir "title_$layer.png")) }
++$results | Set-Content -Encoding UTF8 (Join-Path $taskDir 'validation.txt')
++$results
++if ($Publish) {
++ $assetDir = Join-Path (Split-Path (Split-Path $taskDir)) 'assets/sprites/ui'
++ foreach ($layer in @('far','mid','front')) {
++  $dest = Join-Path $assetDir "title_$layer.png"
++  if (Test-Path -LiteralPath $dest) { throw "Refusing to overwrite existing asset: $dest" }
++ }
++ foreach ($layer in @('far','mid','front')) { Copy-Item -LiteralPath (Join-Path $taskDir "title_$layer.png") -Destination (Join-Path $assetDir "title_$layer.png") }
++}
+diff --git a/work/2026-11-28-표지/render-project/capture_title.gd b/work/2026-11-28-표지/render-project/capture_title.gd
+new file mode 100644
+index 0000000000000000000000000000000000000000..07ec0aa8e69e8a99216f43dc2cb7681367df6289
+--- /dev/null
++++ b/work/2026-11-28-표지/render-project/capture_title.gd
+@@ -0,0 +1,21 @@
++extends SceneTree
++
++func _initialize() -> void:
++	_capture.call_deferred()
++
++func _capture() -> void:
++	var scene = load("res://src/game/kiln_scene.tscn").instantiate()
++	root.add_child(scene)
++	await process_frame
++	scene.set_process(false)
++	scene.set_physics_process(false)
++	for shot in [["title-center", 0.0], ["title-sway-right", 392.699], ["title-sway-left", 1178.097]]:
++		scene.t = shot[1]
++		scene.queue_redraw()
++		await process_frame
++		await RenderingServer.frame_post_draw
++		await RenderingServer.frame_post_draw
++		var output = ProjectSettings.globalize_path("res://../" + shot[0] + ".png")
++		root.get_texture().get_image().save_png(output)
++		print("saved ", output)
++	quit()
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$stagePath = (Resolve-Path '"'work/2026-11-28-표지/render-project').Path
+"'$taskPath = (Resolve-Path '"'work/2026-11-28-표지').Path
+"'$argList = @('"'--path', ('\"' + "'$stagePath + '"'\"'), '--rendering-method', 'gl_compatibility', '--rendering-driver', 'opengl3', '--script', 'res://capture_title.gd', '--log-file', ('\"' + (Join-Path "'$taskPath '"'render-game.log') + '\"'))
+"'$renderProc = Start-Process -FilePath $env:GODOT -ArgumentList $argList -WindowStyle Hidden -RedirectStandardOutput (Join-Path $taskPath '"'render-stdout.log') -RedirectStandardError (Join-Path "'$taskPath '"'render-stderr.log') -PassThru
+if ("'$renderProc.WaitForExit(20000)) { "Exit: $($renderProc.ExitCode)" } else { "Running PID: $($renderProc.Id)" }
+Get-Content -Encoding UTF8 (Join-Path $taskPath '"'render-stdout.log')
+Get-Content -Encoding UTF8 (Join-Path "'$taskPath '"'render-stderr.log')" in C:\Users\pc\Documents\game
+ succeeded in 3318ms:
+Exit: 
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 NVIDIA 621.01 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 3050
+
+saved C:/Users/pc/Documents/game/work/2026-11-28-표지/render-project/../title-center.png
+saved C:/Users/pc/Documents/game/work/2026-11-28-표지/render-project/../title-sway-right.png
+saved C:/Users/pc/Documents/game/work/2026-11-28-표지/render-project/../title-sway-left.png
+ERROR: Can't create shader cache folder, no shader caching will happen: user://
+   at: RasterizerGLES3 (drivers/gles3/rasterizer_gles3.cpp:345)
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+
+apply patch
+patch: completed
+C:\Users\pc\Documents\game\work\2026-11-28-표지\finish-layers.ps1
+diff --git a/work/2026-11-28-표지/PROMPTS.md b/work/2026-11-28-표지/PROMPTS.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..ebcb43d59d57f5f8181bdd0eb6dd4b3f08586b5a
+--- /dev/null
++++ b/work/2026-11-28-표지/PROMPTS.md
+@@ -0,0 +1,22 @@
++# 생성 방식
++
++내장 image_gen 사용. 이후 PowerShell/C# System.Drawing으로 704×400 최근접 축소, 공통 팔레트 제한, 알파 이진화, 외톨이 어두운 픽셀 정리.
++
++## far
++
++Use case: stylized-concept. Create the FAR BACKGROUND ONLY for a three-layer Korean pixel-art game title illustration. This is one continuous scene, canvas aspect 704:400 (wide 1.76:1), preferably render 1408x800 with an actual 704x400 pixel grid. No text, logo, interface, border or signature.
++Art direction follows the viewed references: restrained ink/navy and clay colors, crisp intentional pixel clusters, hand-crafted 1px contours when relevant, no blur, noise, dithering or painterly texture. This layer is entirely OPAQUE.
++Scene: quiet Korean night sky, just 8 tiny dim stars away from central area, a small pale cool moon at x560 y64 in 704x400 coordinates, one narrow cloud band beside the moon, two distant rolling mountain silhouettes across lower half. First mountains muted deep navy, nearer mountains almost black ink. Bottom third dark mountain shadow. Center x200..440 y40..230 must be extremely dark, simple, and visually quiet for later title/buttons. Mountain ridges near y230..270. No buildings, kiln, fire, soldiers, plants, ground details or goblins in this layer.
++Palette shared across all later layers: ink #120e16 #1c1622 #282322, navy #171c2b #252d3d #354354, slate #536675 #6f7f87, weak moon #b0b8c0 #dfe6ee. Flat discrete shadow steps, at most 64 colors. Lunar light is weak blue ambient fill; the eventual main orange light will come from an offscreen kiln on the right at x560,y250. This background stays subtle, atmospheric and almost still. Make sophisticated broad shapes, not a generic starry wallpaper.
++
++## mid
++
++Use case: stylized-concept. Generate the MIDGROUND layer of the same Korean pixel art title scene as the immediately preceding generated night sky. Only midground objects, on genuine TRANSPARENT background. Canvas wide 704:400 proportions, coordinates below on a 704x400 pixel grid. Do not include sky, moon, mountains, characters, words, borders, logos, or checkerboard. Preserve empty transparent space, do not crop to objects.
++Scene construction: in lower LEFT x0..205 a small Korean hamlet of 4 thatched/curved tiled hanok homes, connected stone walls and gate. Silhouettes begin near y200, foundations y270. Only a few warm lit paper windows; most roofs are dark neutral. On RIGHT a traditional wood-fired rounded brick pottery kiln sitting on a small hill, kiln bounds roughly x520..625 y190..270, flame visible in its arched open mouth near x567 y250, chimney above right side and a narrow, restrained dark smoke ribbon to x615 y145. A winding earthen path connects village to kiln across y265..365. Dark continuous earth fills from uneven ground line y265..280 to bottom edge all across width; sparse stones, broad coherent clusters rather than speckled texture. Center x200..440 y0..230 stays 100% transparent for UI and the underlying empty sky.
++Lighting: unified main orange light from kiln at right x565 y250, warm pools on its brick doorstep and path to its left; weak blue moon fill from upper right. No second sun, no daylight. Pixel illustration at least as designed and legible as the viewed merchant, clean 1px dark ink-brown contours, crisp pixel edges. Three flat shadow steps, no blur, no gradients, no noise, no decorative clutter.
++Use this fixed palette: #120e16 #1c1622 #282322 #171c2b #252d3d #354354 #536675 #6f7f87 #5a4630 #7a5a44 #8a6a48 #b98a5e #6f6c66 #b0b8c0 #e8dcb8 #f2e6c8 #a8862e #e8c35a #fff1c4 #ff9a3c #b8463a #7a2a24. Inky desaturated night with fire/windows as the only high-chroma accents. The generated background above is the compositional and palette reference only, do NOT paint it into this transparent layer.
++
++## front
++
++undefined
++
+diff --git a/work/2026-11-28-표지/finish-layers.ps1 b/work/2026-11-28-표지/finish-layers.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..d9bea7519fc6d38fdd07a954fe1e761c8887b101
+--- /dev/null
++++ b/work/2026-11-28-표지/finish-layers.ps1
+@@ -0,0 +1,88 @@
++param([switch]$Publish)
++$ErrorActionPreference = 'Stop'
++Add-Type -AssemblyName System.Drawing
++Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
++using System;
++using System.Drawing;
++using System.Drawing.Imaging;
++using System.Collections.Generic;
++public static class TitleLayers {
++ static string[] hex={"120e16","1c1622","282322","171c2b","252d3d","354354","536675","6f7f87","b0b8c0","dfe6ee","2a2236","5a4630","8a6a48","a8862e","e8c35a","fff1c4","b98a5e","7a5a44","e8dcb8","f2e6c8","6f6c66","b8463a","7a2a24","6b9878","a6c5a3","ff9a3c","304b43","456d58","302b27","494039","736357"};
++ static Color[] Palette(){var p=new Color[hex.Length];for(int i=0;i<p.Length;i++)p[i]=ColorTranslator.FromHtml("#"+hex[i]);return p;}
++ public static void Convert(string input,string output,string layer){
++  var p=Palette(); using(var src=new Bitmap(input)) using(var dst=new Bitmap(704,400,PixelFormat.Format32bppArgb)){
++   var a=new int[704*400];
++   for(int y=0;y<400;y++)for(int x=0;x<704;x++){
++    double logicalY=layer=="front"?(y+.5-100)/.75:layer=="mid"?(y+.5)/.85:y+.5;
++    if(logicalY<0){a[y*704+x]=0;continue;}
++    Color c=src.GetPixel(Math.Min(src.Width-1,(int)((x+.5)*src.Width/704)),Math.Min(src.Height-1,(int)(logicalY*src.Height/400)));
++    if((layer!="far" && c.A<128)||(layer=="front"&&y<200)){a[y*704+x]=0;continue;}
++    double best=Double.MaxValue; int k=0;
++    for(int j=0;j<p.Length;j++){
++     if(layer=="far"&&j>9)continue;
++     double dr=c.R-p[j].R,dg=c.G-p[j].G,db=c.B-p[j].B;
++     double d=dr*dr*.30+dg*dg*.50+db*db*.20;
++     if(d<best){best=d;k=j;}
++    }
++    a[y*704+x]=p[k].ToArgb();
++   }
++   var clean=(int[])a.Clone();
++   int removed=0;
++   for(int y=1;y<399;y++)for(int x=1;x<703;x++){
++    int n=y*704+x, c=a[n]; if(c==0)continue;
++    Color co=Color.FromArgb(c); // Preserve intentional bright eyes, stars and glaze reflections.
++    if(co.R>175||co.G>175||co.B>175)continue;
++    int[] near={a[n-1],a[n+1],a[n-704],a[n+704]}; bool match=false;
++    foreach(int v in near)if(v==c)match=true;
++    if(match)continue;
++    for(int j=0;j<4;j++){int count=0;foreach(int v in near)if(v==near[j])count++;
++     if(count>=3){clean[n]=near[j];removed++;break;}}
++   }
++   // Merge small dark color islands while retaining silhouette edges and purposeful bright accents.
++   var seen=new bool[clean.Length]; int islands=0;
++   for(int start=0;start<clean.Length;start++){
++    if(seen[start]||clean[start]==0)continue;
++    int color=clean[start];Color cc=Color.FromArgb(color);
++    if(cc.R>175||cc.G>175||cc.B>175)continue;
++    var region=new List<int>();var queue=new Queue<int>();var boundary=new Dictionary<int,int>();
++    queue.Enqueue(start);seen[start]=true;
++    while(queue.Count>0){int n=queue.Dequeue();region.Add(n);int x=n%704,y=n/704;
++     int[] ns={x>0?n-1:-1,x<703?n+1:-1,y>0?n-704:-1,y<399?n+704:-1};
++     foreach(int m in ns){if(m<0)continue;int v=clean[m];if(v==color){if(!seen[m]){seen[m]=true;queue.Enqueue(m);}}else{if(!boundary.ContainsKey(v))boundary[v]=0;boundary[v]++;}}
++    }
++    if(region.Count>(layer=="far"?32:3)||boundary.ContainsKey(0))continue;
++    int replacement=color,votes=0;foreach(var item in boundary){if(item.Value>votes){votes=item.Value;replacement=item.Key;}}
++    foreach(int n in region)clean[n]=replacement;islands++;
++   }
++   Console.WriteLine(layer+": small dark color islands merged="+islands);
++   for(int y=0;y<400;y++)for(int x=0;x<704;x++)dst.SetPixel(x,y,Color.FromArgb(clean[y*704+x]));
++   dst.Save(output,ImageFormat.Png);Console.WriteLine(layer+": isolated dark pixels cleaned="+removed);
++  }
++ }
++ public static string Inspect(string path){using(var b=new Bitmap(path)){
++  var colors=new HashSet<int>();int clear=0,partial=0,top=0;
++  for(int y=0;y<b.Height;y++)for(int x=0;x<b.Width;x++){var c=b.GetPixel(x,y);colors.Add(c.ToArgb());if(c.A==0)clear++;else {if(y<200)top++;if(c.A!=255)partial++;}}
++  return System.IO.Path.GetFileName(path)+": "+b.Width+"x"+b.Height+", RGBA colors="+colors.Count+", transparent="+clear+", partial-alpha="+partial+", top-half-visible="+top;
++ }}
++ public static void Composite(string dir,string output){using(var b=new Bitmap(704,400))using(var g=Graphics.FromImage(b)){
++  foreach(var name in new[]{"far","mid","front"})using(var a=new Bitmap(System.IO.Path.Combine(dir,"title_"+name+".png")))g.DrawImageUnscaled(a,0,0);
++  b.Save(output,ImageFormat.Png);
++ }}
++}
++'@
++$taskDir = $PSScriptRoot
++foreach ($layer in @('far','mid','front')) {
++ [TitleLayers]::Convert((Join-Path $taskDir "$layer-generated.png"),(Join-Path $taskDir "title_$layer.png"),$layer)
++}
++[TitleLayers]::Composite($taskDir,(Join-Path $taskDir 'preview.png'))
++$results = foreach ($layer in @('far','mid','front')) { [TitleLayers]::Inspect((Join-Path $taskDir "title_$layer.png")) }
++$results | Set-Content -Encoding UTF8 (Join-Path $taskDir 'validation.txt')
++$results
++if ($Publish) {
++ $assetDir = Join-Path (Split-Path (Split-Path $taskDir)) 'assets/sprites/ui'
++ foreach ($layer in @('far','mid','front')) {
++  $dest = Join-Path $assetDir "title_$layer.png"
++  if (Test-Path -LiteralPath $dest) { throw "Refusing to overwrite existing asset: $dest" }
++ }
++ foreach ($layer in @('far','mid','front')) { Copy-Item -LiteralPath (Join-Path $taskDir "title_$layer.png") -Destination (Join-Path $assetDir "title_$layer.png") }
++}
+diff --git a/work/2026-11-28-표지/render-project/capture_title.gd b/work/2026-11-28-표지/render-project/capture_title.gd
+new file mode 100644
+index 0000000000000000000000000000000000000000..07ec0aa8e69e8a99216f43dc2cb7681367df6289
+--- /dev/null
++++ b/work/2026-11-28-표지/render-project/capture_title.gd
+@@ -0,0 +1,21 @@
++extends SceneTree
++
++func _initialize() -> void:
++	_capture.call_deferred()
++
++func _capture() -> void:
++	var scene = load("res://src/game/kiln_scene.tscn").instantiate()
++	root.add_child(scene)
++	await process_frame
++	scene.set_process(false)
++	scene.set_physics_process(false)
++	for shot in [["title-center", 0.0], ["title-sway-right", 392.699], ["title-sway-left", 1178.097]]:
++		scene.t = shot[1]
++		scene.queue_redraw()
++		await process_frame
++		await RenderingServer.frame_post_draw
++		await RenderingServer.frame_post_draw
++		var output = ProjectSettings.globalize_path("res://../" + shot[0] + ".png")
++		root.get_texture().get_image().save_png(output)
++		print("saved ", output)
++	quit()
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "powershell -NoProfile -ExecutionPolicy Bypass -File 'work/2026-11-28-표지/finish-layers.ps1'" in C:\Users\pc\Documents\game
+ succeeded in 1857ms:
+far: small dark color islands merged=481
+far: isolated dark pixels cleaned=558
+mid: small dark color islands merged=3280
+mid: isolated dark pixels cleaned=875
+front: small dark color islands merged=7593
+front: isolated dark pixels cleaned=1221
+title_far.png: 704x400, RGBA colors=8, transparent=0, partial-alpha=0, top-half-visible=140800
+title_mid.png: 704x400, RGBA colors=26, transparent=150128, partial-alpha=0, top-half-visible=6108
+title_front.png: 704x400, RGBA colors=32, transparent=211453, partial-alpha=0, top-half-visible=0
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Encoding UTF8 'src/game/proto_base.gd' | Select-Object -Skip 1120 -First 35
+"'$taskPath = (Resolve-Path '"'work/2026-11-28-표지').Path
+Copy-Item -Path \""'$taskPath/title_*.png" -Destination "$taskPath/render-project/assets/sprites/ui"
+$argList = @('"'--path', ('\"' + (Join-Path "'$taskPath '"'render-project') + '\"'), '--rendering-method', 'gl_compatibility', '--rendering-driver', 'opengl3', '--script', 'res://capture_title.gd', '--log-file', ('\"' + (Join-Path "'$taskPath '"'render-game.log') + '\"'))
+"'$renderProc = Start-Process -FilePath $env:GODOT -ArgumentList $argList -WindowStyle Hidden -RedirectStandardOutput (Join-Path $taskPath '"'render-stdout.log') -RedirectStandardError (Join-Path "'$taskPath '"'render-stderr.log') -PassThru
+"'$renderProc.WaitForExit(20000)
+Get-Content -Encoding UTF8 (Join-Path $taskPath '"'render-stdout.log')" in C:\Users\pc\Documents\game
+ succeeded in 3431ms:
+
+
+# ---------------- 그림 (Codex 작업물) ----------------
+## assets/sprites/<name>.png 가 있으면 그 그림을, 없으면 null (도형으로 대신 그린다).
+## 편집기에서 가져오기(import) 전이라도 보이도록 파일을 직접 읽는 길도 둔다.
+var _tex_cache := {}
+
+
+const PixelArt = preload("res://src/game/pixel_art.gd")
+
+
+func tex(name: String) -> Texture2D:
+	if _tex_cache.has(name):
+		return _tex_cache[name]
+	if name.begins_with("pix:"):
+		var parts := name.split(":")
+		_tex_cache[name] = PixelArt.make(parts[1], parts[2])
+		return _tex_cache[name]
+	var path := "res://assets/sprites/%s.png" % name
+	var t: Texture2D = null
+	if ResourceLoader.exists(path):
+		t = load(path)
+	elif FileAccess.file_exists(path):
+		var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+		if img != null and not img.is_empty():
+			t = ImageTexture.create_from_image(img)
+	_tex_cache[name] = t
+	return t
+
+
+## 가운데 아래쪽 기준으로 그림을 그린다. 그림이 없으면 false.
+func draw_sprite(name: String, center: Vector2, scale_k := 1.0, tint: Color = Color.WHITE) -> bool:
+	var tx := tex(name)
+	if tx == null:
+		return false
+True
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 NVIDIA 621.01 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 3050
+
+saved C:/Users/pc/Documents/game/work/2026-11-28-표지/render-project/../title-center.png
+saved C:/Users/pc/Documents/game/work/2026-11-28-표지/render-project/../title-sway-right.png
+saved C:/Users/pc/Documents/game/work/2026-11-28-표지/render-project/../title-sway-left.png
+
+codex
+실제 제목·버튼 배치와 시차 이동의 양 끝 화면을 확인했습니다. 하늘과 병사 표면의 작은 색 잡티를 추가로 정리해, 최종 색 수는 far 8색·mid 26색·front 32색입니다. 기존 하단 안내 문구는 병사와 겹치는 구간이 있어 보고에 남기겠습니다.
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$taskPath = (Resolve-Path '"'work/2026-11-28-표지').Path
+foreach ("'$layer in @('"'far','mid','front')) {
+ "'$importPath = Join-Path $taskPath "render-project/assets/sprites/ui/title_$layer.png.import"
+ if (Test-Path -LiteralPath $importPath) { Remove-Item -LiteralPath $importPath }
+}
+$argList = @('"'--path', ('\"' + (Join-Path "'$taskPath '"'render-project') + '\"'), '--rendering-method', 'gl_compatibility', '--rendering-driver', 'opengl3', '--script', 'res://capture_title.gd', '--log-file', ('\"' + (Join-Path "'$taskPath '"'render-game.log') + '\"'))
+"'$renderProc = Start-Process -FilePath $env:GODOT -ArgumentList $argList -WindowStyle Hidden -RedirectStandardOutput (Join-Path $taskPath '"'render-stdout.log') -RedirectStandardError (Join-Path "'$taskPath '"'render-stderr.log') -PassThru
+"'$renderProc.WaitForExit(20000)
+Get-Content -Encoding UTF8 (Join-Path $taskPath '"'render-stderr.log')
+powershell -NoProfile -ExecutionPolicy Bypass -File 'work/2026-11-28-표지/finish-layers.ps1' -Publish" in C:\Users\pc\Documents\game
+ succeeded in 5107ms:
+True
+ERROR: Can't create shader cache folder, no shader caching will happen: user://
+   at: RasterizerGLES3 (drivers/gles3/rasterizer_gles3.cpp:345)
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+far: small dark color islands merged=481
+far: isolated dark pixels cleaned=558
+mid: small dark color islands merged=3280
+mid: isolated dark pixels cleaned=875
+front: small dark color islands merged=7593
+front: isolated dark pixels cleaned=1221
+title_far.png: 704x400, RGBA colors=8, transparent=0, partial-alpha=0, top-half-visible=140800
+title_mid.png: 704x400, RGBA colors=26, transparent=150128, partial-alpha=0, top-half-visible=6108
+title_front.png: 704x400, RGBA colors=32, transparent=211453, partial-alpha=0, top-half-visible=0
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$beforeLines = Get-Content -Encoding UTF8 '"'work/2026-11-28-표지/NOTES.md' | Where-Object { "'$_.StartsWith('"' M ') -or "'$_.StartsWith('"'?? ') }
+"'$afterLines = git status --porcelain
+Compare-Object $beforeLines $afterLines | Format-Table -AutoSize
+Get-FileHash -Algorithm SHA256 '"'assets/sprites/ui/title_far.png','assets/sprites/ui/title_mid.png','assets/sprites/ui/title_front.png','work/2026-11-28-표지/title_far.png','work/2026-11-28-표지/title_mid.png','work/2026-11-28-표지/title_front.png' | Format-Table -AutoSize" in C:\Users\pc\Documents\game
+ succeeded in 554ms:
+
+InputObject                                                                                SideIndicator
+-----------                                                                                -------------
+ M assets/sprites/fx/cutin_earth.png                                                       =>           
+ M assets/sprites/fx/cutin_fire.png                                                        =>           
+ M assets/sprites/fx/cutin_water.png                                                       =>           
+ M assets/sprites/ui/title_bg.png                                                          =>           
+ M "work/2026-11-28-\353\241\234\352\263\240/handoff-11.log"                               =>           
+ M "work/2026-11-28-\355\221\234\354\247\200/handoff-10.log"                               =>           
+ M "work/2026-11-30-UI\352\267\270\353\246\274/handoff-09-run2.log"                        =>           
+?? assets/sprites/ui/app_icon.png                                                          =>           
+?? assets/sprites/ui/logo.png                                                              =>           
+?? assets/sprites/ui/title_far.png                                                         =>           
+?? assets/sprites/ui/title_front.png                                                       =>           
+?? assets/sprites/ui/title_mid.png                                                         =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/asset-metrics.json"                           =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/finalize.ps1"                                 =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/import.log"                                   =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/logo_options.png"                             =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/option-a.png"                                 =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/option-b.png"                                 =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/option-c.png"                                 =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/prepare.ps1"                                  =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/preview_dark.png"                             =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/preview_game.png"                             =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/prompts.md"                                   =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/render-project/"                              =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/render.log"                                   =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/runtime-user/"                                =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/source-a.png"                                 =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/source-b.png"                                 =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/source-c.png"                                 =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/PROMPTS.md"                                   =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/far-generated.png"                            =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/finish-layers.ps1"                            =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/front-generated.png"                          =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/mid-generated.png"                            =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/preview.png"                                  =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/render-game.log"                              =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/render-import.log"                            =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/render-project/"                              =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/render-stderr.log"                            =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/render-stdout.log"                            =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/title-center.png"                             =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/title-sway-left.png"                          =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/title-sway-right.png"                         =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/title_far.png"                                =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/title_front.png"                              =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/title_mid.png"                                =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/validation.txt"                               =>           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/compare-09-run1-vs-run2.png"                =>           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/sheet-09b.png"                              =>           
+ M reports/boss/history.csv                                                                <=           
+ M "work/2026-11-27-\352\267\270\353\246\274/NOTES.md"                                     <=           
+ M "work/2026-11-27-\352\267\270\353\246\274/handoff-03.md"                                <=           
+?? assets/sprites/fx/cutin_earth.png                                                       <=           
+?? assets/sprites/fx/cutin_earth.png.import                                                <=           
+?? assets/sprites/fx/cutin_fire.png                                                        <=           
+?? assets/sprites/fx/cutin_fire.png.import                                                 <=           
+?? assets/sprites/fx/cutin_water.png                                                       <=           
+?? assets/sprites/fx/cutin_water.png.import                                                <=           
+?? assets/sprites/ui/title_bg.png                                                          <=           
+?? assets/sprites/ui/title_bg.png.import                                                   <=           
+?? reports/boss/history-local-backup.csv                                                   <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/compare-03-screens.png"                       <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/compare-03.png"                               <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/handoff-03-run1/"                             <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/handoff-03-run2/"                             <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/handoff-03.report.md"                         <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/screens-02b/"                                 <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/screens-03-run1/"                             <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/screens-03-run2/"                             <=           
+?? "work/2026-11-27-\354\213\244\352\260\220/handoff-04.report.md"                         <=           
+?? "work/2026-11-27-\354\213\244\352\260\220/sheet-04.png"                                 <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/handoff-05.report.md"             <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/handoff-06.report.md"             <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/old-06-soldiers/"                 <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/screens-05/"                      <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/screens-06/"                      <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/sheet-05.png"                     <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/sheet-06a.png"                    <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/sheet-06b.png"                    <=           
+?? "work/2026-11-28-\353\241\234\352\263\240/handoff-11.log"                               <=           
+?? "work/2026-11-28-\355\221\234\354\247\200/handoff-10.log"                               <=           
+?? "work/2026-11-29-\354\212\244\355\202\254\354\247\204\354\230\201/handoff-07.report.md" <=           
+?? "work/2026-11-29-\354\212\244\355\202\254\354\247\204\354\230\201/screens-07/"          <=           
+?? "work/2026-11-29-\354\212\244\355\202\254\354\247\204\354\230\201/sheet-07a.png"        <=           
+?? "work/2026-11-29-\354\212\244\355\202\254\354\247\204\354\230\201/sheet-07b.png"        <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/handoff-08.report.md"                       <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/handoff-09-run1/"                           <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/handoff-09-run2.log"                        <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/handoff-09.report.md"                       <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/screens-08/"                                <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/screens-09/"                                <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/sheet-08.png"                               <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/sheet-09.png"                               <=           
+?? work/art-ui08/                                                                          <=           
+?? work/art-ui09/                                                                          <=           
+
+
+
+Algorithm Hash                                                             Path                                        
+--------- ----                                                             ----                                        
+SHA256    A1B088124788DBA7160BD03DC11A6234E4353928B9CB7D3C18B967F0289B22C0 C:\Users\pc\Documents\game\assets\sprites...
+SHA256    95CE8FA1294998C9B7447C3D2FFBEAF37EE89948DDED18B81366EAEEDD9AAAC8 C:\Users\pc\Documents\game\assets\sprites...
+SHA256    3753C1D0A3AE3C3808E870ECDCD8F482D6D1ACDDE89DBE22095A7AE4C6A4E2FA C:\Users\pc\Documents\game\assets\sprites...
+SHA256    A1B088124788DBA7160BD03DC11A6234E4353928B9CB7D3C18B967F0289B22C0 C:\Users\pc\Documents\game\work\2026-11-2...
+SHA256    95CE8FA1294998C9B7447C3D2FFBEAF37EE89948DDED18B81366EAEEDD9AAAC8 C:\Users\pc\Documents\game\work\2026-11-2...
+SHA256    3753C1D0A3AE3C3808E870ECDCD8F482D6D1ACDDE89DBE22095A7AE4C6A4E2FA C:\Users\pc\Documents\game\work\2026-11-2...
+
+
+
+apply patch
+patch: completed
+C:\Users\pc\Documents\game\work\2026-11-28-표지\handoff-10.report.md
+diff --git a/work/2026-11-28-표지/PROMPTS.md b/work/2026-11-28-표지/PROMPTS.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..ebcb43d59d57f5f8181bdd0eb6dd4b3f08586b5a
+--- /dev/null
++++ b/work/2026-11-28-표지/PROMPTS.md
+@@ -0,0 +1,22 @@
++# 생성 방식
++
++내장 image_gen 사용. 이후 PowerShell/C# System.Drawing으로 704×400 최근접 축소, 공통 팔레트 제한, 알파 이진화, 외톨이 어두운 픽셀 정리.
++
++## far
++
++Use case: stylized-concept. Create the FAR BACKGROUND ONLY for a three-layer Korean pixel-art game title illustration. This is one continuous scene, canvas aspect 704:400 (wide 1.76:1), preferably render 1408x800 with an actual 704x400 pixel grid. No text, logo, interface, border or signature.
++Art direction follows the viewed references: restrained ink/navy and clay colors, crisp intentional pixel clusters, hand-crafted 1px contours when relevant, no blur, noise, dithering or painterly texture. This layer is entirely OPAQUE.
++Scene: quiet Korean night sky, just 8 tiny dim stars away from central area, a small pale cool moon at x560 y64 in 704x400 coordinates, one narrow cloud band beside the moon, two distant rolling mountain silhouettes across lower half. First mountains muted deep navy, nearer mountains almost black ink. Bottom third dark mountain shadow. Center x200..440 y40..230 must be extremely dark, simple, and visually quiet for later title/buttons. Mountain ridges near y230..270. No buildings, kiln, fire, soldiers, plants, ground details or goblins in this layer.
++Palette shared across all later layers: ink #120e16 #1c1622 #282322, navy #171c2b #252d3d #354354, slate #536675 #6f7f87, weak moon #b0b8c0 #dfe6ee. Flat discrete shadow steps, at most 64 colors. Lunar light is weak blue ambient fill; the eventual main orange light will come from an offscreen kiln on the right at x560,y250. This background stays subtle, atmospheric and almost still. Make sophisticated broad shapes, not a generic starry wallpaper.
++
++## mid
++
++Use case: stylized-concept. Generate the MIDGROUND layer of the same Korean pixel art title scene as the immediately preceding generated night sky. Only midground objects, on genuine TRANSPARENT background. Canvas wide 704:400 proportions, coordinates below on a 704x400 pixel grid. Do not include sky, moon, mountains, characters, words, borders, logos, or checkerboard. Preserve empty transparent space, do not crop to objects.
++Scene construction: in lower LEFT x0..205 a small Korean hamlet of 4 thatched/curved tiled hanok homes, connected stone walls and gate. Silhouettes begin near y200, foundations y270. Only a few warm lit paper windows; most roofs are dark neutral. On RIGHT a traditional wood-fired rounded brick pottery kiln sitting on a small hill, kiln bounds roughly x520..625 y190..270, flame visible in its arched open mouth near x567 y250, chimney above right side and a narrow, restrained dark smoke ribbon to x615 y145. A winding earthen path connects village to kiln across y265..365. Dark continuous earth fills from uneven ground line y265..280 to bottom edge all across width; sparse stones, broad coherent clusters rather than speckled texture. Center x200..440 y0..230 stays 100% transparent for UI and the underlying empty sky.
++Lighting: unified main orange light from kiln at right x565 y250, warm pools on its brick doorstep and path to its left; weak blue moon fill from upper right. No second sun, no daylight. Pixel illustration at least as designed and legible as the viewed merchant, clean 1px dark ink-brown contours, crisp pixel edges. Three flat shadow steps, no blur, no gradients, no noise, no decorative clutter.
++Use this fixed palette: #120e16 #1c1622 #282322 #171c2b #252d3d #354354 #536675 #6f7f87 #5a4630 #7a5a44 #8a6a48 #b98a5e #6f6c66 #b0b8c0 #e8dcb8 #f2e6c8 #a8862e #e8c35a #fff1c4 #ff9a3c #b8463a #7a2a24. Inky desaturated night with fire/windows as the only high-chroma accents. The generated background above is the compositional and palette reference only, do NOT paint it into this transparent layer.
++
++## front
++
++undefined
++
+diff --git a/work/2026-11-28-표지/finish-layers.ps1 b/work/2026-11-28-표지/finish-layers.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..d9bea7519fc6d38fdd07a954fe1e761c8887b101
+--- /dev/null
++++ b/work/2026-11-28-표지/finish-layers.ps1
+@@ -0,0 +1,88 @@
++param([switch]$Publish)
++$ErrorActionPreference = 'Stop'
++Add-Type -AssemblyName System.Drawing
++Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
++using System;
++using System.Drawing;
++using System.Drawing.Imaging;
++using System.Collections.Generic;
++public static class TitleLayers {
++ static string[] hex={"120e16","1c1622","282322","171c2b","252d3d","354354","536675","6f7f87","b0b8c0","dfe6ee","2a2236","5a4630","8a6a48","a8862e","e8c35a","fff1c4","b98a5e","7a5a44","e8dcb8","f2e6c8","6f6c66","b8463a","7a2a24","6b9878","a6c5a3","ff9a3c","304b43","456d58","302b27","494039","736357"};
++ static Color[] Palette(){var p=new Color[hex.Length];for(int i=0;i<p.Length;i++)p[i]=ColorTranslator.FromHtml("#"+hex[i]);return p;}
++ public static void Convert(string input,string output,string layer){
++  var p=Palette(); using(var src=new Bitmap(input)) using(var dst=new Bitmap(704,400,PixelFormat.Format32bppArgb)){
++   var a=new int[704*400];
++   for(int y=0;y<400;y++)for(int x=0;x<704;x++){
++    double logicalY=layer=="front"?(y+.5-100)/.75:layer=="mid"?(y+.5)/.85:y+.5;
++    if(logicalY<0){a[y*704+x]=0;continue;}
++    Color c=src.GetPixel(Math.Min(src.Width-1,(int)((x+.5)*src.Width/704)),Math.Min(src.Height-1,(int)(logicalY*src.Height/400)));
++    if((layer!="far" && c.A<128)||(layer=="front"&&y<200)){a[y*704+x]=0;continue;}
++    double best=Double.MaxValue; int k=0;
++    for(int j=0;j<p.Length;j++){
++     if(layer=="far"&&j>9)continue;
++     double dr=c.R-p[j].R,dg=c.G-p[j].G,db=c.B-p[j].B;
++     double d=dr*dr*.30+dg*dg*.50+db*db*.20;
++     if(d<best){best=d;k=j;}
++    }
++    a[y*704+x]=p[k].ToArgb();
++   }
++   var clean=(int[])a.Clone();
++   int removed=0;
++   for(int y=1;y<399;y++)for(int x=1;x<703;x++){
++    int n=y*704+x, c=a[n]; if(c==0)continue;
++    Color co=Color.FromArgb(c); // Preserve intentional bright eyes, stars and glaze reflections.
++    if(co.R>175||co.G>175||co.B>175)continue;
++    int[] near={a[n-1],a[n+1],a[n-704],a[n+704]}; bool match=false;
++    foreach(int v in near)if(v==c)match=true;
++    if(match)continue;
++    for(int j=0;j<4;j++){int count=0;foreach(int v in near)if(v==near[j])count++;
++     if(count>=3){clean[n]=near[j];removed++;break;}}
++   }
++   // Merge small dark color islands while retaining silhouette edges and purposeful bright accents.
++   var seen=new bool[clean.Length]; int islands=0;
++   for(int start=0;start<clean.Length;start++){
++    if(seen[start]||clean[start]==0)continue;
++    int color=clean[start];Color cc=Color.FromArgb(color);
++    if(cc.R>175||cc.G>175||cc.B>175)continue;
++    var region=new List<int>();var queue=new Queue<int>();var boundary=new Dictionary<int,int>();
++    queue.Enqueue(start);seen[start]=true;
++    while(queue.Count>0){int n=queue.Dequeue();region.Add(n);int x=n%704,y=n/704;
++     int[] ns={x>0?n-1:-1,x<703?n+1:-1,y>0?n-704:-1,y<399?n+704:-1};
++     foreach(int m in ns){if(m<0)continue;int v=clean[m];if(v==color){if(!seen[m]){seen[m]=true;queue.Enqueue(m);}}else{if(!boundary.ContainsKey(v))boundary[v]=0;boundary[v]++;}}
++    }
++    if(region.Count>(layer=="far"?32:3)||boundary.ContainsKey(0))continue;
++    int replacement=color,votes=0;foreach(var item in boundary){if(item.Value>votes){votes=item.Value;replacement=item.Key;}}
++    foreach(int n in region)clean[n]=replacement;islands++;
++   }
++   Console.WriteLine(layer+": small dark color islands merged="+islands);
++   for(int y=0;y<400;y++)for(int x=0;x<704;x++)dst.SetPixel(x,y,Color.FromArgb(clean[y*704+x]));
++   dst.Save(output,ImageFormat.Png);Console.WriteLine(layer+": isolated dark pixels cleaned="+removed);
++  }
++ }
++ public static string Inspect(string path){using(var b=new Bitmap(path)){
++  var colors=new HashSet<int>();int clear=0,partial=0,top=0;
++  for(int y=0;y<b.Height;y++)for(int x=0;x<b.Width;x++){var c=b.GetPixel(x,y);colors.Add(c.ToArgb());if(c.A==0)clear++;else {if(y<200)top++;if(c.A!=255)partial++;}}
++  return System.IO.Path.GetFileName(path)+": "+b.Width+"x"+b.Height+", RGBA colors="+colors.Count+", transparent="+clear+", partial-alpha="+partial+", top-half-visible="+top;
++ }}
++ public static void Composite(string dir,string output){using(var b=new Bitmap(704,400))using(var g=Graphics.FromImage(b)){
++  foreach(var name in new[]{"far","mid","front"})using(var a=new Bitmap(System.IO.Path.Combine(dir,"title_"+name+".png")))g.DrawImageUnscaled(a,0,0);
++  b.Save(output,ImageFormat.Png);
++ }}
++}
++'@
++$taskDir = $PSScriptRoot
++foreach ($layer in @('far','mid','front')) {
++ [TitleLayers]::Convert((Join-Path $taskDir "$layer-generated.png"),(Join-Path $taskDir "title_$layer.png"),$layer)
++}
++[TitleLayers]::Composite($taskDir,(Join-Path $taskDir 'preview.png'))
++$results = foreach ($layer in @('far','mid','front')) { [TitleLayers]::Inspect((Join-Path $taskDir "title_$layer.png")) }
++$results | Set-Content -Encoding UTF8 (Join-Path $taskDir 'validation.txt')
++$results
++if ($Publish) {
++ $assetDir = Join-Path (Split-Path (Split-Path $taskDir)) 'assets/sprites/ui'
++ foreach ($layer in @('far','mid','front')) {
++  $dest = Join-Path $assetDir "title_$layer.png"
++  if (Test-Path -LiteralPath $dest) { throw "Refusing to overwrite existing asset: $dest" }
++ }
++ foreach ($layer in @('far','mid','front')) { Copy-Item -LiteralPath (Join-Path $taskDir "title_$layer.png") -Destination (Join-Path $assetDir "title_$layer.png") }
++}
+diff --git a/work/2026-11-28-표지/handoff-10.report.md b/work/2026-11-28-표지/handoff-10.report.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..15031ccd322567a5d1b27a63c50eca233fff7ead
+--- /dev/null
++++ b/work/2026-11-28-표지/handoff-10.report.md
+@@ -0,0 +1,22 @@
++결과: 통과
++바뀐 파일:
++- assets/sprites/ui/title_far.png — 밤하늘·달·구름·먼 산, 불투명.
++- assets/sprites/ui/title_mid.png — 마을·돌담·흙길·오른쪽 가마, 투명.
++- assets/sprites/ui/title_front.png — 도자기 병사 6명·받침·숲·도깨비 눈·풀·돌, 투명.
++- work/2026-11-28-표지/ — NOTES.md, PROMPTS.md, 생성 원본 3장, 다듬기 스크립트, 팔레트 정리본 3장, validation.txt, preview.png, 기준 비교시트, 실행 확인용 복사본·로그·화면 3장, 이 보고서.
++확인한 것:
++- 모두 704×400. RGBA 색 수: far 8색 / mid 26색 / front 32색 (투명색 포함).
++- far 불투명. mid·front 투명 바탕, 반투명 픽셀 0. front 위쪽 200행 완전 투명.
++- 공통 31색 팔레트 안에서 정리. 오른쪽 가마의 주황빛과 약한 푸른 달빛. 글자·로고 없음.
++- 내장 image_gen 사용 후 PowerShell/C#으로 크기·색·알파·작은 색 잡티 정리. 최종 프롬프트 전체: work/2026-11-28-표지/PROMPTS.md.
++- 세 장을 겹친 미리보기: work/2026-11-28-표지/preview.png.
++- Godot 4.7.2 실행용 복사본에서 title-center.png, title-sway-left.png, title-sway-right.png 생성. 제목·버튼과 배치를 직접 확인.
++- 최종 assets 3장과 확인한 작업본 3장의 SHA256 일치.
++- 저장소 Python 스크립트·git commit·push 실행하지 않음. 이 작업의 쓰기는 허용된 3개 PNG와 작업 폴더에만 수행.
++못 한 것 / 걱정되는 것:
++- 기존 하단 안내 문구가 병사 몸과 겹치는 구간이 있음. 화면 코드는 범위 밖이므로 수정하지 않음.
++- 기존 앞층 시차 진폭 40px가 여백 32px보다 커서 극점에서 가장자리 8px에 앞층 대신 뒤층이 보임. 캔버스 크기와 코드는 지시대로 유지.
++- 실행 확인 중 편집기 설정 저장·셰이더 캐시·인증서 저장소 관련 환경 경고가 있었으나 화면 3장은 저장됨. 로그 보존.
++- 작업 도중 다른 범위의 Git 상태도 달라짐. 해당 파일들은 수정하거나 되돌리지 않음.
++- 저장소 검사 스크립트는 미실행. 수행한 크기·색·알파 검사는 통과, 재미·미술 판단은 사용자 몫.
++
+diff --git a/work/2026-11-28-표지/render-project/capture_title.gd b/work/2026-11-28-표지/render-project/capture_title.gd
+new file mode 100644
+index 0000000000000000000000000000000000000000..07ec0aa8e69e8a99216f43dc2cb7681367df6289
+--- /dev/null
++++ b/work/2026-11-28-표지/render-project/capture_title.gd
+@@ -0,0 +1,21 @@
++extends SceneTree
++
++func _initialize() -> void:
++	_capture.call_deferred()
++
++func _capture() -> void:
++	var scene = load("res://src/game/kiln_scene.tscn").instantiate()
++	root.add_child(scene)
++	await process_frame
++	scene.set_process(false)
++	scene.set_physics_process(false)
++	for shot in [["title-center", 0.0], ["title-sway-right", 392.699], ["title-sway-left", 1178.097]]:
++		scene.t = shot[1]
++		scene.queue_redraw()
++		await process_frame
++		await RenderingServer.frame_post_draw
++		await RenderingServer.frame_post_draw
++		var output = ProjectSettings.globalize_path("res://../" + shot[0] + ".png")
++		root.get_texture().get_image().save_png(output)
++		print("saved ", output)
++	quit()
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$notePath = '"'work/2026-11-28-표지/NOTES.md'
+"'$noteText = Get-Content -Raw -Encoding UTF8 $notePath
+$noteText = $noteText.TrimEnd()
+if ($noteText.EndsWith('"'"'`'"')) { "'$noteText = $noteText.Substring(0, $noteText.Length - 1) + '"'"'```'"' }
+"'$append = @'"'
+
+## 실행 및 확인 기록
+- 내장 image_gen으로 3장을 생성. 공통 팔레트·오른쪽 가마 주광으로 생성하고 PowerShell/C#으로 정리.
+- far 8색 / mid 26색 / front 32색(투명색 포함), 각 704×400. mid/front 알파 0·255만 사용. front 위쪽 절반 완전 투명.
+- 실행 확인 복사본은 이 폴더 안에만 구성. 원본 게임 코드 및 import 파일을 수정하지 않음.
+- 실제 제목·버튼과 시차 양 극점을 확인. 하단 안내문 겹침과 앞층 시차 진폭/여백 차이는 보고서에 기재.
+- Python 스크립트·커밋·푸시 미실행. 작업 중 다른 작업의 Git 상태 변경이 관찰되었으며 해당 파일은 손대지 않음.
+- 프롬프트: PROMPTS.md. 결과: handoff-10.report.md. 측정: validation.txt.
+- 검사는 통과, 재미·미술 판단은 사용자 몫.
+'@
+Set-Content -Encoding UTF8 "'$notePath ($noteText + $append)
+git -c core.quotepath=false status --porcelain -- assets/sprites/ui/title_far.png assets/sprites/ui/title_mid.png assets/sprites/ui/title_front.png work/2026-11-28-표지' in C:\Users\pc\Documents\game
+ succeeded in 404ms:
+ M work/2026-11-28-표지/NOTES.md
+ M work/2026-11-28-표지/handoff-10.log
+?? assets/sprites/ui/title_far.png
+?? assets/sprites/ui/title_front.png
+?? assets/sprites/ui/title_mid.png
+?? work/2026-11-28-표지/PROMPTS.md
+?? work/2026-11-28-표지/far-generated.png
+?? work/2026-11-28-표지/finish-layers.ps1
+?? work/2026-11-28-표지/front-generated.png
+?? work/2026-11-28-표지/handoff-10.report.md
+?? work/2026-11-28-표지/mid-generated.png
+?? work/2026-11-28-표지/preview.png
+?? work/2026-11-28-표지/render-game.log
+?? work/2026-11-28-표지/render-import.log
+?? work/2026-11-28-표지/render-project/
+?? work/2026-11-28-표지/render-stderr.log
+?? work/2026-11-28-표지/render-stdout.log
+?? work/2026-11-28-표지/title-center.png
+?? work/2026-11-28-표지/title-sway-left.png
+?? work/2026-11-28-표지/title-sway-right.png
+?? work/2026-11-28-표지/title_far.png
+?? work/2026-11-28-표지/title_front.png
+?? work/2026-11-28-표지/title_mid.png
+?? work/2026-11-28-표지/validation.txt
+
+codex
+결과: 통과
+
+바뀐 파일:
+
+- `assets/sprites/ui/title_far.png` — 밤하늘·달·먼 산.
+- `assets/sprites/ui/title_mid.png` — 마을·흙길·가마.
+- `assets/sprites/ui/title_front.png` — 도자기 병사 6명·숲·도깨비 눈빛.
+- `work/2026-11-28-표지/` — 원본·프롬프트·작업 기록·미리보기·검증 화면.
+
+확인한 것:
+
+- 모두 704×400. 색 수: far 8색 / mid 26색 / front 32색.
+- mid·front 투명 배경, front 위쪽 절반 완전 투명.
+- 공통 팔레트·오른쪽 가마빛 적용. 내장 이미지 생성 후 코드로 정리.
+- 세 장을 겹친 미리보기: [preview.png](C:/Users/pc/Documents/game/work/2026-11-28-표지/preview.png)
+- 실제 게임 제목·버튼 및 시차 양 끝 화면 확인.
+- 저장소 Python 스크립트·커밋·푸시 미실행.
+
+못 한 것 / 걱정되는 것:
+
+- 기존 하단 안내문이 병사와 겹칩니다.
+- 기존 시차 설정상 극점에서 가장자리 8px에 뒤층이 드러납니다.
+- 실행 환경 경고와 상세 확인은 [보고서](C:/Users/pc/Documents/game/work/2026-11-28-표지/handoff-10.report.md)에 기록했습니다.
+- 크기·색·투명도 검사는 통과, 재미·미술 판단은 사용자 몫입니다.
+tokens used
+72,287
+결과: 통과
+
+바뀐 파일:
+
+- `assets/sprites/ui/title_far.png` — 밤하늘·달·먼 산.
+- `assets/sprites/ui/title_mid.png` — 마을·흙길·가마.
+- `assets/sprites/ui/title_front.png` — 도자기 병사 6명·숲·도깨비 눈빛.
+- `work/2026-11-28-표지/` — 원본·프롬프트·작업 기록·미리보기·검증 화면.
+
+확인한 것:
+
+- 모두 704×400. 색 수: far 8색 / mid 26색 / front 32색.
+- mid·front 투명 배경, front 위쪽 절반 완전 투명.
+- 공통 팔레트·오른쪽 가마빛 적용. 내장 이미지 생성 후 코드로 정리.
+- 세 장을 겹친 미리보기: [preview.png](C:/Users/pc/Documents/game/work/2026-11-28-표지/preview.png)
+- 실제 게임 제목·버튼 및 시차 양 끝 화면 확인.
+- 저장소 Python 스크립트·커밋·푸시 미실행.
+
+못 한 것 / 걱정되는 것:
+
+- 기존 하단 안내문이 병사와 겹칩니다.
+- 기존 시차 설정상 극점에서 가장자리 8px에 뒤층이 드러납니다.
+- 실행 환경 경고와 상세 확인은 [보고서](C:/Users/pc/Documents/game/work/2026-11-28-표지/handoff-10.report.md)에 기록했습니다.
+- 크기·색·투명도 검사는 통과, 재미·미술 판단은 사용자 몫입니다.

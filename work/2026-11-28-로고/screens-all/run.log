@@ -1,0 +1,112 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.357 - Forward+ - Using Device #0: NVIDIA - NVIDIA GeForce RTX 3050
+
+ERROR: Cannot open file 'res://.godot/imported/Pretendard-Medium.otf-38b7e8428b68ea05158620404bacd677.fontdata'.
+   at: load (core/io/resource_format_binary.cpp:1156)
+   GDScript backtrace (most recent call first):
+       [0] _load_font (res://src/game/proto_base.gd:834)
+       [1] _ready (res://src/game/proto_base.gd:57)
+       [2] _ready (res://src/game/kiln_scene.gd:60)
+       [3] _open (res://tests/screens_proto.gd:34)
+       [4] _frames (res://tests/screens_proto.gd:18)
+ERROR: Failed loading resource: res://.godot/imported/Pretendard-Medium.otf-38b7e8428b68ea05158620404bacd677.fontdata.
+   at: _load (core/io/resource_loader.cpp:317)
+   GDScript backtrace (most recent call first):
+       [0] _load_font (res://src/game/proto_base.gd:834)
+       [1] _ready (res://src/game/proto_base.gd:57)
+       [2] _ready (res://src/game/kiln_scene.gd:60)
+       [3] _open (res://tests/screens_proto.gd:34)
+       [4] _frames (res://tests/screens_proto.gd:18)
+ERROR: Failed loading resource: res://assets/fonts/Pretendard-Medium.otf.
+   at: _load (core/io/resource_loader.cpp:317)
+   GDScript backtrace (most recent call first):
+       [0] _load_font (res://src/game/proto_base.gd:834)
+       [1] _ready (res://src/game/proto_base.gd:57)
+       [2] _ready (res://src/game/kiln_scene.gd:60)
+       [3] _open (res://tests/screens_proto.gd:34)
+       [4] _frames (res://tests/screens_proto.gd:18)
+ERROR: Cannot open file 'res://.godot/imported/Pretendard-Bold.otf-4a691e6e36733770b88ad2bff83a9eb8.fontdata'.
+   at: load (core/io/resource_format_binary.cpp:1156)
+   GDScript backtrace (most recent call first):
+       [0] _load_font (res://src/game/proto_base.gd:834)
+       [1] _ready (res://src/game/proto_base.gd:58)
+       [2] _ready (res://src/game/kiln_scene.gd:60)
+       [3] _open (res://tests/screens_proto.gd:34)
+       [4] _frames (res://tests/screens_proto.gd:18)
+ERROR: Failed loading resource: res://.godot/imported/Pretendard-Bold.otf-4a691e6e36733770b88ad2bff83a9eb8.fontdata.
+   at: _load (core/io/resource_loader.cpp:317)
+   GDScript backtrace (most recent call first):
+       [0] _load_font (res://src/game/proto_base.gd:834)
+       [1] _ready (res://src/game/proto_base.gd:58)
+       [2] _ready (res://src/game/kiln_scene.gd:60)
+       [3] _open (res://tests/screens_proto.gd:34)
+       [4] _frames (res://tests/screens_proto.gd:18)
+ERROR: Failed loading resource: res://assets/fonts/Pretendard-Bold.otf.
+   at: _load (core/io/resource_loader.cpp:317)
+   GDScript backtrace (most recent call first):
+       [0] _load_font (res://src/game/proto_base.gd:834)
+       [1] _ready (res://src/game/proto_base.gd:58)
+       [2] _ready (res://src/game/kiln_scene.gd:60)
+       [3] _open (res://tests/screens_proto.gd:34)
+       [4] _frames (res://tests/screens_proto.gd:18)
+ERROR: Cannot open file 'res://.godot/imported/DoHyeon-Regular.ttf-199d7fec024e3023c65f7d36e6649216.fontdata'.
+   at: load (core/io/resource_format_binary.cpp:1156)
+   GDScript backtrace (most recent call first):
+       [0] _load_font (res://src/game/proto_base.gd:834)
+       [1] _ready (res://src/game/proto_base.gd:59)
+       [2] _ready (res://src/game/kiln_scene.gd:60)
+       [3] _open (res://tests/screens_proto.gd:34)
+       [4] _frames (res://tests/screens_proto.gd:18)
+ERROR: Failed loading resource: res://.godot/imported/DoHyeon-Regular.ttf-199d7fec024e3023c65f7d36e6649216.fontdata.
+   at: _load (core/io/resource_loader.cpp:317)
+   GDScript backtrace (most recent call first):
+       [0] _load_font (res://src/game/proto_base.gd:834)
+       [1] _ready (res://src/game/proto_base.gd:59)
+       [2] _ready (res://src/game/kiln_scene.gd:60)
+       [3] _open (res://tests/screens_proto.gd:34)
+       [4] _frames (res://tests/screens_proto.gd:18)
+ERROR: Failed loading resource: res://assets/fonts/DoHyeon-Regular.ttf.
+   at: _load (core/io/resource_loader.cpp:317)
+   GDScript backtrace (most recent call first):
+       [0] _load_font (res://src/game/proto_base.gd:834)
+       [1] _ready (res://src/game/proto_base.gd:59)
+       [2] _ready (res://src/game/kiln_scene.gd:60)
+       [3] _open (res://tests/screens_proto.gd:34)
+       [4] _frames (res://tests/screens_proto.gd:18)
+saved p00b_kiln_title
+saved p00c_kiln_meta
+saved p00d_kiln_records
+saved p01a_kiln_tutorial_draw
+saved p01_kiln_prep_first
+saved p01b_kiln_gacha
+saved p01c_kiln_load
+saved p02_kiln_fire
+saved p02b_kiln_fire_hot
+saved p02c_kiln_open
+saved p03_kiln_reveal_legend
+saved p03a_kiln_gacha_tap
+saved p03a2_kiln_gacha_burst
+saved p03b_kiln_gacha_show
+saved p04_kiln_reveal_done
+saved p04b_kiln_reveal_many
+saved p05_kiln_prep_night2
+saved p05c_kiln_prep_chapter2
+saved p05d_kiln_help
+saved p05e_kiln_equip
+saved p05f_kiln_shop
+saved p05i_kiln_barracks
+saved p05g_kiln_promo
+saved p05h_kiln_deploy
+saved p06_kiln_battle_mid
+saved p06b_kiln_synergy_wave
+saved p06c_kiln_battle_busy
+saved p06d_kiln_cutin
+saved p07_kiln_night_end
+saved p07b_kiln_chief
+saved p07d_kiln_gumiho
+saved p07e_kiln_king
+saved p07c_kiln_chapter_clear
+saved p07e2_kiln_end_anim
+saved p07f_kiln_loot
+WARNING: 12 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)

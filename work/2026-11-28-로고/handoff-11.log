@@ -1171,3 +1171,1983 @@ node.exe C:\Program Files\nodejs\node.exe
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$taskDir = '"'work/2026-11-28-로고'; "'$initialStatus = git status --porcelain; $initialStatus | Set-Content -Encoding UTF8 -LiteralPath "$taskDir/status-before.txt"; Add-Content -Encoding UTF8 -LiteralPath "$taskDir/NOTES.md" -Value ("`n## Codex 작업 시작 2026-11-28`n`n- 2026-11-28 `"로고 시안은 3개 이상 만들어 work/2026-11-28-로고/logo_options.png 비교 시트로 남기고, 고른 것과 이유를 보고에 적어 줘. 로고에는 KILNBORN 한 단어만 넣어.`"`n  → 시안 3개, 비교 시트, 최종 로고와 아이콘. 이미지 생성 후 코드 보정. 허용 범위만 기록·출력.`n`n시작 때 git status --porcelain:`n``````text`n" + ($initialStatus -join "`n") + "`n```````n"); Add-Type -AssemblyName System.Drawing; $files = @((Get-ChildItem art/references/*.png).FullName) + @((Get-Item assets/sprites/kiln/kiln_body.png).FullName) + @((Get-ChildItem assets/sprites/kiln/soldier_*.png).FullName) + @((Get-Item assets/sprites/ui/panel_9.png,assets/sprites/ui/button_primary_9.png,assets/sprites/ui/panel_corner.png).FullName); $bmp = New-Object System.Drawing.Bitmap(1000,([int][Math]::Ceiling($files.Count/8)*150)); $g=[System.Drawing.Graphics]::FromImage($bmp); $g.Clear([System.Drawing.Color]::FromArgb(38,35,40)); $g.InterpolationMode='"'NearestNeighbor'; "'$g.PixelOffsetMode='"'Half'; "'$font=New-Object System.Drawing.Font('"'Arial',6); for("'$i=0;$i -lt $files.Count;$i++) { $im=[System.Drawing.Image]::FromFile($files[$i]); $x=($i%8)*125; $y=[int][Math]::Floor($i/8)*150; $scale=[Math]::Min(112/$im.Width,115/$im.Height); $g.DrawImage($im,[System.Drawing.Rectangle]::new($x+5,$y+5,[int]($im.Width*$scale),[int]($im.Height*$scale))); $g.DrawString([IO.Path]::GetFileName($files[$i]),$font,[System.Drawing.Brushes]::White,[single]$x,[single]($y+123)); $im.Dispose() }; $bmp.Save((Join-Path (Get-Location) "$taskDir/reference-contact.png")); $g.Dispose(); $bmp.Dispose()' in C:\Users\pc\Documents\game
  succeeded in 1844ms:
+codex
+서체가 다른 시안 3개를 생성했습니다. 이제 실제 크기인 320×80으로 줄여 글자 구분을 비교하고, 지정 팔레트와 선명한 투명 가장자리로 정리하겠습니다. 아이콘은 고른 로고의 가마 문 상징을 사용하겠습니다.
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$dest='"'work/2026-11-28-로고'; Copy-Item -LiteralPath 'C:/Users/pc/.codex/generated_images/01a220c7-3b96-7e00-8735-45665716cd28/exec-d3ed6cce-5e33-4d60-ac09-481a87c5139c.png' -Destination \""'$dest/source-a.png"; Copy-Item -LiteralPath '"'C:/Users/pc/.codex/generated_images/01a220c7-3b96-7e00-8735-45665716cd28/exec-3ad8e529-7ac4-4393-a39d-bc4b204188c5.png' -Destination \""'$dest/source-b.png"; Copy-Item -LiteralPath '"'C:/Users/pc/.codex/generated_images/01a220c7-3b96-7e00-8735-45665716cd28/exec-3c08e912-1a50-4ea4-8cc3-2150b99ea4e0.png' -Destination \""'$dest/source-c.png"; rg -n '"'logo|_draw_title_front|title_far' src/game/kiln_scene.gd; Get-Content -Encoding UTF8 -TotalCount 150 tests/screens_proto.gd; "'$env:GODOT; Get-ChildItem '"'C:/Users/pc/Downloads','C:/Program Files' -Filter '*godot*' -ErrorAction SilentlyContinue | Select-Object FullName" in C:\Users\pc\Documents\game
+ succeeded in 440ms:
+783:	var far := tex("ui/title_far")
+795:		_draw_title_front(false)
+803:		_draw_title_front(false)
+843:	_draw_title_front(false)   # 도트 병사 행렬은 빼 둔다 (사용자: "기본 도트 병사를 그대로 보여줬는데" → 표지 그림이 대신)
+854:func _draw_title_front(marchers := true) -> void:
+879:	var logo := tex("ui/logo")
+880:	if logo != null:
+883:		draw_texture_rect(logo, Rect2(Vector2(320, 76) - logo.get_size() / 2.0, logo.get_size()), false)
+extends SceneTree
+## 1분 시험판 장면별 스크린샷 (화면 확인용).
+##   godot --path . --rendering-driver opengl3 --script res://tests/screens_proto.gd -- <저장 폴더>
+
+var out_dir := ""
+
+
+func _initialize() -> void:
+	var args := OS.get_cmdline_user_args()
+	out_dir = args[0] if args.size() > 0 else OS.get_user_data_dir()
+	DirAccess.make_dir_recursive_absolute(out_dir)
+	create_timer(240.0).timeout.connect(func(): print("시간 초과"); quit(1))
+	_all.call_deferred()
+
+
+func _frames(n: int) -> void:
+	for i in n:
+		await physics_frame  # 게임 시간 기준 (그리기는 더 빠를 수 있다)
+
+
+func _snap(name: String) -> void:
+	await _frames(2)
+	await RenderingServer.frame_post_draw  # 화면이 실제로 다 그려진 뒤에 찍는다
+	await RenderingServer.frame_post_draw
+	root.get_viewport().get_texture().get_image().save_png(out_dir.path_join(name + ".png"))
+	print("saved ", name)
+
+
+func _open(path: String) -> Node:
+	for c in root.get_children():
+		c.queue_free()
+	await _frames(1)
+	var n: Node = load(path).instantiate()
+	root.add_child(n)
+	await _frames(2)
+	return n
+
+
+func _all() -> void:
+
+	# ---- B 가마의 병사 (밤 5번) ----
+	var k = await _open("res://src/game/kiln_scene.tscn")
+	if k.get_script() == null:
+		print("kiln 불러오기 실패"); quit(1); return
+	await _snap("p00b_kiln_title")
+	k.meta.embers = 64
+	k.meta.levels = {"core": 1, "wall": 2, "clay": 1, "ticket": 1, "train": 1, "purse": 1, "fire": 1}
+	k.state = "meta"
+	k.meta_hover = ""
+	await _snap("p00c_kiln_meta")
+	k.meta.records = {"1": [{"time": 132.4, "date": "2026-11-29", "army": ""}, {"time": 151.0, "date": "2026-11-28", "army": ""}], "2": [{"time": 201.7, "date": "2026-11-29", "army": ""}]}
+	k.state = "records"
+	await _snap("p00d_kiln_records")
+	k.state = "prep"
+	var run = k.run
+	k.tut_seen = {}
+	await _snap("p01a_kiln_tutorial_draw")
+	# 7종이 다 보이게 정해서 뽑는다 (실제 게임은 무작위)
+	for f in [["shield", "earth"], ["spear", "fire"], ["axe", "fire"], ["cavalry", "fire"], ["archer", "water"], ["healer", "water"], ["cannon", "earth"], ["spear", "fire"]]:
+		run.draw(f[0], f[1])
+	run.since["rare"] = 5
+	await _snap("p01_kiln_prep_first")
+	k.state = "gacha"
+	await _snap("p01b_kiln_gacha")
+	k.state = "load"
+	k.load_t = 0
+	await _frames(28)
+	await _snap("p01c_kiln_load")
+	k.state = "fire"
+	for i in 6:
+		k.kiln.heat_up()
+	await _frames(70)
+	await _snap("p02_kiln_fire")
+	for i in 3:
+		k.kiln.heat_up()
+	await _frames(70)
+	k.bet_on = true
+	await _snap("p02b_kiln_fire_hot")
+	run.kiln.heat = 4
+	run.bet_busts = 3   # 대박이 나오는 장면
+	k.kiln.results = run.fire(true)
+	k.bet_on = false
+	k.bet_told = false
+	k.kiln.results[1]["tier"] = "legend"
+	run.army[1]["tier"] = "legend"
+	k.kiln.results[3]["cracked"] = true
+	k.state = "reveal"
+	k.reveal_t = 0
+	k.reveal_shown = 0
+	await _frames(40)
+	await _snap("p02c_kiln_open")
+	await _frames(75)
+	await _snap("p03_kiln_reveal_legend")
+	k.reveal_t = 400
+	await _frames(4)
+	if not k.gfx.is_empty():
+		k.gfx["taps"] = 1
+		k.gfx["need"] = 3
+		await _frames(2)
+		await _snap("p03a_kiln_gacha_tap")
+		k.gfx["phase"] = "burst"
+		k.gfx["t"] = 24
+		await _frames(1)
+		await _snap("p03a2_kiln_gacha_burst")
+		k.gfx["phase"] = "show"
+		k.gfx["t"] = 30
+		await _frames(2)
+		await _snap("p03b_kiln_gacha_show")
+	for i in k.kiln.results.size():
+		k.gfx_done[i] = true
+	k.gfx = {}
+	await _frames(260)
+	await _snap("p04_kiln_reveal_done")
+	# 많이 구웠을 때 (가마 30칸): 작은 카드 여러 줄
+	var keep: Array = k.kiln.results
+	var many: Array = []
+	for i in 24:
+		var r0: Dictionary = keep[i % keep.size()].duplicate()
+		r0["cracked"] = false
+		many.append(r0)
+	many[5]["cracked"] = true
+	k.kiln.results = many
+	k.reveal_shown = many.size()
+	for i in many.size():
+		k.card_at[i] = -100
+	await _frames(2)
+	await _snap("p04b_kiln_reveal_many")
+	k.kiln.results = keep
+	k.card_at = {}
+	for i in keep.size():
+		k.card_at[i] = -100
+	# 둘째 밤 준비: 병사가 남아 있고, 진사 창병 3명이면 합치기 버튼
+	run.night = 2
+	run.clay = 9
+	run.draw("spear", "water")
+	run.kiln.heat = 0
+	run.fire()
+	k.selected = run.army[0]["id"]
+	k.state = "prep"
+	await _snap("p05_kiln_prep_night2")
+	# 높은 등급 병사들을 더해 챕터 2 아침 화면 (튜토리얼 끔)
+	k.tutorial_enabled = false
+	run.chapter = 2
+	run.night = 3
+	for f in [["general", "earth", "normal"], ["sniper", "water", "legend"], ["haetae", "fire", "fine"], ["cheoyong", "fire", "normal"],
+			["dragon", "water", "normal"], ["baekho", "earth", "normal"], ["jujak", "fire", "normal"], ["hyeonmu", "water", "normal"], ["twin", "fire", "normal"], ["slinger", "earth", "normal"]]:
+		run._add_soldier(f[0], f[1], f[2])
+	run.myth_shards = 3
+	run.since["legendary"] = 70
+	run.tickets = 4
+C:\Users\pc\Documents\Godot\Godot_v4.7.2-stable_win64_console.exe
+
+apply patch
+patch: completed
+C:\Users\pc\Documents\game\work\2026-11-28-로고\prompts.md
+diff --git a/work/2026-11-28-로고/prompts.md b/work/2026-11-28-로고/prompts.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..09483bdb17d31c36963fe3d88fc1d7c965dad1c2
+--- /dev/null
++++ b/work/2026-11-28-로고/prompts.md
+@@ -0,0 +1,13 @@
++# Logo generation prompts
++
++Method: built-in image_gen, transparent_background=true; one call per variant.
++
++## A
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant A: substantial upright slab-serif lettering, clean monolithic shapes with small squared bracket serifs, generous even spacing. Dominant pale celadon faces with dark warm clay along the bottom quarter; very restrained gold at top-left corners. Broad round-rectangular O kiln with chunky arch, small flame. Timeless composed typography, not decorative fantasy scrollwork.
++
++## B
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant B: compact upright geometric sans-serif letters with clipped chamfered corners, broad strong strokes, clearly separated glyphs. Glazed ceramic ivory-green upper face, celadon midtone and restrained dark clay bottom bevel, no long horizontal red stripe. No serifs. The kiln O is integrated into the exact same cap-height and width as neighboring letters. Tiny limited gold accents. Overall a spare bold silhouette with hand-shaped ceramic softness represented by orderly pixel stair-steps.
++
++## C
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant C: elegant sturdy upright narrow Roman slab capitals, subtly flared squared stroke ends, generous open counters, no italics. Warm ivory ceramic faces #e8dcb8 with muted celadon on lower third and very dark clay base, gold edge accents only. Make the kiln O a restrained arch with two straight sides, small flame confined inside its counter. Keep B and R instantly legible. Architectural and restrained, no gothic spikes or curls. One connected highlight cluster per glyph; broad plain surfaces.
++
+
+apply patch
+patch: completed
+C:\Users\pc\Documents\game\work\2026-11-28-로고\prepare.ps1
+diff --git a/work/2026-11-28-로고/prepare.ps1 b/work/2026-11-28-로고/prepare.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..17ca313819193580d07cd5e9343bfc7be104219b
+--- /dev/null
++++ b/work/2026-11-28-로고/prepare.ps1
+@@ -0,0 +1,47 @@
++$ErrorActionPreference = 'Stop'
++Add-Type -AssemblyName System.Drawing
++Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
++using System;
++using System.IO;
++using System.Drawing;
++using System.Drawing.Drawing2D;
++using System.Collections.Generic;
++public static class LogoPrep {
++ static Color[] pal = Array.ConvertAll(new string[]{"282322","120e16","1c1622","2a2236","5a4630","8a6a48","a8862e","e8c35a","fff1c4","b98a5e","7a5a44","e8dcb8","f2e6c8","6f6c66","b0b8c0","dfe6ee","b8463a","7a2a24","6b9878","a6c5a3","ff9a3c"}, s=>ColorTranslator.FromHtml("#"+s));
++ static Color Match(Color c) { int best=0; double score=1e20; for(int i=0;i<pal.Length;i++){double r=c.R-pal[i].R,g=c.G-pal[i].G,b=c.B-pal[i].B; double d=r*r+g*g+b*b; if(d<score){score=d; best=i;}} return pal[best]; }
++ public static Rectangle Bounds(Bitmap b) {int l=b.Width,t=b.Height,r=-1,d=-1; for(int y=0;y<b.Height;y++)for(int x=0;x<b.Width;x++)if(b.GetPixel(x,y).A>=180){l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);d=Math.Max(d,y);} return Rectangle.FromLTRB(l,t,r+1,d+1);}
++ public static Bitmap Process(string path) {
++  using(Bitmap s=new Bitmap(path)){
++   Rectangle box=Bounds(s); Bitmap b=new Bitmap(320,80);
++   int w=302,h=54,left=9,top=13;
++   for(int y=0;y<h;y++) for(int x=0;x<w;x++){
++    Color c=s.GetPixel(box.Left+(int)((x+.5)*box.Width/w),box.Top+(int)((y+.5)*box.Height/h));
++    if(c.A>=180) b.SetPixel(left+x,top+y,Match(c));
++   }
++   // Normalize silhouette edge to the required ink outline, removing alpha fringes.
++   using(Bitmap before=(Bitmap)b.Clone())for(int y=1;y<79;y++)for(int x=1;x<319;x++){
++    if(before.GetPixel(x,y).A==0)continue;
++    if(before.GetPixel(x-1,y).A==0||before.GetPixel(x+1,y).A==0||before.GetPixel(x,y-1).A==0||before.GetPixel(x,y+1).A==0)b.SetPixel(x,y,pal[0]);
++   }
++   // Remove isolated opaque pixels, retaining intentional connected highlights.
++   using(Bitmap before=(Bitmap)b.Clone())for(int y=1;y<79;y++)for(int x=1;x<319;x++){
++    if(before.GetPixel(x,y).A==0)continue; int n=0;
++    for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++)if((dx!=0||dy!=0)&&before.GetPixel(x+dx,y+dy).A>0)n++;
++    if(n==0)b.SetPixel(x,y,Color.Transparent);
++   }
++   return b;
++  }
++ }
++ public static void Draw(Graphics g,Bitmap b,int x,int y,int scale){g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;g.DrawImage(b,new Rectangle(x,y,b.Width*scale,b.Height*scale),0,0,b.Width,b.Height,GraphicsUnit.Pixel);}
++ public static void Run(string dir){
++  Bitmap[] opts=new Bitmap[3]; string[] ids={"a","b","c"}; string[] names={"A  /  CELADON SLAB","B  /  CHAMFERED CERAMIC","C  /  IVORY SLAB"};
++  using(Bitmap sheet=new Bitmap(1080,770)) using(Graphics g=Graphics.FromImage(sheet))using(Font font=new Font("Arial",12)){
++   g.Clear(ColorTranslator.FromHtml("#10101c"));
++   for(int i=0;i<3;i++) {opts[i]=Process(Path.Combine(dir,"source-"+ids[i]+".png"));opts[i].Save(Path.Combine(dir,"option-"+ids[i]+".png"));int y=20+i*250;g.DrawString(names[i],font,Brushes.Wheat,20,y);Draw(g,opts[i],20,y+40,2);Draw(g,opts[i],730,y+75,1);g.DrawString("2x",font,Brushes.Gray,20,y+210);g.DrawString("1x",font,Brushes.Gray,730,y+170);}
++   sheet.Save(Path.Combine(dir,"logo_options.png"));
++  }
++  foreach(Bitmap b in opts)b.Dispose();
++ }
++}
++'@
++[LogoPrep]::Run((Join-Path (Get-Location) 'work/2026-11-28-로고'))
+diff --git a/work/2026-11-28-로고/prompts.md b/work/2026-11-28-로고/prompts.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..09483bdb17d31c36963fe3d88fc1d7c965dad1c2
+--- /dev/null
++++ b/work/2026-11-28-로고/prompts.md
+@@ -0,0 +1,13 @@
++# Logo generation prompts
++
++Method: built-in image_gen, transparent_background=true; one call per variant.
++
++## A
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant A: substantial upright slab-serif lettering, clean monolithic shapes with small squared bracket serifs, generous even spacing. Dominant pale celadon faces with dark warm clay along the bottom quarter; very restrained gold at top-left corners. Broad round-rectangular O kiln with chunky arch, small flame. Timeless composed typography, not decorative fantasy scrollwork.
++
++## B
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant B: compact upright geometric sans-serif letters with clipped chamfered corners, broad strong strokes, clearly separated glyphs. Glazed ceramic ivory-green upper face, celadon midtone and restrained dark clay bottom bevel, no long horizontal red stripe. No serifs. The kiln O is integrated into the exact same cap-height and width as neighboring letters. Tiny limited gold accents. Overall a spare bold silhouette with hand-shaped ceramic softness represented by orderly pixel stair-steps.
++
++## C
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant C: elegant sturdy upright narrow Roman slab capitals, subtly flared squared stroke ends, generous open counters, no italics. Warm ivory ceramic faces #e8dcb8 with muted celadon on lower third and very dark clay base, gold edge accents only. Make the kiln O a restrained arch with two straight sides, small flame confined inside its counter. Keep B and R instantly legible. Architectural and restrained, no gothic spikes or curls. One connected highlight cluster per glyph; broad plain surfaces.
++
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "& 'work/2026-11-28-로고/prepare.ps1'" in C:\Users\pc\Documents\game
+ exited 1 in 144ms:
+& : 이 시스템에서 스크립트를 실행할 수 없으므로 C:\Users\pc\Documents\game\work\2026-11-28-로고\prepare.ps1 파일을 로드할 수 없습니다. 자세한 내용은 about_Ex
+ecution_Policies(https://go.microsoft.com/fwlink/?LinkID=135170)를 참조하십시오.
+위치 줄:2 문자:3
++ & 'work/2026-11-28-로고/prepare.ps1'
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : 보안 오류: (:) [], PSSecurityException
+    + FullyQualifiedErrorId : UnauthorizedAccess
+
+2026-11-28T06:14:50.402782Z ERROR codex_core::tools::router: error=unable to locate image at `C:\Users\pc\Documents\game\work\2026-11-28-로고\logo_options.png`: 지정된 파일을 찾을 수 없습니다. (os error 2)
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "powershell -NoProfile -ExecutionPolicy Bypass -File 'work/2026-11-28-로고/prepare.ps1'" in C:\Users\pc\Documents\game
+ exited 1 in 2441ms:
+Exception calling "Run" with "1" argument(s): "Parameter is not valid."
+At C:\Users\pc\Documents\game\work\2026-11-28-로고\prepare.ps1:47 char:1
++ [LogoPrep]::Run((Join-Path (Get-Location) 'work/2026-11-28-濡쒓퀬'))
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : ArgumentException
+ 
+
+2026-11-28T06:15:01.556210Z ERROR codex_core::tools::router: error=unable to locate image at `C:\Users\pc\Documents\game\work\2026-11-28-로고\logo_options.png`: 지정된 파일을 찾을 수 없습니다. (os error 2)
+apply patch
+patch: completed
+C:\Users\pc\Documents\game\work\2026-11-28-로고\prepare.ps1
+diff --git a/work/2026-11-28-로고/prepare.ps1 b/work/2026-11-28-로고/prepare.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..5634636a5fdeff62d0a40df3ca4657f5d1de0a10
+--- /dev/null
++++ b/work/2026-11-28-로고/prepare.ps1
+@@ -0,0 +1,47 @@
++$ErrorActionPreference = 'Stop'
++Add-Type -AssemblyName System.Drawing
++Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
++using System;
++using System.IO;
++using System.Drawing;
++using System.Drawing.Drawing2D;
++using System.Collections.Generic;
++public static class LogoPrep {
++ static Color[] pal = Array.ConvertAll(new string[]{"282322","120e16","1c1622","2a2236","5a4630","8a6a48","a8862e","e8c35a","fff1c4","b98a5e","7a5a44","e8dcb8","f2e6c8","6f6c66","b0b8c0","dfe6ee","b8463a","7a2a24","6b9878","a6c5a3","ff9a3c"}, s=>ColorTranslator.FromHtml("#"+s));
++ static Color Match(Color c) { int best=0; double score=1e20; for(int i=0;i<pal.Length;i++){double r=c.R-pal[i].R,g=c.G-pal[i].G,b=c.B-pal[i].B; double d=r*r+g*g+b*b; if(d<score){score=d; best=i;}} return pal[best]; }
++ public static Rectangle Bounds(Bitmap b) {int l=b.Width,t=b.Height,r=-1,d=-1; for(int y=0;y<b.Height;y++)for(int x=0;x<b.Width;x++)if(b.GetPixel(x,y).A>=180){l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);d=Math.Max(d,y);} return Rectangle.FromLTRB(l,t,r+1,d+1);}
++ public static Bitmap Process(string path) {
++  using(Bitmap s=new Bitmap(path)){
++   Rectangle box=Bounds(s); Bitmap b=new Bitmap(320,80);
++   int w=302,h=54,left=9,top=13;
++   for(int y=0;y<h;y++) for(int x=0;x<w;x++){
++    Color c=s.GetPixel(box.Left+(int)((x+.5)*box.Width/w),box.Top+(int)((y+.5)*box.Height/h));
++    if(c.A>=180) b.SetPixel(left+x,top+y,Match(c));
++   }
++   // Normalize silhouette edge to the required ink outline, removing alpha fringes.
++   using(Bitmap before=(Bitmap)b.Clone())for(int y=1;y<79;y++)for(int x=1;x<319;x++){
++    if(before.GetPixel(x,y).A==0)continue;
++    if(before.GetPixel(x-1,y).A==0||before.GetPixel(x+1,y).A==0||before.GetPixel(x,y-1).A==0||before.GetPixel(x,y+1).A==0)b.SetPixel(x,y,pal[0]);
++   }
++   // Remove isolated opaque pixels, retaining intentional connected highlights.
++   using(Bitmap before=(Bitmap)b.Clone())for(int y=1;y<79;y++)for(int x=1;x<319;x++){
++    if(before.GetPixel(x,y).A==0)continue; int n=0;
++    for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++)if((dx!=0||dy!=0)&&before.GetPixel(x+dx,y+dy).A>0)n++;
++    if(n==0)b.SetPixel(x,y,Color.Transparent);
++   }
++   return b;
++  }
++ }
++ public static void Draw(Graphics g,Bitmap b,int x,int y,int scale){g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;g.DrawImage(b,new Rectangle(x,y,b.Width*scale,b.Height*scale),0,0,b.Width,b.Height,GraphicsUnit.Pixel);}
++ public static void Run(string dir){
++  Bitmap[] opts=new Bitmap[3]; string[] ids={"a","b","c"}; string[] names={"A  /  CELADON SLAB","B  /  CHAMFERED CERAMIC","C  /  IVORY SLAB"};
++  using(Bitmap sheet=new Bitmap(1080,770)) using(Graphics g=Graphics.FromImage(sheet))using(Font font=new Font("Arial",12)){
++   g.Clear(ColorTranslator.FromHtml("#10101c"));
++   for(int i=0;i<3;i++) {opts[i]=Process(Path.Combine(dir,"source-"+ids[i]+".png"));opts[i].Save(Path.Combine(dir,"option-"+ids[i]+".png"));int y=20+i*250;g.DrawString(names[i],font,Brushes.Wheat,20,y);Draw(g,opts[i],20,y+40,2);Draw(g,opts[i],730,y+75,1);g.DrawString("2x",font,Brushes.Gray,20,y+210);g.DrawString("1x",font,Brushes.Gray,730,y+170);}
++   sheet.Save(Path.Combine(dir,"logo_options.png"));
++  }
++  foreach(Bitmap b in opts)b.Dispose();
++ }
++}
++'@
++[LogoPrep]::Run($PSScriptRoot)
+diff --git a/work/2026-11-28-로고/prompts.md b/work/2026-11-28-로고/prompts.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..09483bdb17d31c36963fe3d88fc1d7c965dad1c2
+--- /dev/null
++++ b/work/2026-11-28-로고/prompts.md
+@@ -0,0 +1,13 @@
++# Logo generation prompts
++
++Method: built-in image_gen, transparent_background=true; one call per variant.
++
++## A
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant A: substantial upright slab-serif lettering, clean monolithic shapes with small squared bracket serifs, generous even spacing. Dominant pale celadon faces with dark warm clay along the bottom quarter; very restrained gold at top-left corners. Broad round-rectangular O kiln with chunky arch, small flame. Timeless composed typography, not decorative fantasy scrollwork.
++
++## B
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant B: compact upright geometric sans-serif letters with clipped chamfered corners, broad strong strokes, clearly separated glyphs. Glazed ceramic ivory-green upper face, celadon midtone and restrained dark clay bottom bevel, no long horizontal red stripe. No serifs. The kiln O is integrated into the exact same cap-height and width as neighboring letters. Tiny limited gold accents. Overall a spare bold silhouette with hand-shaped ceramic softness represented by orderly pixel stair-steps.
++
++## C
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant C: elegant sturdy upright narrow Roman slab capitals, subtly flared squared stroke ends, generous open counters, no italics. Warm ivory ceramic faces #e8dcb8 with muted celadon on lower third and very dark clay base, gold edge accents only. Make the kiln O a restrained arch with two straight sides, small flame confined inside its counter. Keep B and R instantly legible. Architectural and restrained, no gothic spikes or curls. One connected highlight cluster per glyph; broad plain surfaces.
++
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "powershell -NoProfile -ExecutionPolicy Bypass -File 'work/2026-11-28-로고/prepare.ps1'" in C:\Users\pc\Documents\game
+ succeeded in 3136ms:
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Encoding UTF8 -Raw project.godot; Get-Content -Encoding UTF8 src/game/kiln_scene.gd | Select-Object -Skip 850 -First 65; Get-Content -Encoding UTF8 -TotalCount 90 src/game/proto_base.gd; Get-Content -Encoding UTF8 -TotalCount 65 src/game/kiln_scene.gd; Get-ChildItem -Directory | Select-Object Name; Get-ChildItem assets,src -Recurse -File | Measure-Object -Property Length -Sum' in C:\Users\pc\Documents\game
+ succeeded in 466ms:
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="KILNBORN"
+run/main_scene="res://src/game/launcher.tscn"
+config/features=PackedStringArray("4.7")
+
+[display]
+
+window/size/viewport_width=640
+window/size/viewport_height=400
+window/size/window_width_override=1280
+window/size/window_height_override=800
+window/stretch/mode="viewport"
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=0
+
+	draw_texture_rect(tx, Rect2(Vector2((VIEW.x - sz.x) / 2.0, VIEW.y - sz.y) + off, sz), false)
+
+
+func _draw_title_front(marchers := true) -> void:
+	# 표지 그림이 없을 때만: 언덕 위 실루엣 병사들 (도트 인형을 그대로 보이지 않게 어둡게)
+	var roles := ["shield", "spear", "spear", "archer", "axe", "general", "cavalry", "healer", "dragon"]
+	var els := ["earth", "fire", "water", "water", "fire", "fire", "earth", "water", "water"]
+	for i in (roles.size() if marchers else 0):
+		var x: float = fmod(t * 0.45 + i * 34.0, 760.0) - 60.0
+		var bob: float = absf(sin(t * 0.18 + i)) * 2.0
+		var nm := soldier_sprite(roles[i], els[i])
+		if not draw_sprite(nm, Vector2(x, 296 - bob), 1.5, Color(0.16, 0.13, 0.18)):
+			draw_ally_shape(Vector2(x, 296 - bob), roles[i], els[i], "normal", 1.5)
+	# 멀리서 다가오는 도깨비 눈빛
+	for i in 6:
+		var gx: float = 640.0 - fmod(t * 0.12 + i * 40.0, 200.0)
+		var gy: float = 240.0 + (i % 3) * 6.0
+		var blink: float = 1.0 if fmod(t * 0.02 + i, 3.0) > 0.15 else 0.0
+		draw_rect(Rect2(gx, gy, 2, 1), Color(1.0, 0.85, 0.2, 0.8 * blink))
+		draw_rect(Rect2(gx + 5, gy, 2, 1), Color(1.0, 0.85, 0.2, 0.8 * blink))
+	# 반딧불·불티
+	for i in 16:
+		var fp := Vector2(fmod(i * 61.0 + t * 0.2 * (1 + i % 3), 640.0), 180.0 + fmod(i * 23.0 - t * 0.15, 160.0))
+		var fa: float = maxf(0.0, sin(t * 0.07 + i))
+		glow(self, fp, 5.0, Color(1.0, 0.8, 0.4, 0.5 * fa))
+	# 제목
+	var title := "KILNBORN"   # 게임 이름 (2026-11-28 사용자: "KILNBORN 이거만 해서 이름 정하자")
+	glow(self, Vector2(320, 92), 120.0, Color(1.0, 0.75, 0.35, 0.12))
+	var logo := tex("ui/logo")
+	if logo != null:
+		# 로고 그림 (Codex, 지시서 11): 320×80 자리에 원래 크기로, 불빛이 살짝 숨 쉰다
+		glow(self, Vector2(320, 80), 90.0 + 6.0 * sin(t * 0.05), Color(1.0, 0.6, 0.25, 0.10))
+		draw_texture_rect(logo, Rect2(Vector2(320, 76) - logo.get_size() / 2.0, logo.get_size()), false)
+	else:
+		var w: float = font_bold.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36).x
+		for oo in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 3)]:
+			draw_string(font_bold, Vector2(320 - w / 2.0, 104).round() + oo, title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36, Color("1a1208"))
+		draw_string(font_bold, Vector2(320 - w / 2.0, 104).round(), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36, UI["gold"])
+	var sub := "도자기 병사로 마을을 지키는 로그라이트 디펜스"
+	text(Vector2(320 - font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x / 2.0, 124), sub, Color("e8dcc0"))
+	# 버튼
+	button(Rect2(230, 146, 180, 30), "새 판 시작  (Enter)", "start", UI["gold"], true, true)
+	button(Rect2(230, 182, 88, 24), "전술 강화", "to_meta", UI["gold"])
+	button(Rect2(322, 182, 88, 24), "기록", "to_records", UI["gold"])
+	var ec := Rect2(270, 212, 100, 20)
+	chip(ec, "불씨 %d" % meta.embers, UI["gold"])
+	draw_icon("ember", ec.position + Vector2(4, 3), 1.0)
+	# 소개 문장 (4초마다 바뀌며 스며듦)
+	var idx: int = (t / 240) % INTRO.size()
+	var ph2: float = fmod(t, 240.0) / 240.0
+	var al: float = minf(1.0, minf(ph2 * 6.0, (1.0 - ph2) * 6.0))
+	var line: String = INTRO[idx]
+	var lw: float = font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+	draw_rect(Rect2(0, 352, 640, 30), Color(0, 0, 0, 0.45))
+	text(Vector2(320 - lw / 2.0, 372), line, Color(0.95, 0.9, 0.8, al))
+
+
+func _draw_meta() -> void:
+	panel(Rect2(6, 4, 628, 40))
+	button(Rect2(14, 13, 70, 22), "‹ 로비" if meta_from == "prep" else "‹ 처음 화면", "back", UI["gold"])
+	text(Vector2(94, 34), "전술 강화", UI["gold"], 24)
+	text(Vector2(214, 31), fit("왼쪽에서 오른쪽으로 · 다음 판부터 적용", 306.0), UI["muted"])
+	var er := Rect2(530, 13, 96, 22)
+	chip(er, "불씨 %d" % meta.embers, UI["gold"])
+	draw_icon("ember", er.position + Vector2(4, 4), 1.0)
+extends Node2D
+## 1분 시험판 화면 공통: 글꼴·버튼·입력·연출(흔들림·파편·떠오르는 글자·배너·번쩍임)·전투 그리기.
+## 규칙은 src/proto/ 에 있고, 여기서는 읽어서 그리기만 한다. 그림은 임시 도형.
+
+const PD = preload("res://src/proto/data.gd")
+
+const VIEW := Vector2(640, 400)
+const FIELD_OFFSET := Vector2(0, 64)
+const C := {
+	"bg": Color("15131d"), "text": Color("efe8da"), "dim": Color("9d95aa"), "accent": Color("ffcf5a"),
+	"danger": Color("ff5a4f"), "good": Color("7ee08a"), "panel": Color(0.07, 0.06, 0.1, 0.94), "card": Color("231f2f"),
+	"grass_a": Color("23301f"), "grass_b": Color("1f2b1c"), "village": Color("6b4f3a"), "roof": Color("a2493a"),
+	"water": Color("7fc7b8"), "fire": Color("d9533f"), "earth": Color("5a4236"),
+	"goblin": Color("b0553c"), "imp": Color("5f8cff"), "brute": Color("8c3b2e"), "hostile": Color("5b2a6e"),
+	"clay": Color("b98a5e"),
+}
+
+var font: FontFile
+var font_bold: FontFile          # 굵은 글꼴: 피해 숫자·버튼·이름
+var font_head: FontFile          # 제목 글꼴 (크기 20 이상): 도현
+var buttons: Array = []          # 이번 프레임에 그린 버튼 [{rect, id}]
+var _prev := {}
+var _mouse_prev := false
+var fx: Array = []               # 파편 [{pos, vel, t, life, color, size}]
+var floats: Array = []           # 떠오르는 글자 [{pos, text, color, size, t, life}]
+var banner := {}                 # {text, sub, color, t, life}
+var flash := {}                  # {color, t, life}
+var shake := 0.0
+var t := 0                       # 화면 프레임 (애니메이션용)
+var battle = null
+var view_style := "kiln"
+var shot_lines: Array = []
+
+const ALLY_SCALE := 2.0          # 전투에서 아군 그림 크기 (32px → 64px)
+var glow_layer: Node2D           # 빛 층 (가산 혼합)
+var glow_tex: Texture2D          # 가운데가 밝고 가장자리로 사라지는 부드러운 원
+var uv := {}                     # 유닛별 움직임 상태 {id: {lunge, dir, kb, hit, squash, walk, prev}}
+var arrows: Array = []           # 날아가는 화살·도깨비불 [{from, to, t, life, element, team}]
+var swooshes: Array = []         # 공격 궤적 [{pos, dir, t, life, role, element, team}]
+var corpses: Array = []          # 쓰러지는 유닛 [{pos, vel, t, life, ...}]
+var lights: Array = []           # 순간 섬광 [{pos, radius, color, t, life}]
+var hitstop := 0                 # 큰 한 방에 전투를 잠깐 멈춘다 (손맛)
+var impacts: Array = []          # 맞는 순간의 십자 섬광 [{pos, t, life, size, color}]
+var wave_parts: Array = []       # 합동 기술 파도 입자 [{pos, vel, t, life, size, element}]
+var cutin := {}                  # 합동 기술 컷신 {element, name, count, who, t, life}
+const CUTIN_LEN := 84
+var rings: Array = []            # 스킬 충격파 고리 [{pos, r0, r1, t, life, color}]
+var beams: Array = []            # 청룡 물기둥 [{from, to, t, life, element}]
+var boss_seen := {}              # 등장을 알린 대장
+var anims: Array = []            # 이펙트 애니메이션 [{name, pos, frame_t, scale, add, flip}]
+const FX_FPS := 20               # 이펙트 그림 한 장면당 3프레임 (초당 20장)
+
+
+func _ready() -> void:
+	# 글꼴 (2026-11-28 "폰트가 눈에 잘 들어오도록"): 본문 Pretendard Medium · 굵게 Pretendard Bold · 제목 도현 (모두 OFL)
+	# 화면은 1280×800 으로 그리므로 매끈한 글꼴이 그 해상도로 또렷하게 나온다 (그림은 픽셀, 글자는 매끈하게)
+	font = _load_font("Pretendard-Medium.otf", "Galmuri11.ttf")
+	font_bold = _load_font("Pretendard-Bold.otf", "Galmuri11-Bold.ttf")
+	font_head = _load_font("DoHyeon-Regular.ttf", "Galmuri11-Bold.ttf")
+	var g := GradientTexture2D.new()
+	g.width = 64
+	g.height = 64
+	g.fill = GradientTexture2D.FILL_RADIAL
+	g.fill_from = Vector2(0.5, 0.5)
+	g.fill_to = Vector2(1.0, 0.5)
+	var grad := Gradient.new()
+	grad.set_color(0, Color(1, 1, 1, 1))
+	grad.set_color(1, Color(1, 1, 1, 0))
+	grad.add_point(0.35, Color(1, 1, 1, 0.55))
+	g.gradient = grad
+	glow_tex = g
+	# 고해상도로 그리기: 픽셀 그림은 또렷하게(가까운 점), 빛·안개·연기는 부드럽게 (층마다 따로)
+	# project.godot 대신 실행 중에 바꾼다 (컴퓨터 쪽 편집기 변경과 겹치지 않게)
+	var win := get_window()
+	if win != null:
+		win.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+		win.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
+	var Layer = load("res://src/game/glow_layer.gd")
+	for mode in ["bg", "back", "glow", "front", "top"]:
+		var l: Node2D = Layer.new()
+		l.setup(self, mode)
+		add_child(l)
+		if mode == "glow":
+			glow_layer = l
+	_init_atmosphere()
+
+
+## 부드러운 빛 한 점 (어느 층에든 그릴 수 있다)
+func glow(ci: CanvasItem, pos: Vector2, radius: float, color: Color, squash := 1.0) -> void:
+	ci.draw_texture_rect(glow_tex, Rect2(pos - Vector2(radius, radius * squash), Vector2(radius * 2.0, radius * 2.0 * squash)), false, color)
+extends "res://src/game/proto_base.gd"
+## B 가마의 병사 — 한 판 = 챕터 5개 × (아침 5번 · 밤 5번). 병사는 밤·챕터가 지나도 남는다.
+##   아침(뽑기·다시 굽기·합치기) → 가마(불 올리기·열기) → 아침 → 밤 → 밤 결과 → … → 다섯째 밤 대장 → 다음 챕터
+
+const KilnRun = preload("res://src/proto/kiln_run.gd")
+const Meta = preload("res://src/proto/meta.gd")
+var meta                 # 전술 강화·기록 (판이 끝나도 남는다)
+var last_rank := -1      # 방금 챕터 기록 순위
+var last_embers := 0     # 방금 판에서 얻은 불씨
+var meta_hover := ""
+
+var run
+var kiln                 # run.kiln (불 세기·확률·파편)
+var state := "prep"      # prep → fire → reveal → prep → battle → night_end → prep … / final
+var reveal_t := 0
+var reveal_shown := 0
+var selected := -1       # 고른 병사 id
+var draw_flash := 0      # 방금 뽑은 칸 반짝임
+var fought := Vector2i(1, 1)   # 방금 싸운 (챕터, 밤) — 밤 결과 화면용
+var show_help := false   # 별·등급 안내 창
+var right_tab := "draw"  # 오른쪽 칸: draw 뽑기 / shop 상점 / equip 장비 (챕터 3부터)
+var bet_on := false      # 가마신과 내기를 걸었나
+var bet_told := false    # 내기 결과를 알렸나
+var promo_pick := false  # 전직 재료를 고르는 중
+var drag_id := -1        # 배치: 끌고 있는 병사 id
+var drag_from := Vector2.ZERO
+var mouse_was := false
+var tip_sid := -1        # 정보창을 띄운 병사 id (배치·전투)
+var tip_t := 0
+var unit_sid := {}       # 전투 유닛 id → 병사 id
+var gfx := {}            # 희귀 이상 등장 연출 {i, grade, need, taps, phase(tap/burst/show), t}
+var gfx_done := {}       # 연출을 마친 결과 칸
+const GFX_TAPS := {"rare": 1, "hero": 2, "legendary": 3, "mythic": 3}
+var army_page := 0       # 부대 칸 쪽 (18칸 넘으면 여러 쪽)
+var meta_from := "title" # 전술 강화를 어디서 열었나 (처음 화면 / 로비)
+var res_page := 0        # 대기실 쪽
+var res_sort := "grade"  # 대기실 정렬: grade 등급순 / new 최근순
+var res_pick := -1       # 대기실에서 고른 병사 (부대 병사를 누르면 맞바꾼다)
+var hover_sid := -1      # 대기실 화면: 마우스가 올라간 병사 (정보창)
+var release_armed := -1  # 돌려보내기: 한 번 더 눌러야 확정
+var drawn_at := {}       # 작업대: 가마 줄 번호 → 흙 인형이 나타나는 프레임 (5번 뽑기는 차례로)
+var popped := {}         # 나타날 때 흙먼지를 이미 냈나
+var load_t := 0          # 흙 인형이 가마로 들어가는 연출 시간
+var card_at := {}        # 꺼낸 병사 카드가 나타난 프레임 (결과 번호 → t)
+const OPEN_T := 64       # 가마 문이 열리기까지
+const CARD_GAP := 16     # 카드 사이 간격 (프레임)
+const NEUTRAL := Color(1.0, 0.9, 0.74)   # 등장 연출의 빛: 등급을 미리 알리지 않는 따뜻한 흰빛
+const CLAY_TONES := [Color("3a2c22"), Color("7a604a"), Color("a88a6c"), Color("cdb594")]
+var end_t := 0           # 밤 결과 창 연출 시간
+var shop_pick := -1      # 상점: 병사를 고르는 중인 진열 칸
+var end_wait := 0        # 마지막 적이 쓰러진 뒤 여운
+# 튜토리얼 (처음 한 번씩만): draw 뽑기 → fire 가마 → star 별 올리기 → full 자리 꽉 참
+const TUT_FILE := "user://kiln_tutorial.cfg"
+var tut_seen := {}
+var tut_now := ""
+var tutorial_enabled := true
+
+
+func _ready() -> void:
+	super._ready()
+	view_style = "kiln"
+	var cf := ConfigFile.new()
+	if cf.load(TUT_FILE) == OK:
+		for k in cf.get_section_keys("seen") if cf.has_section("seen") else []:
+			tut_seen[k] = true
+
+Name     
+----     
+.claude  
+.githooks
+.godot   
+art      
+assets   
+docs     
+perf     
+reports  
+scripts  
+sim      
+src      
+tests    
+work     
+         
+
+
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Add-Type -AssemblyName System.Drawing; $b=[System.Drawing.Bitmap]::FromFile((Join-Path (Get-Location) '"'work/2026-11-28-로고/option-a.png')); "'$segments=@(); $start=-1; for($x=0;$x -le $b.Width;$x++){ $count=0; if($x -lt $b.Width){for($y=0;$y -lt $b.Height;$y++){if($b.GetPixel($x,$y).A -gt 0){$count++}}}; if($count -gt 0 -and $start -lt 0){$start=$x}; if($count -eq 0 -and $start -ge 0){$segments+= "$start..$($x-1)"; $start=-1}}; $b.Dispose(); $segments; (Get-ChildItem assets,src,.godot -Recurse -File | Measure-Object -Property Length -Sum).Sum' in C:\Users\pc\Documents\game
+ succeeded in 532ms:
+9..50
+53..72
+74..105
+107..149
+153..186
+189..228
+230..267
+269..310
+17293321
+
+codex
+1배·2배 비교에서는 A안의 세리프 글자와 열린 내부 공간이 가장 읽기 쉽다고 판단해 선택했습니다. 청자색 글자와 O 안의 불이 기존 병사·가마 색과 이어집니다. 최종 파일과 축소 아이콘을 확인하고, 작업 폴더 안의 복제본에서 시작 화면도 렌더링하겠습니다.
+
+apply patch
+patch: completed
+C:\Users\pc\Documents\game\work\2026-11-28-로고\finalize.ps1
+diff --git a/work/2026-11-28-로고/finalize.ps1 b/work/2026-11-28-로고/finalize.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..7782b87873501db8aa990627e32a87eea36c8ca6
+--- /dev/null
++++ b/work/2026-11-28-로고/finalize.ps1
+@@ -0,0 +1,43 @@
++$ErrorActionPreference = 'Stop'
++. "$PSScriptRoot/prepare.ps1"
++$root = (Get-Item "$PSScriptRoot/../..").FullName
++$logo = [System.Drawing.Bitmap]::FromFile("$PSScriptRoot/option-a.png")
++$logo.Save("$root/assets/sprites/ui/logo.png")
++$icon = New-Object System.Drawing.Bitmap(64,64)
++for ($y=0; $y -lt 54; $y++) { for ($x=0; $x -lt 40; $x++) { $icon.SetPixel($x+12,$y+5,$logo.GetPixel($x+189,$y+13)) } }
++$icon.Save("$root/assets/sprites/ui/app_icon.png")
++$preview = New-Object System.Drawing.Bitmap(960,500)
++$g = [System.Drawing.Graphics]::FromImage($preview)
++$g.Clear([System.Drawing.ColorTranslator]::FromHtml('#10101c'))
++$font = New-Object System.Drawing.Font('Arial',12)
++$g.DrawString('KILNBORN / SELECTED A / 2x',$font,[System.Drawing.Brushes]::Wheat,30,24)
++[LogoPrep]::Draw($g,$logo,160,64,2)
++$g.DrawString('1x',$font,[System.Drawing.Brushes]::Gray,160,244)
++[LogoPrep]::Draw($g,$logo,160,274,1)
++$g.DrawString('ICON 64 / 32',$font,[System.Drawing.Brushes]::Gray,590,244)
++[LogoPrep]::Draw($g,$icon,590,282,1)
++$g.DrawImage($icon,[System.Drawing.Rectangle]::new(690,298,32,32),0,0,64,64,[System.Drawing.GraphicsUnit]::Pixel)
++$g.DrawString('Transparent PNG assets shown on #10101c',$font,[System.Drawing.Brushes]::Gray,160,430)
++$preview.Save("$PSScriptRoot/preview_dark.png")
++$g.Dispose(); $preview.Dispose(); $logo.Dispose(); $icon.Dispose(); $font.Dispose()
++$metrics=@()
++foreach($name in @('logo','app_icon')) {
++ $b=[System.Drawing.Bitmap]::FromFile("$root/assets/sprites/ui/$name.png")
++ $colors=New-Object 'System.Collections.Generic.HashSet[int]'
++ $alpha=New-Object 'System.Collections.Generic.HashSet[int]'
++ $transparent=0; $partial=0; $isolated=0
++ for($y=0;$y -lt $b.Height;$y++){for($x=0;$x -lt $b.Width;$x++){
++  $c=$b.GetPixel($x,$y); [void]$alpha.Add([int]$c.A)
++  if($c.A -eq 0){$transparent++}else{[void]$colors.Add($c.ToArgb())}
++  if($c.A -gt 0 -and $c.A -lt 255){$partial++}
++  if($c.A -gt 0){$neighbors=0;for($dy=-1;$dy -le 1;$dy++){for($dx=-1;$dx -le 1;$dx++){
++   $xx=$x+$dx;$yy=$y+$dy
++   if(($dx -ne 0 -or $dy -ne 0) -and $xx -ge 0 -and $xx -lt $b.Width -and $yy -ge 0 -and $yy -lt $b.Height -and $b.GetPixel($xx,$yy).A -gt 0){$neighbors++}
++  }};if($neighbors -eq 0){$isolated++}}
++ }}
++ $box=[LogoPrep]::Bounds($b)
++ $metrics += [pscustomobject]@{file="$name.png";width=$b.Width;height=$b.Height;opaque_colors=$colors.Count;rgba_colors_including_transparent=($colors.Count+1);transparent_pixels=$transparent;partial_alpha_pixels=$partial;isolated_opaque_pixels=$isolated;alpha_values=@($alpha);bounds=@($box.X,$box.Y,$box.Width,$box.Height)}
++ $b.Dispose()
++}
++$metrics | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 "$PSScriptRoot/asset-metrics.json"
++$metrics | ConvertTo-Json -Depth 5
+diff --git a/work/2026-11-28-로고/prepare.ps1 b/work/2026-11-28-로고/prepare.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..5634636a5fdeff62d0a40df3ca4657f5d1de0a10
+--- /dev/null
++++ b/work/2026-11-28-로고/prepare.ps1
+@@ -0,0 +1,47 @@
++$ErrorActionPreference = 'Stop'
++Add-Type -AssemblyName System.Drawing
++Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
++using System;
++using System.IO;
++using System.Drawing;
++using System.Drawing.Drawing2D;
++using System.Collections.Generic;
++public static class LogoPrep {
++ static Color[] pal = Array.ConvertAll(new string[]{"282322","120e16","1c1622","2a2236","5a4630","8a6a48","a8862e","e8c35a","fff1c4","b98a5e","7a5a44","e8dcb8","f2e6c8","6f6c66","b0b8c0","dfe6ee","b8463a","7a2a24","6b9878","a6c5a3","ff9a3c"}, s=>ColorTranslator.FromHtml("#"+s));
++ static Color Match(Color c) { int best=0; double score=1e20; for(int i=0;i<pal.Length;i++){double r=c.R-pal[i].R,g=c.G-pal[i].G,b=c.B-pal[i].B; double d=r*r+g*g+b*b; if(d<score){score=d; best=i;}} return pal[best]; }
++ public static Rectangle Bounds(Bitmap b) {int l=b.Width,t=b.Height,r=-1,d=-1; for(int y=0;y<b.Height;y++)for(int x=0;x<b.Width;x++)if(b.GetPixel(x,y).A>=180){l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);d=Math.Max(d,y);} return Rectangle.FromLTRB(l,t,r+1,d+1);}
++ public static Bitmap Process(string path) {
++  using(Bitmap s=new Bitmap(path)){
++   Rectangle box=Bounds(s); Bitmap b=new Bitmap(320,80);
++   int w=302,h=54,left=9,top=13;
++   for(int y=0;y<h;y++) for(int x=0;x<w;x++){
++    Color c=s.GetPixel(box.Left+(int)((x+.5)*box.Width/w),box.Top+(int)((y+.5)*box.Height/h));
++    if(c.A>=180) b.SetPixel(left+x,top+y,Match(c));
++   }
++   // Normalize silhouette edge to the required ink outline, removing alpha fringes.
++   using(Bitmap before=(Bitmap)b.Clone())for(int y=1;y<79;y++)for(int x=1;x<319;x++){
++    if(before.GetPixel(x,y).A==0)continue;
++    if(before.GetPixel(x-1,y).A==0||before.GetPixel(x+1,y).A==0||before.GetPixel(x,y-1).A==0||before.GetPixel(x,y+1).A==0)b.SetPixel(x,y,pal[0]);
++   }
++   // Remove isolated opaque pixels, retaining intentional connected highlights.
++   using(Bitmap before=(Bitmap)b.Clone())for(int y=1;y<79;y++)for(int x=1;x<319;x++){
++    if(before.GetPixel(x,y).A==0)continue; int n=0;
++    for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++)if((dx!=0||dy!=0)&&before.GetPixel(x+dx,y+dy).A>0)n++;
++    if(n==0)b.SetPixel(x,y,Color.Transparent);
++   }
++   return b;
++  }
++ }
++ public static void Draw(Graphics g,Bitmap b,int x,int y,int scale){g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;g.DrawImage(b,new Rectangle(x,y,b.Width*scale,b.Height*scale),0,0,b.Width,b.Height,GraphicsUnit.Pixel);}
++ public static void Run(string dir){
++  Bitmap[] opts=new Bitmap[3]; string[] ids={"a","b","c"}; string[] names={"A  /  CELADON SLAB","B  /  CHAMFERED CERAMIC","C  /  IVORY SLAB"};
++  using(Bitmap sheet=new Bitmap(1080,770)) using(Graphics g=Graphics.FromImage(sheet))using(Font font=new Font("Arial",12)){
++   g.Clear(ColorTranslator.FromHtml("#10101c"));
++   for(int i=0;i<3;i++) {opts[i]=Process(Path.Combine(dir,"source-"+ids[i]+".png"));opts[i].Save(Path.Combine(dir,"option-"+ids[i]+".png"));int y=20+i*250;g.DrawString(names[i],font,Brushes.Wheat,20,y);Draw(g,opts[i],20,y+40,2);Draw(g,opts[i],730,y+75,1);g.DrawString("2x",font,Brushes.Gray,20,y+210);g.DrawString("1x",font,Brushes.Gray,730,y+170);}
++   sheet.Save(Path.Combine(dir,"logo_options.png"));
++  }
++  foreach(Bitmap b in opts)b.Dispose();
++ }
++}
++'@
++[LogoPrep]::Run($PSScriptRoot)
+diff --git a/work/2026-11-28-로고/prompts.md b/work/2026-11-28-로고/prompts.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..09483bdb17d31c36963fe3d88fc1d7c965dad1c2
+--- /dev/null
++++ b/work/2026-11-28-로고/prompts.md
+@@ -0,0 +1,13 @@
++# Logo generation prompts
++
++Method: built-in image_gen, transparent_background=true; one call per variant.
++
++## A
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant A: substantial upright slab-serif lettering, clean monolithic shapes with small squared bracket serifs, generous even spacing. Dominant pale celadon faces with dark warm clay along the bottom quarter; very restrained gold at top-left corners. Broad round-rectangular O kiln with chunky arch, small flame. Timeless composed typography, not decorative fantasy scrollwork.
++
++## B
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant B: compact upright geometric sans-serif letters with clipped chamfered corners, broad strong strokes, clearly separated glyphs. Glazed ceramic ivory-green upper face, celadon midtone and restrained dark clay bottom bevel, no long horizontal red stripe. No serifs. The kiln O is integrated into the exact same cap-height and width as neighboring letters. Tiny limited gold accents. Overall a spare bold silhouette with hand-shaped ceramic softness represented by orderly pixel stair-steps.
++
++## C
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant C: elegant sturdy upright narrow Roman slab capitals, subtly flared squared stroke ends, generous open counters, no italics. Warm ivory ceramic faces #e8dcb8 with muted celadon on lower third and very dark clay base, gold edge accents only. Make the kiln O a restrained arch with two straight sides, small flame confined inside its counter. Keep B and R instantly legible. Architectural and restrained, no gothic spikes or curls. One connected highlight cluster per glyph; broad plain surfaces.
++
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "powershell -NoProfile -ExecutionPolicy Bypass -File 'work/2026-11-28-로고/finalize.ps1'" in C:\Users\pc\Documents\game
+ succeeded in 3738ms:
+[
+    {
+        "file":  "logo.png",
+        "width":  320,
+        "height":  80,
+        "opaque_colors":  19,
+        "rgba_colors_including_transparent":  20,
+        "transparent_pixels":  12637,
+        "partial_alpha_pixels":  0,
+        "isolated_opaque_pixels":  0,
+        "alpha_values":  [
+                             0,
+                             255
+                         ],
+        "bounds":  [
+                       9,
+                       13,
+                       302,
+                       54
+                   ]
+    },
+    {
+        "file":  "app_icon.png",
+        "width":  64,
+        "height":  64,
+        "opaque_colors":  19,
+        "rgba_colors_including_transparent":  20,
+        "transparent_pixels":  2079,
+        "partial_alpha_pixels":  0,
+        "isolated_opaque_pixels":  0,
+        "alpha_values":  [
+                             0,
+                             255
+                         ],
+        "bounds":  [
+                       12,
+                       5,
+                       40,
+                       54
+                   ]
+    }
+]
+
+apply patch
+patch: completed
+C:\Users\pc\Documents\game\work\2026-11-28-로고\prepare.ps1
+diff --git a/work/2026-11-28-로고/finalize.ps1 b/work/2026-11-28-로고/finalize.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..7782b87873501db8aa990627e32a87eea36c8ca6
+--- /dev/null
++++ b/work/2026-11-28-로고/finalize.ps1
+@@ -0,0 +1,43 @@
++$ErrorActionPreference = 'Stop'
++. "$PSScriptRoot/prepare.ps1"
++$root = (Get-Item "$PSScriptRoot/../..").FullName
++$logo = [System.Drawing.Bitmap]::FromFile("$PSScriptRoot/option-a.png")
++$logo.Save("$root/assets/sprites/ui/logo.png")
++$icon = New-Object System.Drawing.Bitmap(64,64)
++for ($y=0; $y -lt 54; $y++) { for ($x=0; $x -lt 40; $x++) { $icon.SetPixel($x+12,$y+5,$logo.GetPixel($x+189,$y+13)) } }
++$icon.Save("$root/assets/sprites/ui/app_icon.png")
++$preview = New-Object System.Drawing.Bitmap(960,500)
++$g = [System.Drawing.Graphics]::FromImage($preview)
++$g.Clear([System.Drawing.ColorTranslator]::FromHtml('#10101c'))
++$font = New-Object System.Drawing.Font('Arial',12)
++$g.DrawString('KILNBORN / SELECTED A / 2x',$font,[System.Drawing.Brushes]::Wheat,30,24)
++[LogoPrep]::Draw($g,$logo,160,64,2)
++$g.DrawString('1x',$font,[System.Drawing.Brushes]::Gray,160,244)
++[LogoPrep]::Draw($g,$logo,160,274,1)
++$g.DrawString('ICON 64 / 32',$font,[System.Drawing.Brushes]::Gray,590,244)
++[LogoPrep]::Draw($g,$icon,590,282,1)
++$g.DrawImage($icon,[System.Drawing.Rectangle]::new(690,298,32,32),0,0,64,64,[System.Drawing.GraphicsUnit]::Pixel)
++$g.DrawString('Transparent PNG assets shown on #10101c',$font,[System.Drawing.Brushes]::Gray,160,430)
++$preview.Save("$PSScriptRoot/preview_dark.png")
++$g.Dispose(); $preview.Dispose(); $logo.Dispose(); $icon.Dispose(); $font.Dispose()
++$metrics=@()
++foreach($name in @('logo','app_icon')) {
++ $b=[System.Drawing.Bitmap]::FromFile("$root/assets/sprites/ui/$name.png")
++ $colors=New-Object 'System.Collections.Generic.HashSet[int]'
++ $alpha=New-Object 'System.Collections.Generic.HashSet[int]'
++ $transparent=0; $partial=0; $isolated=0
++ for($y=0;$y -lt $b.Height;$y++){for($x=0;$x -lt $b.Width;$x++){
++  $c=$b.GetPixel($x,$y); [void]$alpha.Add([int]$c.A)
++  if($c.A -eq 0){$transparent++}else{[void]$colors.Add($c.ToArgb())}
++  if($c.A -gt 0 -and $c.A -lt 255){$partial++}
++  if($c.A -gt 0){$neighbors=0;for($dy=-1;$dy -le 1;$dy++){for($dx=-1;$dx -le 1;$dx++){
++   $xx=$x+$dx;$yy=$y+$dy
++   if(($dx -ne 0 -or $dy -ne 0) -and $xx -ge 0 -and $xx -lt $b.Width -and $yy -ge 0 -and $yy -lt $b.Height -and $b.GetPixel($xx,$yy).A -gt 0){$neighbors++}
++  }};if($neighbors -eq 0){$isolated++}}
++ }}
++ $box=[LogoPrep]::Bounds($b)
++ $metrics += [pscustomobject]@{file="$name.png";width=$b.Width;height=$b.Height;opaque_colors=$colors.Count;rgba_colors_including_transparent=($colors.Count+1);transparent_pixels=$transparent;partial_alpha_pixels=$partial;isolated_opaque_pixels=$isolated;alpha_values=@($alpha);bounds=@($box.X,$box.Y,$box.Width,$box.Height)}
++ $b.Dispose()
++}
++$metrics | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 "$PSScriptRoot/asset-metrics.json"
++$metrics | ConvertTo-Json -Depth 5
+diff --git a/work/2026-11-28-로고/prepare.ps1 b/work/2026-11-28-로고/prepare.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..5e06b0ba013c09d886b55473b07f45bae8f7129b
+--- /dev/null
++++ b/work/2026-11-28-로고/prepare.ps1
+@@ -0,0 +1,47 @@
++$ErrorActionPreference = 'Stop'
++Add-Type -AssemblyName System.Drawing
++Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
++using System;
++using System.IO;
++using System.Drawing;
++using System.Drawing.Drawing2D;
++using System.Collections.Generic;
++public static class LogoPrep {
++ static Color[] pal = Array.ConvertAll(new string[]{"282322","5a4630","8a6a48","a8862e","e8c35a","fff1c4","7a5a44","b8463a","7a2a24","6b9878","a6c5a3","ff9a3c","e8dcb8"}, s=>ColorTranslator.FromHtml("#"+s));
++ static Color Match(Color c) { int best=0; double score=1e20; for(int i=0;i<pal.Length;i++){double r=c.R-pal[i].R,g=c.G-pal[i].G,b=c.B-pal[i].B; double d=r*r+g*g+b*b; if(d<score){score=d; best=i;}} return pal[best]; }
++ public static Rectangle Bounds(Bitmap b) {int l=b.Width,t=b.Height,r=-1,d=-1; for(int y=0;y<b.Height;y++)for(int x=0;x<b.Width;x++)if(b.GetPixel(x,y).A>=180){l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);d=Math.Max(d,y);} return Rectangle.FromLTRB(l,t,r+1,d+1);}
++ public static Bitmap Process(string path) {
++  using(Bitmap s=new Bitmap(path)){
++   Rectangle box=Bounds(s); Bitmap b=new Bitmap(320,80);
++   int w=302,h=54,left=9,top=13;
++   for(int y=0;y<h;y++) for(int x=0;x<w;x++){
++    Color c=s.GetPixel(box.Left+(int)((x+.5)*box.Width/w),box.Top+(int)((y+.5)*box.Height/h));
++    if(c.A>=180) b.SetPixel(left+x,top+y,Match(c));
++   }
++   // Normalize silhouette edge to the required ink outline, removing alpha fringes.
++   using(Bitmap before=(Bitmap)b.Clone())for(int y=1;y<79;y++)for(int x=1;x<319;x++){
++    if(before.GetPixel(x,y).A==0)continue;
++    if(before.GetPixel(x-1,y).A==0||before.GetPixel(x+1,y).A==0||before.GetPixel(x,y-1).A==0||before.GetPixel(x,y+1).A==0)b.SetPixel(x,y,pal[0]);
++   }
++   // Remove isolated opaque pixels, retaining intentional connected highlights.
++   using(Bitmap before=(Bitmap)b.Clone())for(int y=1;y<79;y++)for(int x=1;x<319;x++){
++    if(before.GetPixel(x,y).A==0)continue; int n=0;
++    for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++)if((dx!=0||dy!=0)&&before.GetPixel(x+dx,y+dy).A>0)n++;
++    if(n==0)b.SetPixel(x,y,Color.Transparent);
++   }
++   return b;
++  }
++ }
++ public static void Draw(Graphics g,Bitmap b,int x,int y,int scale){g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;g.DrawImage(b,new Rectangle(x,y,b.Width*scale,b.Height*scale),0,0,b.Width,b.Height,GraphicsUnit.Pixel);}
++ public static void Run(string dir){
++  Bitmap[] opts=new Bitmap[3]; string[] ids={"a","b","c"}; string[] names={"A  /  CELADON SLAB","B  /  CHAMFERED CERAMIC","C  /  IVORY SLAB"};
++  using(Bitmap sheet=new Bitmap(1080,770)) using(Graphics g=Graphics.FromImage(sheet))using(Font font=new Font("Arial",12)){
++   g.Clear(ColorTranslator.FromHtml("#10101c"));
++   for(int i=0;i<3;i++) {opts[i]=Process(Path.Combine(dir,"source-"+ids[i]+".png"));opts[i].Save(Path.Combine(dir,"option-"+ids[i]+".png"));int y=20+i*250;g.DrawString(names[i],font,Brushes.Wheat,20,y);Draw(g,opts[i],20,y+40,2);Draw(g,opts[i],730,y+75,1);g.DrawString("2x",font,Brushes.Gray,20,y+210);g.DrawString("1x",font,Brushes.Gray,730,y+170);}
++   sheet.Save(Path.Combine(dir,"logo_options.png"));
++  }
++  foreach(Bitmap b in opts)b.Dispose();
++ }
++}
++'@
++[LogoPrep]::Run($PSScriptRoot)
+diff --git a/work/2026-11-28-로고/prompts.md b/work/2026-11-28-로고/prompts.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..09483bdb17d31c36963fe3d88fc1d7c965dad1c2
+--- /dev/null
++++ b/work/2026-11-28-로고/prompts.md
+@@ -0,0 +1,13 @@
++# Logo generation prompts
++
++Method: built-in image_gen, transparent_background=true; one call per variant.
++
++## A
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant A: substantial upright slab-serif lettering, clean monolithic shapes with small squared bracket serifs, generous even spacing. Dominant pale celadon faces with dark warm clay along the bottom quarter; very restrained gold at top-left corners. Broad round-rectangular O kiln with chunky arch, small flame. Timeless composed typography, not decorative fantasy scrollwork.
++
++## B
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant B: compact upright geometric sans-serif letters with clipped chamfered corners, broad strong strokes, clearly separated glyphs. Glazed ceramic ivory-green upper face, celadon midtone and restrained dark clay bottom bevel, no long horizontal red stripe. No serifs. The kiln O is integrated into the exact same cap-height and width as neighboring letters. Tiny limited gold accents. Overall a spare bold silhouette with hand-shaped ceramic softness represented by orderly pixel stair-steps.
++
++## C
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant C: elegant sturdy upright narrow Roman slab capitals, subtly flared squared stroke ends, generous open counters, no italics. Warm ivory ceramic faces #e8dcb8 with muted celadon on lower third and very dark clay base, gold edge accents only. Make the kiln O a restrained arch with two straight sides, small flame confined inside its counter. Keep B and R instantly legible. Architectural and restrained, no gothic spikes or curls. One connected highlight cluster per glyph; broad plain surfaces.
++
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "powershell -NoProfile -ExecutionPolicy Bypass -File 'work/2026-11-28-로고/finalize.ps1'; "'$task = Join-Path (Get-Location) '"'work/2026-11-28-로고'; "'$previewProject=Join-Path $task '"'render-project'; New-Item -ItemType Directory -Force -Path "'$previewProject | Out-Null; Copy-Item -LiteralPath '"'src','assets','.godot' -Destination "'$previewProject -Recurse; Copy-Item -LiteralPath '"'project.godot' -Destination "'$previewProject; New-Item -ItemType Directory -Force -Path "$task/runtime-user" | Out-Null' in C:\Users\pc\Documents\game
+ succeeded in 5606ms:
+[
+    {
+        "file":  "logo.png",
+        "width":  320,
+        "height":  80,
+        "opaque_colors":  13,
+        "rgba_colors_including_transparent":  14,
+        "transparent_pixels":  12637,
+        "partial_alpha_pixels":  0,
+        "isolated_opaque_pixels":  0,
+        "alpha_values":  [
+                             0,
+                             255
+                         ],
+        "bounds":  [
+                       9,
+                       13,
+                       302,
+                       54
+                   ]
+    },
+    {
+        "file":  "app_icon.png",
+        "width":  64,
+        "height":  64,
+        "opaque_colors":  13,
+        "rgba_colors_including_transparent":  14,
+        "transparent_pixels":  2079,
+        "partial_alpha_pixels":  0,
+        "isolated_opaque_pixels":  0,
+        "alpha_values":  [
+                             0,
+                             255
+                         ],
+        "bounds":  [
+                       12,
+                       5,
+                       40,
+                       54
+                   ]
+    }
+]
+
+apply patch
+patch: completed
+C:\Users\pc\Documents\game\work\2026-11-28-로고\render-project\capture.gd
+diff --git a/work/2026-11-28-로고/finalize.ps1 b/work/2026-11-28-로고/finalize.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..7782b87873501db8aa990627e32a87eea36c8ca6
+--- /dev/null
++++ b/work/2026-11-28-로고/finalize.ps1
+@@ -0,0 +1,43 @@
++$ErrorActionPreference = 'Stop'
++. "$PSScriptRoot/prepare.ps1"
++$root = (Get-Item "$PSScriptRoot/../..").FullName
++$logo = [System.Drawing.Bitmap]::FromFile("$PSScriptRoot/option-a.png")
++$logo.Save("$root/assets/sprites/ui/logo.png")
++$icon = New-Object System.Drawing.Bitmap(64,64)
++for ($y=0; $y -lt 54; $y++) { for ($x=0; $x -lt 40; $x++) { $icon.SetPixel($x+12,$y+5,$logo.GetPixel($x+189,$y+13)) } }
++$icon.Save("$root/assets/sprites/ui/app_icon.png")
++$preview = New-Object System.Drawing.Bitmap(960,500)
++$g = [System.Drawing.Graphics]::FromImage($preview)
++$g.Clear([System.Drawing.ColorTranslator]::FromHtml('#10101c'))
++$font = New-Object System.Drawing.Font('Arial',12)
++$g.DrawString('KILNBORN / SELECTED A / 2x',$font,[System.Drawing.Brushes]::Wheat,30,24)
++[LogoPrep]::Draw($g,$logo,160,64,2)
++$g.DrawString('1x',$font,[System.Drawing.Brushes]::Gray,160,244)
++[LogoPrep]::Draw($g,$logo,160,274,1)
++$g.DrawString('ICON 64 / 32',$font,[System.Drawing.Brushes]::Gray,590,244)
++[LogoPrep]::Draw($g,$icon,590,282,1)
++$g.DrawImage($icon,[System.Drawing.Rectangle]::new(690,298,32,32),0,0,64,64,[System.Drawing.GraphicsUnit]::Pixel)
++$g.DrawString('Transparent PNG assets shown on #10101c',$font,[System.Drawing.Brushes]::Gray,160,430)
++$preview.Save("$PSScriptRoot/preview_dark.png")
++$g.Dispose(); $preview.Dispose(); $logo.Dispose(); $icon.Dispose(); $font.Dispose()
++$metrics=@()
++foreach($name in @('logo','app_icon')) {
++ $b=[System.Drawing.Bitmap]::FromFile("$root/assets/sprites/ui/$name.png")
++ $colors=New-Object 'System.Collections.Generic.HashSet[int]'
++ $alpha=New-Object 'System.Collections.Generic.HashSet[int]'
++ $transparent=0; $partial=0; $isolated=0
++ for($y=0;$y -lt $b.Height;$y++){for($x=0;$x -lt $b.Width;$x++){
++  $c=$b.GetPixel($x,$y); [void]$alpha.Add([int]$c.A)
++  if($c.A -eq 0){$transparent++}else{[void]$colors.Add($c.ToArgb())}
++  if($c.A -gt 0 -and $c.A -lt 255){$partial++}
++  if($c.A -gt 0){$neighbors=0;for($dy=-1;$dy -le 1;$dy++){for($dx=-1;$dx -le 1;$dx++){
++   $xx=$x+$dx;$yy=$y+$dy
++   if(($dx -ne 0 -or $dy -ne 0) -and $xx -ge 0 -and $xx -lt $b.Width -and $yy -ge 0 -and $yy -lt $b.Height -and $b.GetPixel($xx,$yy).A -gt 0){$neighbors++}
++  }};if($neighbors -eq 0){$isolated++}}
++ }}
++ $box=[LogoPrep]::Bounds($b)
++ $metrics += [pscustomobject]@{file="$name.png";width=$b.Width;height=$b.Height;opaque_colors=$colors.Count;rgba_colors_including_transparent=($colors.Count+1);transparent_pixels=$transparent;partial_alpha_pixels=$partial;isolated_opaque_pixels=$isolated;alpha_values=@($alpha);bounds=@($box.X,$box.Y,$box.Width,$box.Height)}
++ $b.Dispose()
++}
++$metrics | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 "$PSScriptRoot/asset-metrics.json"
++$metrics | ConvertTo-Json -Depth 5
+diff --git a/work/2026-11-28-로고/prepare.ps1 b/work/2026-11-28-로고/prepare.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..5e06b0ba013c09d886b55473b07f45bae8f7129b
+--- /dev/null
++++ b/work/2026-11-28-로고/prepare.ps1
+@@ -0,0 +1,47 @@
++$ErrorActionPreference = 'Stop'
++Add-Type -AssemblyName System.Drawing
++Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
++using System;
++using System.IO;
++using System.Drawing;
++using System.Drawing.Drawing2D;
++using System.Collections.Generic;
++public static class LogoPrep {
++ static Color[] pal = Array.ConvertAll(new string[]{"282322","5a4630","8a6a48","a8862e","e8c35a","fff1c4","7a5a44","b8463a","7a2a24","6b9878","a6c5a3","ff9a3c","e8dcb8"}, s=>ColorTranslator.FromHtml("#"+s));
++ static Color Match(Color c) { int best=0; double score=1e20; for(int i=0;i<pal.Length;i++){double r=c.R-pal[i].R,g=c.G-pal[i].G,b=c.B-pal[i].B; double d=r*r+g*g+b*b; if(d<score){score=d; best=i;}} return pal[best]; }
++ public static Rectangle Bounds(Bitmap b) {int l=b.Width,t=b.Height,r=-1,d=-1; for(int y=0;y<b.Height;y++)for(int x=0;x<b.Width;x++)if(b.GetPixel(x,y).A>=180){l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);d=Math.Max(d,y);} return Rectangle.FromLTRB(l,t,r+1,d+1);}
++ public static Bitmap Process(string path) {
++  using(Bitmap s=new Bitmap(path)){
++   Rectangle box=Bounds(s); Bitmap b=new Bitmap(320,80);
++   int w=302,h=54,left=9,top=13;
++   for(int y=0;y<h;y++) for(int x=0;x<w;x++){
++    Color c=s.GetPixel(box.Left+(int)((x+.5)*box.Width/w),box.Top+(int)((y+.5)*box.Height/h));
++    if(c.A>=180) b.SetPixel(left+x,top+y,Match(c));
++   }
++   // Normalize silhouette edge to the required ink outline, removing alpha fringes.
++   using(Bitmap before=(Bitmap)b.Clone())for(int y=1;y<79;y++)for(int x=1;x<319;x++){
++    if(before.GetPixel(x,y).A==0)continue;
++    if(before.GetPixel(x-1,y).A==0||before.GetPixel(x+1,y).A==0||before.GetPixel(x,y-1).A==0||before.GetPixel(x,y+1).A==0)b.SetPixel(x,y,pal[0]);
++   }
++   // Remove isolated opaque pixels, retaining intentional connected highlights.
++   using(Bitmap before=(Bitmap)b.Clone())for(int y=1;y<79;y++)for(int x=1;x<319;x++){
++    if(before.GetPixel(x,y).A==0)continue; int n=0;
++    for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++)if((dx!=0||dy!=0)&&before.GetPixel(x+dx,y+dy).A>0)n++;
++    if(n==0)b.SetPixel(x,y,Color.Transparent);
++   }
++   return b;
++  }
++ }
++ public static void Draw(Graphics g,Bitmap b,int x,int y,int scale){g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;g.DrawImage(b,new Rectangle(x,y,b.Width*scale,b.Height*scale),0,0,b.Width,b.Height,GraphicsUnit.Pixel);}
++ public static void Run(string dir){
++  Bitmap[] opts=new Bitmap[3]; string[] ids={"a","b","c"}; string[] names={"A  /  CELADON SLAB","B  /  CHAMFERED CERAMIC","C  /  IVORY SLAB"};
++  using(Bitmap sheet=new Bitmap(1080,770)) using(Graphics g=Graphics.FromImage(sheet))using(Font font=new Font("Arial",12)){
++   g.Clear(ColorTranslator.FromHtml("#10101c"));
++   for(int i=0;i<3;i++) {opts[i]=Process(Path.Combine(dir,"source-"+ids[i]+".png"));opts[i].Save(Path.Combine(dir,"option-"+ids[i]+".png"));int y=20+i*250;g.DrawString(names[i],font,Brushes.Wheat,20,y);Draw(g,opts[i],20,y+40,2);Draw(g,opts[i],730,y+75,1);g.DrawString("2x",font,Brushes.Gray,20,y+210);g.DrawString("1x",font,Brushes.Gray,730,y+170);}
++   sheet.Save(Path.Combine(dir,"logo_options.png"));
++  }
++  foreach(Bitmap b in opts)b.Dispose();
++ }
++}
++'@
++[LogoPrep]::Run($PSScriptRoot)
+diff --git a/work/2026-11-28-로고/prompts.md b/work/2026-11-28-로고/prompts.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..09483bdb17d31c36963fe3d88fc1d7c965dad1c2
+--- /dev/null
++++ b/work/2026-11-28-로고/prompts.md
+@@ -0,0 +1,13 @@
++# Logo generation prompts
++
++Method: built-in image_gen, transparent_background=true; one call per variant.
++
++## A
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant A: substantial upright slab-serif lettering, clean monolithic shapes with small squared bracket serifs, generous even spacing. Dominant pale celadon faces with dark warm clay along the bottom quarter; very restrained gold at top-left corners. Broad round-rectangular O kiln with chunky arch, small flame. Timeless composed typography, not decorative fantasy scrollwork.
++
++## B
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant B: compact upright geometric sans-serif letters with clipped chamfered corners, broad strong strokes, clearly separated glyphs. Glazed ceramic ivory-green upper face, celadon midtone and restrained dark clay bottom bevel, no long horizontal red stripe. No serifs. The kiln O is integrated into the exact same cap-height and width as neighboring letters. Tiny limited gold accents. Overall a spare bold silhouette with hand-shaped ceramic softness represented by orderly pixel stair-steps.
++
++## C
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant C: elegant sturdy upright narrow Roman slab capitals, subtly flared squared stroke ends, generous open counters, no italics. Warm ivory ceramic faces #e8dcb8 with muted celadon on lower third and very dark clay base, gold edge accents only. Make the kiln O a restrained arch with two straight sides, small flame confined inside its counter. Keep B and R instantly legible. Architectural and restrained, no gothic spikes or curls. One connected highlight cluster per glyph; broad plain surfaces.
++
+diff --git a/work/2026-11-28-로고/render-project/capture.gd b/work/2026-11-28-로고/render-project/capture.gd
+new file mode 100644
+index 0000000000000000000000000000000000000000..46470c28ab4dbc3fc974cab9a09d28cf16feaa7e
+--- /dev/null
++++ b/work/2026-11-28-로고/render-project/capture.gd
+@@ -0,0 +1,18 @@
++extends SceneTree
++
++func _initialize() -> void:
++	create_timer(35.0).timeout.connect(func(): quit(1))
++	capture.call_deferred()
++
++func capture() -> void:
++	var scene = load("res://src/game/kiln_scene.tscn").instantiate()
++	root.add_child(scene)
++	for i in 8:
++		await physics_frame
++	await RenderingServer.frame_post_draw
++	await RenderingServer.frame_post_draw
++	var target: String = OS.get_cmdline_user_args()[0]
++	var error := root.get_texture().get_image().save_png(target)
++	print("CAPTURE ", target, " RESULT ", error)
++	print("USER_DATA ", OS.get_user_data_dir())
++	quit(0 if error == OK else 1)
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$task = Join-Path (Get-Location) '"'work/2026-11-28-로고'; "'$env:APPDATA = "$task/runtime-user"; & $env:GODOT --headless --path "$task/render-project" --editor --import --quit --log-file "$task/import.log"' in C:\Users\pc\Documents\game
+ succeeded in 6306ms:
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+[   0% ] [90m[1mfirst_scan_filesystem[22m | Started 프로젝트 초기화 (5 steps)[39m[0m
+[   0% ] [90m[1mfirst_scan_filesystem[22m | 파일 구조 스캔 중...[39m[0m
+[  16% ] [90m[1mfirst_scan_filesystem[22m | 전역 클래스 이름을 불러오는 중...[39m[0m
+[  33% ] [90m[1mfirst_scan_filesystem[22m | GDExtensions 검증 중...[39m[0m
+[  50% ] [90m[1mfirst_scan_filesystem[22m | 오토로드 스크립트를 만드는 중...[39m[0m
+[  66% ] [90m[1mfirst_scan_filesystem[22m | 플러그인을 초기화 중...[39m[0m
+[  83% ] [90m[1mfirst_scan_filesystem[22m | 파일 스캔 시작 중...[39m[0m
+[92m[ DONE ][39m [1mfirst_scan_filesystem[22m
+[0m
+[   0% ] [90m[1m_update_scan_actions[22m | Started 액션 스캔 중... (130 steps)[39m[0m
+[   0% ] [90m[1m_update_scan_actions[22m | DoHyeon-Regular.ttf[39m[0m
+[   0% ] [90m[1m_update_scan_actions[22m | Pretendard-Bold.otf[39m[0m
+[   1% ] [90m[1m_update_scan_actions[22m | Pretendard-Medium.otf[39m[0m
+[   2% ] [90m[1m_update_scan_actions[22m | armored.png[39m[0m
+[   3% ] [90m[1m_update_scan_actions[22m | brute.png[39m[0m
+[   3% ] [90m[1m_update_scan_actions[22m | chief.png[39m[0m
+[   4% ] [90m[1m_update_scan_actions[22m | fox.png[39m[0m
+[   5% ] [90m[1m_update_scan_actions[22m | ghost.png[39m[0m
+[   6% ] [90m[1m_update_scan_actions[22m | giant.png[39m[0m
+[   6% ] [90m[1m_update_scan_actions[22m | goblin.png[39m[0m
+[   7% ] [90m[1m_update_scan_actions[22m | gumiho.png[39m[0m
+[   8% ] [90m[1m_update_scan_actions[22m | imp.png[39m[0m
+[   9% ] [90m[1m_update_scan_actions[22m | imugi.png[39m[0m
+[   9% ] [90m[1m_update_scan_actions[22m | king.png[39m[0m
+[  10% ] [90m[1m_update_scan_actions[22m | reaper.png[39m[0m
+[  11% ] [90m[1m_update_scan_actions[22m | battlefield.png[39m[0m
+[  12% ] [90m[1m_update_scan_actions[22m | grass_a.png[39m[0m
+[  12% ] [90m[1m_update_scan_actions[22m | grass_b.png[39m[0m
+[  13% ] [90m[1m_update_scan_actions[22m | house.png[39m[0m
+[  14% ] [90m[1m_update_scan_actions[22m | house_broken.png[39m[0m
+[  15% ] [90m[1m_update_scan_actions[22m | cutin_earth.png[39m[0m
+[  16% ] [90m[1m_update_scan_actions[22m | cutin_fire.png[39m[0m
+[  16% ] [90m[1m_update_scan_actions[22m | cutin_water.png[39m[0m
+[  17% ] [90m[1m_update_scan_actions[22m | death_poof.png[39m[0m
+[  18% ] [90m[1m_update_scan_actions[22m | dust.png[39m[0m
+[  19% ] [90m[1m_update_scan_actions[22m | earth_crack.png[39m[0m
+[  19% ] [90m[1m_update_scan_actions[22m | fire_burst.png[39m[0m
+[  20% ] [90m[1m_update_scan_actions[22m | fire_wall.png[39m[0m
+[  21% ] [90m[1m_update_scan_actions[22m | hit_spark.png[39m[0m
+[  22% ] [90m[1m_update_scan_actions[22m | legend_aura.png[39m[0m
+[  22% ] [90m[1m_update_scan_actions[22m | skill_archer.png[39m[0m
+[  23% ] [90m[1m_update_scan_actions[22m | skill_axe.png[39m[0m
+[  24% ] [90m[1m_update_scan_actions[22m | skill_baekho.png[39m[0m
+[  25% ] [90m[1m_update_scan_actions[22m | skill_cannon.png[39m[0m
+[  25% ] [90m[1m_update_scan_actions[22m | skill_cavalry.png[39m[0m
+[  26% ] [90m[1m_update_scan_actions[22m | skill_cheoyong.png[39m[0m
+[  27% ] [90m[1m_update_scan_actions[22m | skill_dragon.png[39m[0m
+[  28% ] [90m[1m_update_scan_actions[22m | skill_general.png[39m[0m
+[  29% ] [90m[1m_update_scan_actions[22m | skill_haetae.png[39m[0m
+[  29% ] [90m[1m_update_scan_actions[22m | skill_healer.png[39m[0m
+[  30% ] [90m[1m_update_scan_actions[22m | skill_hyeonmu.png[39m[0m
+[  31% ] [90m[1m_update_scan_actions[22m | skill_jujak.png[39m[0m
+[  32% ] [90m[1m_update_scan_actions[22m | skill_shield.png[39m[0m
+[  32% ] [90m[1m_update_scan_actions[22m | skill_slinger.png[39m[0m
+[  33% ] [90m[1m_update_scan_actions[22m | skill_sniper.png[39m[0m
+[  34% ] [90m[1m_update_scan_actions[22m | skill_spear.png[39m[0m
+[  35% ] [90m[1m_update_scan_actions[22m | skill_twin.png[39m[0m
+[  35% ] [90m[1m_update_scan_actions[22m | slash.png[39m[0m
+[  36% ] [90m[1m_update_scan_actions[22m | splash.png[39m[0m
+[  37% ] [90m[1m_update_scan_actions[22m | water_wave.png[39m[0m
+[  38% ] [90m[1m_update_scan_actions[22m | kiln_body.png[39m[0m
+[  38% ] [90m[1m_update_scan_actions[22m | soldier_archer_earth.png[39m[0m
+[  39% ] [90m[1m_update_scan_actions[22m | soldier_archer_fire.png[39m[0m
+[  40% ] [90m[1m_update_scan_actions[22m | soldier_archer_water.png[39m[0m
+[  41% ] [90m[1m_update_scan_actions[22m | soldier_axe_earth.png[39m[0m
+[  41% ] [90m[1m_update_scan_actions[22m | soldier_axe_fire.png[39m[0m
+[  42% ] [90m[1m_update_scan_actions[22m | soldier_axe_water.png[39m[0m
+[  43% ] [90m[1m_update_scan_actions[22m | soldier_baekho_earth.png[39m[0m
+[  44% ] [90m[1m_update_scan_actions[22m | soldier_baekho_fire.png[39m[0m
+[  45% ] [90m[1m_update_scan_actions[22m | soldier_baekho_water.png[39m[0m
+[  45% ] [90m[1m_update_scan_actions[22m | soldier_bulgasari_earth.png[39m[0m
+[  46% ] [90m[1m_update_scan_actions[22m | soldier_bulgasari_fire.png[39m[0m
+[  47% ] [90m[1m_update_scan_actions[22m | soldier_bulgasari_water.png[39m[0m
+[  48% ] [90m[1m_update_scan_actions[22m | soldier_cannon_earth.png[39m[0m
+[  48% ] [90m[1m_update_scan_actions[22m | soldier_cannon_fire.png[39m[0m
+[  49% ] [90m[1m_update_scan_actions[22m | soldier_cannon_water.png[39m[0m
+[  50% ] [90m[1m_update_scan_actions[22m | soldier_cavalry_earth.png[39m[0m
+[  51% ] [90m[1m_update_scan_actions[22m | soldier_cavalry_fire.png[39m[0m
+[  51% ] [90m[1m_update_scan_actions[22m | soldier_cavalry_water.png[39m[0m
+[  52% ] [90m[1m_update_scan_actions[22m | soldier_cheoyong_earth.png[39m[0m
+[  53% ] [90m[1m_update_scan_actions[22m | soldier_cheoyong_fire.png[39m[0m
+[  54% ] [90m[1m_update_scan_actions[22m | soldier_cheoyong_water.png[39m[0m
+[  54% ] [90m[1m_update_scan_actions[22m | soldier_dragon_earth.png[39m[0m
+[  55% ] [90m[1m_update_scan_actions[22m | soldier_dragon_fire.png[39m[0m
+[  56% ] [90m[1m_update_scan_actions[22m | soldier_dragon_water.png[39m[0m
+[  57% ] [90m[1m_update_scan_actions[22m | soldier_general_earth.png[39m[0m
+[  58% ] [90m[1m_update_scan_actions[22m | soldier_general_fire.png[39m[0m
+[  58% ] [90m[1m_update_scan_actions[22m | soldier_general_water.png[39m[0m
+[  59% ] [90m[1m_update_scan_actions[22m | soldier_haetae_earth.png[39m[0m
+[  60% ] [90m[1m_update_scan_actions[22m | soldier_haetae_fire.png[39m[0m
+[  61% ] [90m[1m_update_scan_actions[22m | soldier_haetae_water.png[39m[0m
+[  61% ] [90m[1m_update_scan_actions[22m | soldier_healer_earth.png[39m[0m
+[  62% ] [90m[1m_update_scan_actions[22m | soldier_healer_fire.png[39m[0m
+[  63% ] [90m[1m_update_scan_actions[22m | soldier_healer_water.png[39m[0m
+[  64% ] [90m[1m_update_scan_actions[22m | soldier_hyeonmu_earth.png[39m[0m
+[  64% ] [90m[1m_update_scan_actions[22m | soldier_hyeonmu_fire.png[39m[0m
+[  65% ] [90m[1m_update_scan_actions[22m | soldier_hyeonmu_water.png[39m[0m
+[  66% ] [90m[1m_update_scan_actions[22m | soldier_jujak_earth.png[39m[0m
+[  67% ] [90m[1m_update_scan_actions[22m | soldier_jujak_fire.png[39m[0m
+[  67% ] [90m[1m_update_scan_actions[22m | soldier_jujak_water.png[39m[0m
+[  68% ] [90m[1m_update_scan_actions[22m | soldier_shield_earth.png[39m[0m
+[  69% ] [90m[1m_update_scan_actions[22m | soldier_shield_fire.png[39m[0m
+[  70% ] [90m[1m_update_scan_actions[22m | soldier_shield_water.png[39m[0m
+[  70% ] [90m[1m_update_scan_actions[22m | soldier_slinger_earth.png[39m[0m
+[  71% ] [90m[1m_update_scan_actions[22m | soldier_slinger_fire.png[39m[0m
+[  72% ] [90m[1m_update_scan_actions[22m | soldier_slinger_water.png[39m[0m
+[  73% ] [90m[1m_update_scan_actions[22m | soldier_sniper_earth.png[39m[0m
+[  74% ] [90m[1m_update_scan_actions[22m | soldier_sniper_fire.png[39m[0m
+[  74% ] [90m[1m_update_scan_actions[22m | soldier_sniper_water.png[39m[0m
+[  75% ] [90m[1m_update_scan_actions[22m | soldier_spear_earth.png[39m[0m
+[  76% ] [90m[1m_update_scan_actions[22m | soldier_spear_fire.png[39m[0m
+[  77% ] [90m[1m_update_scan_actions[22m | soldier_spear_water.png[39m[0m
+[  77% ] [90m[1m_update_scan_actions[22m | soldier_twin_earth.png[39m[0m
+[  78% ] [90m[1m_update_scan_actions[22m | soldier_twin_fire.png[39m[0m
+[  79% ] [90m[1m_update_scan_actions[22m | soldier_twin_water.png[39m[0m
+[  80% ] [90m[1m_update_scan_actions[22m | app_icon.png[39m[0m
+[  80% ] [90m[1m_update_scan_actions[22m | button_9.png[39m[0m
+[  81% ] [90m[1m_update_scan_actions[22m | button_primary_9.png[39m[0m
+[  82% ] [90m[1m_update_scan_actions[22m | card_9.png[39m[0m
+[  83% ] [90m[1m_update_scan_actions[22m | chip_9.png[39m[0m
+[  83% ] [90m[1m_update_scan_actions[22m | icon_armor.png[39m[0m
+[  84% ] [90m[1m_update_scan_actions[22m | icon_bell.png[39m[0m
+[  85% ] [90m[1m_update_scan_actions[22m | icon_blade.png[39m[0m
+[  86% ] [90m[1m_update_scan_actions[22m | icon_charm.png[39m[0m
+[  87% ] [90m[1m_update_scan_actions[22m | icon_clay.png[39m[0m
+[  87% ] [90m[1m_update_scan_actions[22m | icon_ember.png[39m[0m
+[  88% ] [90m[1m_update_scan_actions[22m | icon_fire.png[39m[0m
+[  89% ] [90m[1m_update_scan_actions[22m | icon_gourd.png[39m[0m
+[  90% ] [90m[1m_update_scan_actions[22m | icon_pearl.png[39m[0m
+[  90% ] [90m[1m_update_scan_actions[22m | icon_scale.png[39m[0m
+[  91% ] [90m[1m_update_scan_actions[22m | icon_scroll.png[39m[0m
+[  92% ] [90m[1m_update_scan_actions[22m | icon_shard.png[39m[0m
+[  93% ] [90m[1m_update_scan_actions[22m | icon_ticket.png[39m[0m
+[  93% ] [90m[1m_update_scan_actions[22m | icon_whetstone.png[39m[0m
+[  94% ] [90m[1m_update_scan_actions[22m | logo.png[39m[0m
+[  95% ] [90m[1m_update_scan_actions[22m | merchant.png[39m[0m
+[  96% ] [90m[1m_update_scan_actions[22m | panel_9.png[39m[0m
+[  96% ] [90m[1m_update_scan_actions[22m | panel_corner.png[39m[0m
+[  97% ] [90m[1m_update_scan_actions[22m | title_bg.png[39m[0m
+[  98% ] [90m[1m_update_scan_actions[22m | title_plate_9.png[39m[0m
+[92m[ DONE ][39m [1m_update_scan_actions[22m
+[0m
+[   0% ] [90m[1mreimport[22m | Started 애셋 (다시) 가져오는 중 (130 steps)[39m[0m
+[   0% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[   0% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[   1% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[   2% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[   3% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[   3% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[   4% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[   5% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[   6% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[   6% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[   7% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[   8% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[   9% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[   9% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  10% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  11% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  12% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  12% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  13% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  14% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  15% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  16% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  16% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  17% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  18% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  19% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  19% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  20% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  21% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  22% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  22% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  23% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  24% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  25% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  25% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  26% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  27% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  28% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  29% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  29% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  30% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  31% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  32% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  32% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  33% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  34% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  35% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  35% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  36% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  37% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  38% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  38% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  39% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  40% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  41% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  41% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  42% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  43% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  44% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  45% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  45% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  46% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  47% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  48% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  48% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  49% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  50% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  51% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  51% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  52% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  53% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  54% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  54% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  55% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  56% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  57% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  58% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  58% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  59% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  60% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  61% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  61% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  62% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  63% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  64% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  64% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  65% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  66% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  67% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  67% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  68% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  69% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  70% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  70% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  71% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  72% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  73% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  74% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  74% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  75% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  76% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  77% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  77% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  78% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  79% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  80% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  80% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  81% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  82% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  83% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  83% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  84% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  85% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  86% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  87% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  87% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  88% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  89% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  90% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  90% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  91% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  92% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  93% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  93% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  94% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  95% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  96% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  96% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  97% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[  98% ] [90m[1mreimport[22m | 다시 가져올 파일을 준비 중...[39m[0m
+[   0% ] [90m[1mreimport[22m | 다시 가져오기 전 작업을 수행 중...[39m[0m
+[   0% ] [90m[1mreimport[22m | DoHyeon-Regular.ttf[39m[0m
+[   0% ] [90m[1mreimport[22m | Pretendard-Bold.otf[39m[0m
+[   1% ] [90m[1mreimport[22m | Pretendard-Medium.otf[39m[0m
+[   2% ] [90m[1mreimport[22m | DoHyeon-Regular.ttf[39m[0m
+[   3% ] [90m[1mreimport[22m | Pretendard-Bold.otf[39m[0m
+[   3% ] [90m[1mreimport[22m | Pretendard-Medium.otf[39m[0m
+[   4% ] [90m[1mreimport[22m | soldier_healer_water.png[39m[0m
+[   5% ] [90m[1mreimport[22m | soldier_hyeonmu_earth.png[39m[0m
+[   6% ] [90m[1mreimport[22m | soldier_hyeonmu_fire.png[39m[0m
+[   6% ] [90m[1mreimport[22m | soldier_hyeonmu_water.png[39m[0m
+[   7% ] [90m[1mreimport[22m | soldier_jujak_earth.png[39m[0m
+[   8% ] [90m[1mreimport[22m | soldier_jujak_fire.png[39m[0m
+[   9% ] [90m[1mreimport[22m | soldier_jujak_water.png[39m[0m
+[   9% ] [90m[1mreimport[22m | soldier_shield_earth.png[39m[0m
+[  10% ] [90m[1mreimport[22m | soldier_shield_fire.png[39m[0m
+[  11% ] [90m[1mreimport[22m | soldier_shield_water.png[39m[0m
+[  12% ] [90m[1mreimport[22m | soldier_slinger_earth.png[39m[0m
+[  12% ] [90m[1mreimport[22m | soldier_slinger_fire.png[39m[0m
+[  13% ] [90m[1mreimport[22m | soldier_slinger_water.png[39m[0m
+[  14% ] [90m[1mreimport[22m | soldier_sniper_earth.png[39m[0m
+[  15% ] [90m[1mreimport[22m | soldier_sniper_fire.png[39m[0m
+[  16% ] [90m[1mreimport[22m | soldier_healer_fire.png[39m[0m
+[  16% ] [90m[1mreimport[22m | soldier_healer_earth.png[39m[0m
+[  17% ] [90m[1mreimport[22m | soldier_haetae_water.png[39m[0m
+[  18% ] [90m[1mreimport[22m | soldier_haetae_fire.png[39m[0m
+[  19% ] [90m[1mreimport[22m | soldier_haetae_earth.png[39m[0m
+[  19% ] [90m[1mreimport[22m | soldier_general_water.png[39m[0m
+[  20% ] [90m[1mreimport[22m | soldier_general_fire.png[39m[0m
+[  21% ] [90m[1mreimport[22m | soldier_general_earth.png[39m[0m
+[  22% ] [90m[1mreimport[22m | soldier_dragon_water.png[39m[0m
+[  22% ] [90m[1mreimport[22m | soldier_dragon_fire.png[39m[0m
+[  23% ] [90m[1mreimport[22m | soldier_dragon_earth.png[39m[0m
+[  24% ] [90m[1mreimport[22m | soldier_cheoyong_water.png[39m[0m
+[  25% ] [90m[1mreimport[22m | soldier_cheoyong_fire.png[39m[0m
+[  25% ] [90m[1mreimport[22m | soldier_cheoyong_earth.png[39m[0m
+[  26% ] [90m[1mreimport[22m | soldier_cavalry_water.png[39m[0m
+[  27% ] [90m[1mreimport[22m | soldier_cavalry_fire.png[39m[0m
+[  28% ] [90m[1mreimport[22m | title_plate_9.png[39m[0m
+[  29% ] [90m[1mreimport[22m | title_bg.png[39m[0m
+[  29% ] [90m[1mreimport[22m | panel_corner.png[39m[0m
+[  30% ] [90m[1mreimport[22m | panel_9.png[39m[0m
+[  31% ] [90m[1mreimport[22m | merchant.png[39m[0m
+[  32% ] [90m[1mreimport[22m | logo.png[39m[0m
+[  32% ] [90m[1mreimport[22m | icon_whetstone.png[39m[0m
+[  33% ] [90m[1mreimport[22m | icon_ticket.png[39m[0m
+[  34% ] [90m[1mreimport[22m | icon_shard.png[39m[0m
+[  35% ] [90m[1mreimport[22m | icon_scroll.png[39m[0m
+[  35% ] [90m[1mreimport[22m | icon_scale.png[39m[0m
+[  36% ] [90m[1mreimport[22m | icon_pearl.png[39m[0m
+[  37% ] [90m[1mreimport[22m | icon_gourd.png[39m[0m
+[  38% ] [90m[1mreimport[22m | icon_fire.png[39m[0m
+[  38% ] [90m[1mreimport[22m | icon_ember.png[39m[0m
+[  39% ] [90m[1mreimport[22m | icon_clay.png[39m[0m
+[  40% ] [90m[1mreimport[22m | icon_charm.png[39m[0m
+[  41% ] [90m[1mreimport[22m | icon_blade.png[39m[0m
+[  41% ] [90m[1mreimport[22m | icon_bell.png[39m[0m
+[  42% ] [90m[1mreimport[22m | icon_armor.png[39m[0m
+[  43% ] [90m[1mreimport[22m | chip_9.png[39m[0m
+[  44% ] [90m[1mreimport[22m | card_9.png[39m[0m
+[  45% ] [90m[1mreimport[22m | button_primary_9.png[39m[0m
+[  45% ] [90m[1mreimport[22m | button_9.png[39m[0m
+[  46% ] [90m[1mreimport[22m | app_icon.png[39m[0m
+[  47% ] [90m[1mreimport[22m | soldier_twin_water.png[39m[0m
+[  48% ] [90m[1mreimport[22m | soldier_twin_fire.png[39m[0m
+[  48% ] [90m[1mreimport[22m | soldier_twin_earth.png[39m[0m
+[  49% ] [90m[1mreimport[22m | soldier_spear_water.png[39m[0m
+[  50% ] [90m[1mreimport[22m | soldier_spear_fire.png[39m[0m
+[  51% ] [90m[1mreimport[22m | soldier_spear_earth.png[39m[0m
+[  51% ] [90m[1mreimport[22m | soldier_sniper_water.png[39m[0m
+[  52% ] [90m[1mreimport[22m | skill_cavalry.png[39m[0m
+[  53% ] [90m[1mreimport[22m | skill_cannon.png[39m[0m
+[  54% ] [90m[1mreimport[22m | skill_baekho.png[39m[0m
+[  54% ] [90m[1mreimport[22m | skill_axe.png[39m[0m
+[  55% ] [90m[1mreimport[22m | skill_archer.png[39m[0m
+[  56% ] [90m[1mreimport[22m | legend_aura.png[39m[0m
+[  57% ] [90m[1mreimport[22m | hit_spark.png[39m[0m
+[  58% ] [90m[1mreimport[22m | fire_wall.png[39m[0m
+[  58% ] [90m[1mreimport[22m | fire_burst.png[39m[0m
+[  59% ] [90m[1mreimport[22m | earth_crack.png[39m[0m
+[  60% ] [90m[1mreimport[22m | dust.png[39m[0m
+[  61% ] [90m[1mreimport[22m | death_poof.png[39m[0m
+[  61% ] [90m[1mreimport[22m | cutin_water.png[39m[0m
+[  62% ] [90m[1mreimport[22m | cutin_fire.png[39m[0m
+[  63% ] [90m[1mreimport[22m | cutin_earth.png[39m[0m
+[  64% ] [90m[1mreimport[22m | house_broken.png[39m[0m
+[  64% ] [90m[1mreimport[22m | house.png[39m[0m
+[  65% ] [90m[1mreimport[22m | grass_b.png[39m[0m
+[  66% ] [90m[1mreimport[22m | grass_a.png[39m[0m
+[  67% ] [90m[1mreimport[22m | battlefield.png[39m[0m
+[  67% ] [90m[1mreimport[22m | reaper.png[39m[0m
+[  68% ] [90m[1mreimport[22m | king.png[39m[0m
+[  69% ] [90m[1mreimport[22m | imugi.png[39m[0m
+[  70% ] [90m[1mreimport[22m | imp.png[39m[0m
+[  70% ] [90m[1mreimport[22m | gumiho.png[39m[0m
+[  71% ] [90m[1mreimport[22m | goblin.png[39m[0m
+[  72% ] [90m[1mreimport[22m | giant.png[39m[0m
+[  73% ] [90m[1mreimport[22m | ghost.png[39m[0m
+[  74% ] [90m[1mreimport[22m | fox.png[39m[0m
+[  74% ] [90m[1mreimport[22m | chief.png[39m[0m
+[  75% ] [90m[1mreimport[22m | brute.png[39m[0m
+[  76% ] [90m[1mreimport[22m | armored.png[39m[0m
+[  77% ] [90m[1mreimport[22m | soldier_cavalry_earth.png[39m[0m
+[  77% ] [90m[1mreimport[22m | soldier_cannon_water.png[39m[0m
+[  78% ] [90m[1mreimport[22m | soldier_cannon_fire.png[39m[0m
+[  79% ] [90m[1mreimport[22m | soldier_cannon_earth.png[39m[0m
+[  80% ] [90m[1mreimport[22m | soldier_bulgasari_water.png[39m[0m
+[  80% ] [90m[1mreimport[22m | soldier_bulgasari_fire.png[39m[0m
+[  81% ] [90m[1mreimport[22m | soldier_bulgasari_earth.png[39m[0m
+[  82% ] [90m[1mreimport[22m | soldier_baekho_water.png[39m[0m
+[  83% ] [90m[1mreimport[22m | soldier_baekho_fire.png[39m[0m
+[  83% ] [90m[1mreimport[22m | soldier_baekho_earth.png[39m[0m
+[  84% ] [90m[1mreimport[22m | soldier_axe_water.png[39m[0m
+[  85% ] [90m[1mreimport[22m | soldier_axe_fire.png[39m[0m
+[  86% ] [90m[1mreimport[22m | soldier_axe_earth.png[39m[0m
+[  87% ] [90m[1mreimport[22m | soldier_archer_water.png[39m[0m
+[  87% ] [90m[1mreimport[22m | soldier_archer_fire.png[39m[0m
+[  88% ] [90m[1mreimport[22m | soldier_archer_earth.png[39m[0m
+[  89% ] [90m[1mreimport[22m | kiln_body.png[39m[0m
+[  90% ] [90m[1mreimport[22m | water_wave.png[39m[0m
+[  90% ] [90m[1mreimport[22m | splash.png[39m[0m
+[  91% ] [90m[1mreimport[22m | slash.png[39m[0m
+[  92% ] [90m[1mreimport[22m | skill_twin.png[39m[0m
+[  93% ] [90m[1mreimport[22m | skill_spear.png[39m[0m
+[  93% ] [90m[1mreimport[22m | skill_sniper.png[39m[0m
+[  94% ] [90m[1mreimport[22m | skill_slinger.png[39m[0m
+[  95% ] [90m[1mreimport[22m | skill_shield.png[39m[0m
+[  96% ] [90m[1mreimport[22m | skill_jujak.png[39m[0m
+[  96% ] [90m[1mreimport[22m | skill_hyeonmu.png[39m[0m
+[  97% ] [90m[1mreimport[22m | skill_healer.png[39m[0m
+[  98% ] [90m[1mreimport[22m | skill_haetae.png[39m[0m
+[  99% ] [90m[1mreimport[22m | 애셋 가져오기 마무리 중...[39m[0m
+[92m[ DONE ][39m [1mreimport[22m
+[0m
+[   0% ] [90m[1mreimport[22m | Started 애셋 (다시) 가져오는 중 (130 steps)[39m[0m
+[   0% ] [90m[1mreimport[22m | 다시 가져오기 후 작업을 수행 중...[39m[0m
+[92m[ DONE ][39m [1mreimport[22m
+[0m
+[   0% ] [90m[1mloading_editor_layout[22m | Started 편집기를 불러오는 중 (5 steps)[39m[0m
+[   0% ] [90m[1mloading_editor_layout[22m | 편집기 레이아웃을 불러오는 중...[39m[0m
+[  16% ] [90m[1mloading_editor_layout[22m | 독을 불러오는 중...[39m[0m
+[  33% ] [90m[1mloading_editor_layout[22m | 씬을 다시 여는 중...[39m[0m
+[  50% ] [90m[1mloading_editor_layout[22m | 중앙 편집기 레이아웃을 불러오는 중...[39m[0m
+[  66% ] [90m[1mloading_editor_layout[22m | 플러그인 창 레이아웃을 불러오는 중...[39m[0m
+[  83% ] [90m[1mloading_editor_layout[22m | 편집기 레이아웃이 준비되었습니다.[39m[0m
+[92m[ DONE ][39m [1mloading_editor_layout[22m
+[0m
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$task = Join-Path (Get-Location) '"'work/2026-11-28-로고'; "'$env:APPDATA = "$task/runtime-user"; & $env:GODOT --path "$task/render-project" --rendering-method gl_compatibility --rendering-driver opengl3 --script res://capture.gd --log-file "$task/render.log" -- "$task/preview_game.png"' in C:\Users\pc\Documents\game
+ succeeded in 3172ms:
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 NVIDIA 621.01 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 3050
+
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+CAPTURE C:\Users\pc\Documents\game\work\2026-11-28-로고/preview_game.png RESULT 0
+USER_DATA C:/Users/pc/Documents/game/work/2026-11-28-로고/runtime-user/Godot/app_userdata/KILNBORN
+
+2026-11-28T06:17:47.972162Z ERROR codex_core::tools::router: error=exec_command failed: CreateProcess { message: "Rejected(\"`\\\"C:\\\\\\\\WINDOWS\\\\\\\\System32\\\\\\\\WindowsPowerShell\\\\\\\\v1.0\\\\\\\\powershell.exe\\\" -Command '$task=(Resolve-Path -LiteralPath '\\\"'work/2026-11-28-로고').Path; Copy-Item -LiteralPath \\\\\\\"\\\"'$task/render-project/capture.gd\\\" -Destination \\\"$task/capture.gd\\\"; foreach($relative in @('\\\"'render-project','runtime-user')){ \\\"'$target=(Resolve-Path -LiteralP…331 chars truncated…$after=git status --porcelain; $after | Set-Content -Encoding UTF8 -LiteralPath \\\"$task/status-after.txt\\\"; $before=Get-Content -Encoding UTF8 -LiteralPath \\\"$task/status-before.txt\\\"; Compare-Object -ReferenceObject $before -DifferenceObject $after; git diff --stat; Get-FileHash -Algorithm SHA256 -LiteralPath '\\\"'assets/sprites/ui/logo.png','assets/sprites/ui/app_icon.png' | Format-Table -AutoSize\\\"` rejected: blocked by policy\")" }
+codex
+두 파일 모두 불투명 색 13개, 반투명 픽셀 0개로 확인했습니다. 시작 화면 렌더에서도 로고가 제목 자리에 표시되고 버튼과 겹치지 않았습니다.
+
+자동 승인 검토가 임시 렌더 폴더 삭제를 정책상 차단했습니다. 해당 폴더는 허용된 작업 폴더 안에 그대로 남겨 두겠습니다.
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$task=Join-Path (Get-Location) '"'work/2026-11-28-로고'; "'$after=git status --porcelain; $after | Set-Content -Encoding UTF8 -LiteralPath "$task/status-after.txt"; $before=Get-Content -Encoding UTF8 -LiteralPath "$task/status-before.txt"; Compare-Object -ReferenceObject $before -DifferenceObject $after; git diff --stat; Get-FileHash -Algorithm SHA256 -LiteralPath '"'assets/sprites/ui/logo.png','assets/sprites/ui/app_icon.png' | Format-Table -AutoSize" in C:\Users\pc\Documents\game
+ succeeded in 957ms:
+
+warning: in the working copy of 'work/2026-11-28-로고/handoff-11.log', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'work/2026-11-28-표지/NOTES.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'work/2026-11-28-표지/handoff-10.log', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'work/2026-11-30-UI그림/handoff-09-run2.log', LF will be replaced by CRLF the next time Git touches it
+ assets/sprites/fx/cutin_earth.png                  |  Bin 34007 -> 36370 bytes
+ assets/sprites/fx/cutin_fire.png                   |  Bin 29589 -> 27030 bytes
+ assets/sprites/fx/cutin_water.png                  |  Bin 33169 -> 29788 bytes
+ assets/sprites/ui/title_bg.png                     |  Bin 11980 -> 13716 bytes
+ .../handoff-11.log"                                | 1593 ++++++++++++++++++++
+ .../2026-11-28-\355\221\234\354\247\200/NOTES.md"  |   11 +-
+ .../handoff-10.log"                                | 1557 +++++++++++++++++++
+ .../handoff-09-run2.log"                           | 1448 ++++++++++++++++++
+ 8 files changed, 4607 insertions(+), 2 deletions(-)
+InputObject                                                                                SideIndicator
+-----------                                                                                -------------
+ M assets/sprites/fx/cutin_earth.png                                                       =>           
+ M assets/sprites/fx/cutin_fire.png                                                        =>           
+ M assets/sprites/fx/cutin_water.png                                                       =>           
+ M assets/sprites/ui/title_bg.png                                                          =>           
+ M "work/2026-11-28-\353\241\234\352\263\240/handoff-11.log"                               =>           
+ M "work/2026-11-28-\355\221\234\354\247\200/NOTES.md"                                     =>           
+ M "work/2026-11-28-\355\221\234\354\247\200/handoff-10.log"                               =>           
+ M "work/2026-11-30-UI\352\267\270\353\246\274/handoff-09-run2.log"                        =>           
+?? assets/sprites/ui/app_icon.png                                                          =>           
+?? assets/sprites/ui/logo.png                                                              =>           
+?? assets/sprites/ui/title_far.png                                                         =>           
+?? assets/sprites/ui/title_front.png                                                       =>           
+?? assets/sprites/ui/title_mid.png                                                         =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/asset-metrics.json"                           =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/finalize.ps1"                                 =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/import.log"                                   =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/logo_options.png"                             =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/option-a.png"                                 =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/option-b.png"                                 =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/option-c.png"                                 =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/prepare.ps1"                                  =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/preview_dark.png"                             =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/preview_game.png"                             =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/prompts.md"                                   =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/render-project/"                              =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/render.log"                                   =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/runtime-user/"                                =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/source-a.png"                                 =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/source-b.png"                                 =>           
+?? "work/2026-11-28-\353\241\234\352\263\240/source-c.png"                                 =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/PROMPTS.md"                                   =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/far-generated.png"                            =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/finish-layers.ps1"                            =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/front-generated.png"                          =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/handoff-10.report.md"                         =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/mid-generated.png"                            =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/preview.png"                                  =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/render-game.log"                              =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/render-import.log"                            =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/render-project/"                              =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/render-stderr.log"                            =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/render-stdout.log"                            =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/title-center.png"                             =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/title-sway-left.png"                          =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/title-sway-right.png"                         =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/title_far.png"                                =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/title_front.png"                              =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/title_mid.png"                                =>           
+?? "work/2026-11-28-\355\221\234\354\247\200/validation.txt"                               =>           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/compare-09-run1-vs-run2.png"                =>           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/sheet-09b.png"                              =>           
+ M reports/boss/history.csv                                                                <=           
+ M "work/2026-11-27-\352\267\270\353\246\274/NOTES.md"                                     <=           
+ M "work/2026-11-27-\352\267\270\353\246\274/handoff-03.md"                                <=           
+?? assets/sprites/fx/cutin_earth.png                                                       <=           
+?? assets/sprites/fx/cutin_earth.png.import                                                <=           
+?? assets/sprites/fx/cutin_fire.png                                                        <=           
+?? assets/sprites/fx/cutin_fire.png.import                                                 <=           
+?? assets/sprites/fx/cutin_water.png                                                       <=           
+?? assets/sprites/fx/cutin_water.png.import                                                <=           
+?? assets/sprites/ui/title_bg.png                                                          <=           
+?? assets/sprites/ui/title_bg.png.import                                                   <=           
+?? reports/boss/history-local-backup.csv                                                   <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/compare-03-screens.png"                       <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/compare-03.png"                               <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/handoff-03-run1/"                             <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/handoff-03-run2/"                             <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/handoff-03.report.md"                         <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/screens-02b/"                                 <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/screens-03-run1/"                             <=           
+?? "work/2026-11-27-\352\267\270\353\246\274/screens-03-run2/"                             <=           
+?? "work/2026-11-27-\354\213\244\352\260\220/handoff-04.report.md"                         <=           
+?? "work/2026-11-27-\354\213\244\352\260\220/sheet-04.png"                                 <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/handoff-05.report.md"             <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/handoff-06.report.md"             <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/old-06-soldiers/"                 <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/screens-05/"                      <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/screens-06/"                      <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/sheet-05.png"                     <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/sheet-06a.png"                    <=           
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/sheet-06b.png"                    <=           
+?? "work/2026-11-28-\353\241\234\352\263\240/handoff-11.log"                               <=           
+?? "work/2026-11-28-\355\221\234\354\247\200/NOTES.md"                                     <=           
+?? "work/2026-11-28-\355\221\234\354\247\200/handoff-10.log"                               <=           
+?? "work/2026-11-28-\355\221\234\354\247\200/reference-contact.png"                        <=           
+?? "work/2026-11-29-\354\212\244\355\202\254\354\247\204\354\230\201/handoff-07.report.md" <=           
+?? "work/2026-11-29-\354\212\244\355\202\254\354\247\204\354\230\201/screens-07/"          <=           
+?? "work/2026-11-29-\354\212\244\355\202\254\354\247\204\354\230\201/sheet-07a.png"        <=           
+?? "work/2026-11-29-\354\212\244\355\202\254\354\247\204\354\230\201/sheet-07b.png"        <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/handoff-08.report.md"                       <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/handoff-09-run1/"                           <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/handoff-09-run2.log"                        <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/handoff-09.report.md"                       <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/screens-08/"                                <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/screens-09/"                                <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/sheet-08.png"                               <=           
+?? "work/2026-11-30-UI\352\267\270\353\246\274/sheet-09.png"                               <=           
+?? work/art-ui08/                                                                          <=           
+?? work/art-ui09/                                                                          <=           
+
+
+
+Algorithm Hash                                                             Path                                        
+--------- ----                                                             ----                                        
+SHA256    A979334FF1206759C7F8C934EE093A8B81009FC9D4B8696F711A9E0F9E463498 C:\Users\pc\Documents\game\assets\sprites...
+SHA256    D88B562BD903C24EF5001121BE2F3E633D84E271F0FCAE067D798B30F54B31A0 C:\Users\pc\Documents\game\assets\sprites...
+
+
+
+apply patch
+patch: completed
+C:\Users\pc\Documents\game\work\2026-11-28-로고\handoff-11.report.md
+diff --git a/work/2026-11-28-로고/finalize.ps1 b/work/2026-11-28-로고/finalize.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..7782b87873501db8aa990627e32a87eea36c8ca6
+--- /dev/null
++++ b/work/2026-11-28-로고/finalize.ps1
+@@ -0,0 +1,43 @@
++$ErrorActionPreference = 'Stop'
++. "$PSScriptRoot/prepare.ps1"
++$root = (Get-Item "$PSScriptRoot/../..").FullName
++$logo = [System.Drawing.Bitmap]::FromFile("$PSScriptRoot/option-a.png")
++$logo.Save("$root/assets/sprites/ui/logo.png")
++$icon = New-Object System.Drawing.Bitmap(64,64)
++for ($y=0; $y -lt 54; $y++) { for ($x=0; $x -lt 40; $x++) { $icon.SetPixel($x+12,$y+5,$logo.GetPixel($x+189,$y+13)) } }
++$icon.Save("$root/assets/sprites/ui/app_icon.png")
++$preview = New-Object System.Drawing.Bitmap(960,500)
++$g = [System.Drawing.Graphics]::FromImage($preview)
++$g.Clear([System.Drawing.ColorTranslator]::FromHtml('#10101c'))
++$font = New-Object System.Drawing.Font('Arial',12)
++$g.DrawString('KILNBORN / SELECTED A / 2x',$font,[System.Drawing.Brushes]::Wheat,30,24)
++[LogoPrep]::Draw($g,$logo,160,64,2)
++$g.DrawString('1x',$font,[System.Drawing.Brushes]::Gray,160,244)
++[LogoPrep]::Draw($g,$logo,160,274,1)
++$g.DrawString('ICON 64 / 32',$font,[System.Drawing.Brushes]::Gray,590,244)
++[LogoPrep]::Draw($g,$icon,590,282,1)
++$g.DrawImage($icon,[System.Drawing.Rectangle]::new(690,298,32,32),0,0,64,64,[System.Drawing.GraphicsUnit]::Pixel)
++$g.DrawString('Transparent PNG assets shown on #10101c',$font,[System.Drawing.Brushes]::Gray,160,430)
++$preview.Save("$PSScriptRoot/preview_dark.png")
++$g.Dispose(); $preview.Dispose(); $logo.Dispose(); $icon.Dispose(); $font.Dispose()
++$metrics=@()
++foreach($name in @('logo','app_icon')) {
++ $b=[System.Drawing.Bitmap]::FromFile("$root/assets/sprites/ui/$name.png")
++ $colors=New-Object 'System.Collections.Generic.HashSet[int]'
++ $alpha=New-Object 'System.Collections.Generic.HashSet[int]'
++ $transparent=0; $partial=0; $isolated=0
++ for($y=0;$y -lt $b.Height;$y++){for($x=0;$x -lt $b.Width;$x++){
++  $c=$b.GetPixel($x,$y); [void]$alpha.Add([int]$c.A)
++  if($c.A -eq 0){$transparent++}else{[void]$colors.Add($c.ToArgb())}
++  if($c.A -gt 0 -and $c.A -lt 255){$partial++}
++  if($c.A -gt 0){$neighbors=0;for($dy=-1;$dy -le 1;$dy++){for($dx=-1;$dx -le 1;$dx++){
++   $xx=$x+$dx;$yy=$y+$dy
++   if(($dx -ne 0 -or $dy -ne 0) -and $xx -ge 0 -and $xx -lt $b.Width -and $yy -ge 0 -and $yy -lt $b.Height -and $b.GetPixel($xx,$yy).A -gt 0){$neighbors++}
++  }};if($neighbors -eq 0){$isolated++}}
++ }}
++ $box=[LogoPrep]::Bounds($b)
++ $metrics += [pscustomobject]@{file="$name.png";width=$b.Width;height=$b.Height;opaque_colors=$colors.Count;rgba_colors_including_transparent=($colors.Count+1);transparent_pixels=$transparent;partial_alpha_pixels=$partial;isolated_opaque_pixels=$isolated;alpha_values=@($alpha);bounds=@($box.X,$box.Y,$box.Width,$box.Height)}
++ $b.Dispose()
++}
++$metrics | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 "$PSScriptRoot/asset-metrics.json"
++$metrics | ConvertTo-Json -Depth 5
+diff --git a/work/2026-11-28-로고/handoff-11.report.md b/work/2026-11-28-로고/handoff-11.report.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..ae85be0158767074c7c6cb7152e65809d70edc8e
+--- /dev/null
++++ b/work/2026-11-28-로고/handoff-11.report.md
+@@ -0,0 +1,18 @@
++결과: 통과
++바뀐 파일:
++- assets/sprites/ui/logo.png — A안 청자 유약 세리프 워드마크. KILNBORN 한 단어만 표시.
++- assets/sprites/ui/app_icon.png — A안의 O에서 가져온 불 붙은 가마 문 상징. 별도 문구 없음.
++- work/2026-11-28-로고/ — 원본 생성 이미지 3개(source-a/b/c.png), 보정 시안 3개(option-a/b/c.png), logo_options.png, preview_dark.png, preview_game.png, reference-contact.png, prompts.md, prepare.ps1, finalize.ps1, asset-metrics.json, 시작·종료 상태 기록, NOTES.md, 이 보고서, 렌더용 복제본과 로그.
++확인한 것:
++- logo.png: 320×80, 투명 배경, 불투명 색 13개(투명 포함 RGBA 14개, 제한 32 이하). 반투명 픽셀 0, 고립된 불투명 픽셀 0. 그림 영역 x=9,y=13,302×54: 글자 높이 54px.
++- app_icon.png: 64×64, 투명 배경, 불투명 색 13개(투명 포함 RGBA 14개, 제한 24 이하). 반투명 픽셀 0, 고립된 불투명 픽셀 0. 32×32 축소 미리보기를 직접 열어 가마 문·불 식별 확인.
++- 시안 비교: work/2026-11-28-로고/logo_options.png — A/B/C 세 시안의 1배·2배 비교. A 선택: B의 둥근 글자보다 세리프와 획 구분이 분명하고, C의 밝은 한지색보다 청자색이 기존 병사와 직접 연결된다. B/R의 내부 공간과 I/L 구분이 유지되고, 불은 O 안 한 곳에만 있다. 선택은 제작 판단이며 미술 승인으로 간주하지 않는다.
++- 어두운 바탕 미리보기: work/2026-11-28-로고/preview_dark.png — 최종 로고 1배·2배, 아이콘 64·32 크기 확인.
++- 실제 화면 렌더: work/2026-11-28-로고/preview_game.png — 작업 폴더의 복제 프로젝트에서 Godot 4.7.2/OpenGL로 1280×800 시작 화면 캡처 성공(RESULT 0). 제목 위치에 로고 표시, 기존 설명문·버튼과 겹침 없음. 원본 게임 코드·project.godot은 수정하지 않음. 사용자 데이터도 작업 폴더 내부로 지정.
++- 방법: built-in image_gen으로 시안마다 별도 생성(투명 배경 요청) 후 PowerShell/.NET 코드로 크기·지정 팔레트·알파·먹색 외곽선 정리. 프롬프트 전문은 prompts.md에 보관. 저장소 Python 스크립트 실행 및 git commit·push 없음.
++못 한 것 / 걱정되는 것:
++- 저장소 Python 검사·전체 게임 테스트는 지시대로 실행하지 않음. Claude의 후속 검사가 필요함. 앱 아이콘의 프로젝트 설정 연결도 지시대로 하지 않음.
++- Godot은 인증서 저장소 읽기 오류를 출력했으나 로컬 렌더와 캡처는 성공함(import.log, render.log).
++- 위 크기·팔레트·알파 검사는 통과, 재미·미술 판단은 사용자 몫.
++
++자동 승인 검토가 임시 렌더 폴더 삭제를 정책상 차단했습니다. render-project/와 runtime-user/는 허용된 작업 폴더 안에 그대로 남겨 두었습니다.
+diff --git a/work/2026-11-28-로고/prepare.ps1 b/work/2026-11-28-로고/prepare.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..5e06b0ba013c09d886b55473b07f45bae8f7129b
+--- /dev/null
++++ b/work/2026-11-28-로고/prepare.ps1
+@@ -0,0 +1,47 @@
++$ErrorActionPreference = 'Stop'
++Add-Type -AssemblyName System.Drawing
++Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
++using System;
++using System.IO;
++using System.Drawing;
++using System.Drawing.Drawing2D;
++using System.Collections.Generic;
++public static class LogoPrep {
++ static Color[] pal = Array.ConvertAll(new string[]{"282322","5a4630","8a6a48","a8862e","e8c35a","fff1c4","7a5a44","b8463a","7a2a24","6b9878","a6c5a3","ff9a3c","e8dcb8"}, s=>ColorTranslator.FromHtml("#"+s));
++ static Color Match(Color c) { int best=0; double score=1e20; for(int i=0;i<pal.Length;i++){double r=c.R-pal[i].R,g=c.G-pal[i].G,b=c.B-pal[i].B; double d=r*r+g*g+b*b; if(d<score){score=d; best=i;}} return pal[best]; }
++ public static Rectangle Bounds(Bitmap b) {int l=b.Width,t=b.Height,r=-1,d=-1; for(int y=0;y<b.Height;y++)for(int x=0;x<b.Width;x++)if(b.GetPixel(x,y).A>=180){l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);d=Math.Max(d,y);} return Rectangle.FromLTRB(l,t,r+1,d+1);}
++ public static Bitmap Process(string path) {
++  using(Bitmap s=new Bitmap(path)){
++   Rectangle box=Bounds(s); Bitmap b=new Bitmap(320,80);
++   int w=302,h=54,left=9,top=13;
++   for(int y=0;y<h;y++) for(int x=0;x<w;x++){
++    Color c=s.GetPixel(box.Left+(int)((x+.5)*box.Width/w),box.Top+(int)((y+.5)*box.Height/h));
++    if(c.A>=180) b.SetPixel(left+x,top+y,Match(c));
++   }
++   // Normalize silhouette edge to the required ink outline, removing alpha fringes.
++   using(Bitmap before=(Bitmap)b.Clone())for(int y=1;y<79;y++)for(int x=1;x<319;x++){
++    if(before.GetPixel(x,y).A==0)continue;
++    if(before.GetPixel(x-1,y).A==0||before.GetPixel(x+1,y).A==0||before.GetPixel(x,y-1).A==0||before.GetPixel(x,y+1).A==0)b.SetPixel(x,y,pal[0]);
++   }
++   // Remove isolated opaque pixels, retaining intentional connected highlights.
++   using(Bitmap before=(Bitmap)b.Clone())for(int y=1;y<79;y++)for(int x=1;x<319;x++){
++    if(before.GetPixel(x,y).A==0)continue; int n=0;
++    for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++)if((dx!=0||dy!=0)&&before.GetPixel(x+dx,y+dy).A>0)n++;
++    if(n==0)b.SetPixel(x,y,Color.Transparent);
++   }
++   return b;
++  }
++ }
++ public static void Draw(Graphics g,Bitmap b,int x,int y,int scale){g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;g.DrawImage(b,new Rectangle(x,y,b.Width*scale,b.Height*scale),0,0,b.Width,b.Height,GraphicsUnit.Pixel);}
++ public static void Run(string dir){
++  Bitmap[] opts=new Bitmap[3]; string[] ids={"a","b","c"}; string[] names={"A  /  CELADON SLAB","B  /  CHAMFERED CERAMIC","C  /  IVORY SLAB"};
++  using(Bitmap sheet=new Bitmap(1080,770)) using(Graphics g=Graphics.FromImage(sheet))using(Font font=new Font("Arial",12)){
++   g.Clear(ColorTranslator.FromHtml("#10101c"));
++   for(int i=0;i<3;i++) {opts[i]=Process(Path.Combine(dir,"source-"+ids[i]+".png"));opts[i].Save(Path.Combine(dir,"option-"+ids[i]+".png"));int y=20+i*250;g.DrawString(names[i],font,Brushes.Wheat,20,y);Draw(g,opts[i],20,y+40,2);Draw(g,opts[i],730,y+75,1);g.DrawString("2x",font,Brushes.Gray,20,y+210);g.DrawString("1x",font,Brushes.Gray,730,y+170);}
++   sheet.Save(Path.Combine(dir,"logo_options.png"));
++  }
++  foreach(Bitmap b in opts)b.Dispose();
++ }
++}
++'@
++[LogoPrep]::Run($PSScriptRoot)
+diff --git a/work/2026-11-28-로고/prompts.md b/work/2026-11-28-로고/prompts.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..09483bdb17d31c36963fe3d88fc1d7c965dad1c2
+--- /dev/null
++++ b/work/2026-11-28-로고/prompts.md
+@@ -0,0 +1,13 @@
++# Logo generation prompts
++
++Method: built-in image_gen, transparent_background=true; one call per variant.
++
++## A
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant A: substantial upright slab-serif lettering, clean monolithic shapes with small squared bracket serifs, generous even spacing. Dominant pale celadon faces with dark warm clay along the bottom quarter; very restrained gold at top-left corners. Broad round-rectangular O kiln with chunky arch, small flame. Timeless composed typography, not decorative fantasy scrollwork.
++
++## B
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant B: compact upright geometric sans-serif letters with clipped chamfered corners, broad strong strokes, clearly separated glyphs. Glazed ceramic ivory-green upper face, celadon midtone and restrained dark clay bottom bevel, no long horizontal red stripe. No serifs. The kiln O is integrated into the exact same cap-height and width as neighboring letters. Tiny limited gold accents. Overall a spare bold silhouette with hand-shaped ceramic softness represented by orderly pixel stair-steps.
++
++## C
++Use case: logo-brand. Create a production pixel-art game wordmark. Exact text: "KILNBORN", spelled K I L N B O R N, uppercase, single straight line, no other text whatsoever. Transparent background. Use a wide horizontal composition with ample clear space around the word, all letters same cap-height, fully visible. Intended final sprite 320x80 with letters 54 pixels tall, so draw on an intentionally coarse precise pixel grid, solid rectangular pixel clusters, no antialiasing or gradients, no texture noise or scattered flecks. Crisp one-pixel dark ink-brown #282322 outline at the intended final resolution. Korean glazed ceramic kiln-born soldiers defend a village at night. Celadon glaze highlights #a6c5a3 and #6b9878; restrained lower edges in cinnabar #b8463a and #7a2a24 and dark pottery brown #5a4630. Small gold edge details #e8c35a and cream #fff1c4 only. Light from upper left; 2-3 flat shade bands, one tiny cream specular cluster per letter. Only the O is a kiln doorway with a small orange #ff9a3c flame INSIDE its counter; retain unmistakable O silhouette. All other letters are plain readable ceramic glyphs. No flames outside O, no floating ornaments, no subtitle, no border plaque, no additional icons. Must read immediately at small size on a dark navy background. Variant C: elegant sturdy upright narrow Roman slab capitals, subtly flared squared stroke ends, generous open counters, no italics. Warm ivory ceramic faces #e8dcb8 with muted celadon on lower third and very dark clay base, gold edge accents only. Make the kiln O a restrained arch with two straight sides, small flame confined inside its counter. Keep B and R instantly legible. Architectural and restrained, no gothic spikes or curls. One connected highlight cluster per glyph; broad plain surfaces.
++
+diff --git a/work/2026-11-28-로고/render-project/capture.gd b/work/2026-11-28-로고/render-project/capture.gd
+new file mode 100644
+index 0000000000000000000000000000000000000000..46470c28ab4dbc3fc974cab9a09d28cf16feaa7e
+--- /dev/null
++++ b/work/2026-11-28-로고/render-project/capture.gd
+@@ -0,0 +1,18 @@
++extends SceneTree
++
++func _initialize() -> void:
++	create_timer(35.0).timeout.connect(func(): quit(1))
++	capture.call_deferred()
++
++func capture() -> void:
++	var scene = load("res://src/game/kiln_scene.tscn").instantiate()
++	root.add_child(scene)
++	for i in 8:
++		await physics_frame
++	await RenderingServer.frame_post_draw
++	await RenderingServer.frame_post_draw
++	var target: String = OS.get_cmdline_user_args()[0]
++	var error := root.get_texture().get_image().save_png(target)
++	print("CAPTURE ", target, " RESULT ", error)
++	print("USER_DATA ", OS.get_user_data_dir())
++	quit(0 if error == OK else 1)
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Add-Content -Encoding UTF8 -LiteralPath 'work/2026-11-28-로고/NOTES.md' -Value @'
+
+## 작업 결과 2026-11-28
+- 먼저 읽을 것 7항목 확인: AGENTS, 기준 그림과 README, kiln_body 및 soldier 전체 접촉 시트, UI 3종, handoff-08, ref_title_now, handoff-10.
+- built-in image_gen 3회 생성 → PowerShell/.NET 코드로 크기·지정 팔레트·이진 알파 보정. 프롬프트는 prompts.md.
+- A 선택: 세리프가 I/L 구분을 돕고, 청자색이 기존 병사와 연결되며 O의 가마 불이 유일한 상징이다. B 둥근 산세리프, C 한지색 세리프를 비교 시트에 함께 보존.
+- 최종 logo 320×80 / icon 64×64, 각각 불투명 13색(투명 포함 14), 반투명 0, 고립된 불투명 픽셀 0. logo 글자 영역 높이54px.
+- work 폴더의 복제 프로젝트에서 Godot 4.7.2/OpenGL 시작 화면 캡처 성공. 원본 src, project.godot, 기존 사용자 변경은 손대지 않음. 사용자 데이터는 작업 폴더 내부로 지정.
+- 자동 승인 검토가 임시 렌더 폴더 삭제를 정책상 차단하여 render-project/ 및 runtime-user/를 작업 폴더 안에 보존.
+- 저장소 Python 스크립트, git commit·push 실행 없음. 검사는 통과, 재미·미술 판단은 사용자 몫.
+'@" in C:\Users\pc\Documents\game
+ succeeded in 334ms:
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$task=Join-Path (Get-Location) '"'work/2026-11-28-로고'; Copy-Item -LiteralPath 'assets/sprites/ui/title_far.png','assets/sprites/ui/title_mid.png','assets/sprites/ui/title_front.png' -Destination \""'$task/render-project/assets/sprites/ui"; $env:APPDATA="$task/runtime-user"; & $env:GODOT --headless --path "$task/render-project" --editor --import --quit --log-file "$task/import-final.log" 2>&1 | Select-Object -Last 8; & $env:GODOT --path "$task/render-project" --rendering-method gl_compatibility --rendering-driver opengl3 --script res://capture.gd --log-file "$task/render-final.log" -- "$task/preview_game.png"' in C:\Users\pc\Documents\game
+ succeeded in 7055ms:
+[   0% ] [90m[1mloading_editor_layout[22m | 편집기 레이아웃을 불러오는 중...[39m[0m
+[  16% ] [90m[1mloading_editor_layout[22m | 독을 불러오는 중...[39m[0m
+[  33% ] [90m[1mloading_editor_layout[22m | 씬을 다시 여는 중...[39m[0m
+[  50% ] [90m[1mloading_editor_layout[22m | 중앙 편집기 레이아웃을 불러오는 중...[39m[0m
+[  66% ] [90m[1mloading_editor_layout[22m | 플러그인 창 레이아웃을 불러오는 중...[39m[0m
+[  83% ] [90m[1mloading_editor_layout[22m | 편집기 레이아웃이 준비되었습니다.[39m[0m
+[92m[ DONE ][39m [1mloading_editor_layout[22m
+[0m
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 NVIDIA 621.01 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 3050
+
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+CAPTURE C:\Users\pc\Documents\game\work\2026-11-28-로고/preview_game.png RESULT 0
+USER_DATA C:/Users/pc/Documents/game/work/2026-11-28-로고/runtime-user/Godot/app_userdata/KILNBORN
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Add-Content -Encoding UTF8 -LiteralPath 'work/2026-11-28-로고/NOTES.md' -Value @'
+- 종료 시 다른 작업의 title_far/mid/front 및 저장소 상태 변화가 관찰됨. 해당 파일은 수정하지 않았고, 최신 표지 3장을 렌더용 복제본으로 읽어 복사한 뒤 preview_game.png를 다시 캡처·직접 확인함. 원본 기존 변경과 동시 작업의 변경은 본 작업 결과에 포함하지 않음.
+- 최종 렌더 로그: import-final.log / render-final.log, 캡처 RESULT 0. 로고와 제목 설명·버튼·병사 사이 겹침 없음.
+'@; Add-Content -Encoding UTF8 -LiteralPath 'work/2026-11-28-로고/handoff-11.report.md' -Value @'
+
+추가 확인: 작업 중 다른 작업에서 추가된 최신 title_far/mid/front를 렌더용 복제본에만 복사하여 preview_game.png를 다시 캡처·직접 확인했다(import-final.log, render-final.log, RESULT 0). 원본 표지 파일은 수정하지 않았다. 종료 git 상태에는 다른 작업의 변경도 있으므로 status-before/after 차이 전체를 이 작업의 변경 목록으로 해석하면 안 된다.
+'@; git status --porcelain | Set-Content -Encoding UTF8 -LiteralPath 'work/2026-11-28-로고/status-after.txt'" in C:\Users\pc\Documents\game
+ succeeded in 416ms:
+codex
+결과: 통과
+
+바뀐 파일:
+
+- [logo.png](/C:/Users/pc/Documents/game/assets/sprites/ui/logo.png) — KILNBORN 워드마크.
+- [app_icon.png](/C:/Users/pc/Documents/game/assets/sprites/ui/app_icon.png) — 가마 문과 불 상징.
+- 작업 폴더 — 시안 3개·비교 시트·미리보기·생성 프롬프트·보정 코드·보고서.
+
+확인한 것:
+
+- 로고 320×80, 아이콘 64×64. 각각 투명 배경·불투명 13색(투명 포함 14색), 반투명 픽셀 0개.
+- 시안 비교: [logo_options.png](/C:/Users/pc/Documents/game/work/2026-11-28-로고/logo_options.png). **A안 선택** — 글자 구분이 명확하고 청자색과 가마 불이 기존 병사·가마와 연결됩니다.
+- 어두운 바탕 미리보기: [preview_dark.png](/C:/Users/pc/Documents/game/work/2026-11-28-로고/preview_dark.png).
+- [시작 화면 렌더](/C:/Users/pc/Documents/game/work/2026-11-28-로고/preview_game.png) 직접 확인. 설명문·버튼과 겹침 없음.
+- 이미지 생성 후 코드로 보정. 허용 범위에서만 작업했으며 commit·push·저장소 Python 실행 없음.
+
+못 한 것 / 걱정되는 것:
+
+- 저장소 공식 검사는 Claude의 후속 확인 대상입니다. 크기·색·투명도 검사는 통과, 재미·미술 판단은 사용자 몫입니다.
+- Godot 인증서 저장소 오류가 출력됐지만 화면 캡처는 성공했습니다.
+
+자동 승인 검토가 임시 렌더 폴더 삭제를 정책상 차단하여, 허용된 작업 폴더 안에 남겨 두었습니다.
+tokens used
+75,543
+결과: 통과
+
+바뀐 파일:
+
+- [logo.png](/C:/Users/pc/Documents/game/assets/sprites/ui/logo.png) — KILNBORN 워드마크.
+- [app_icon.png](/C:/Users/pc/Documents/game/assets/sprites/ui/app_icon.png) — 가마 문과 불 상징.
+- 작업 폴더 — 시안 3개·비교 시트·미리보기·생성 프롬프트·보정 코드·보고서.
+
+확인한 것:
+
+- 로고 320×80, 아이콘 64×64. 각각 투명 배경·불투명 13색(투명 포함 14색), 반투명 픽셀 0개.
+- 시안 비교: [logo_options.png](/C:/Users/pc/Documents/game/work/2026-11-28-로고/logo_options.png). **A안 선택** — 글자 구분이 명확하고 청자색과 가마 불이 기존 병사·가마와 연결됩니다.
+- 어두운 바탕 미리보기: [preview_dark.png](/C:/Users/pc/Documents/game/work/2026-11-28-로고/preview_dark.png).
+- [시작 화면 렌더](/C:/Users/pc/Documents/game/work/2026-11-28-로고/preview_game.png) 직접 확인. 설명문·버튼과 겹침 없음.
+- 이미지 생성 후 코드로 보정. 허용 범위에서만 작업했으며 commit·push·저장소 Python 실행 없음.
+
+못 한 것 / 걱정되는 것:
+
+- 저장소 공식 검사는 Claude의 후속 확인 대상입니다. 크기·색·투명도 검사는 통과, 재미·미술 판단은 사용자 몫입니다.
+- Godot 인증서 저장소 오류가 출력됐지만 화면 캡처는 성공했습니다.
+
+자동 승인 검토가 임시 렌더 폴더 삭제를 정책상 차단하여, 허용된 작업 폴더 안에 남겨 두었습니다.

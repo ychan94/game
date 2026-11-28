@@ -27,3 +27,7 @@
 - check_sprites: 116 통과 · 문제 2 (skill_sniper "거의 비어 있음" → 가는 화살이라 정상, panel_corner "배경 불투명" → 모서리 장식이라 정상) · 없음 4 (handoff-09 컷신·시작 배경, 아직 안 함)
 - 화면에서 고친 것: 합동 파도 벽 그리기 오류(꼬인 사각형) · 뽑기 화면 가마가 패널 위로 넘침 → 0.88배 · 대장 체력바가 안내 글과 겹침 → 아래 빈 띠로 · 제목판 높이 14→16
 - 테스트 p0/p1/boss 통과
+
+- 2026-11-28 "컷신 3장은 다시 돌린 판(final-run2-backup)으로 바꿔줘. 단, cutin_fire.png 의 궁수 활이 하얗게 꼬인 관처럼 보이니, Codex에게 그 활만 고치게 해줘"
+  → fx/cutin_water·fire·earth 를 run2 판으로 교체 (title_bg 는 main 의 처음 판 유지). cutin_fire 활만 Codex 수정
+  → 지시서 09(run2)·10·11 함께 커밋해서 main push. reports/boss/history.csv·렌더용 폴더(render-project, runtime-user) 제외

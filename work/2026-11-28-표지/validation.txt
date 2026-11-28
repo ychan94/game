@@ -1,0 +1,3 @@
+﻿title_far.png: 704x400, RGBA colors=8, transparent=0, partial-alpha=0, top-half-visible=140800
+title_mid.png: 704x400, RGBA colors=26, transparent=150128, partial-alpha=0, top-half-visible=6108
+title_front.png: 704x400, RGBA colors=32, transparent=211453, partial-alpha=0, top-half-visible=0

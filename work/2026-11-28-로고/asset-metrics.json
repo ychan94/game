@@ -1,0 +1,42 @@
+﻿[
+    {
+        "file":  "logo.png",
+        "width":  320,
+        "height":  80,
+        "opaque_colors":  13,
+        "rgba_colors_including_transparent":  14,
+        "transparent_pixels":  12637,
+        "partial_alpha_pixels":  0,
+        "isolated_opaque_pixels":  0,
+        "alpha_values":  [
+                             0,
+                             255
+                         ],
+        "bounds":  [
+                       9,
+                       13,
+                       302,
+                       54
+                   ]
+    },
+    {
+        "file":  "app_icon.png",
+        "width":  64,
+        "height":  64,
+        "opaque_colors":  13,
+        "rgba_colors_including_transparent":  14,
+        "transparent_pixels":  2079,
+        "partial_alpha_pixels":  0,
+        "isolated_opaque_pixels":  0,
+        "alpha_values":  [
+                             0,
+                             255
+                         ],
+        "bounds":  [
+                       12,
+                       5,
+                       40,
+                       54
+                   ]
+    }
+]

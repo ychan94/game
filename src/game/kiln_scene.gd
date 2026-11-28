@@ -62,10 +62,14 @@ var tut_seen := {}
 var tut_now := ""
 var tutorial_enabled := true
 var new_best := false
+var paused := false      # 일시정지 창
+var pause_ask := ""      # "title": 처음 화면으로 갈지 묻는 중
+var pause_settings := false
+var start_ask := false   # 처음 화면: 저장된 판이 있을 때 이어하기 / 새로 시작
 var draft_shown_t := 0   # 전술 카드가 나온 때 (솟아오르는 연출)
 # 환경설정 (판과 무관, 이 컴퓨터에 저장)
 const OPT_FILE := "user://kiln_settings.cfg"
-var opt := {"fullscreen": false, "speed": 1, "shake": true, "numbers": true, "tutorial": true}
+var opt := {"music": 0.7, "sound": 0.7, "fullscreen": false, "speed": 1, "shake": true, "numbers": true, "tutorial": true}
 
 
 func _ready() -> void:
@@ -80,6 +84,100 @@ func _ready() -> void:
 	_load_opts()
 	_new_run()
 	state = "title"
+
+
+## 판 저장 / 이어하기 ---------------------------------------------
+var save_enabled := true   # 스크린샷·시험에서는 끈다
+
+func _save_run() -> void:
+	if save_enabled and run != null and run.state == "prep":
+		run.save_to()
+
+
+func _continue_run() -> void:
+	var r = KilnRun.load_from(KilnRun.RUN_SAVE, meta.effects())
+	if r == null:
+		show_banner("저장된 판을 불러오지 못했다", "새 판을 시작합니다", C["danger"], 90)
+		_new_run()
+		return
+	run = r
+	kiln = run.kiln
+	state = "prep"
+	selected = -1
+	battle = null
+	show_banner("이어하기", "챕터 %d · 아침 %d" % [run.chapter, run.night], UI["gold"], 70)
+
+
+## 창을 닫아도 판이 남게: 전투 중이 아니면 지금 상태를, 전투 중이면 밤 직전 저장을 그대로 둔다
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and run != null and state in ["prep", "gacha", "shop", "equip", "barracks", "combo"]:
+		_save_run()
+
+
+## 일시정지 창을 열어도 되는 때 (전술 뽑기·원군 고르기 중에도 된다)
+func pause_ok() -> bool:
+	return run != null
+
+
+func _pause_input() -> void:
+	if pause_settings:
+		_settings_input()
+		return
+	var in_battle: bool = state in ["battle", "battle_end"]
+	if pause_ask == "title":
+		if clicked("pz_yes"):
+			if not in_battle and state != "night_end":
+				_save_run()
+			paused = false
+			pause_ask = ""
+			battle = null
+			cutin = {}
+			floats.clear()
+			state = "title"
+			sfx("confirm")
+		elif clicked("pz_no") or pressed(KEY_ESCAPE):
+			pause_ask = ""
+		return
+	if clicked("pz_resume") or pressed(KEY_ESCAPE):
+		paused = false
+		sfx("click")
+	elif clicked("pz_settings"):
+		pause_settings = true
+	elif clicked("pz_title"):
+		pause_ask = "title"
+
+
+func _draw_start_ask() -> void:
+	# 저장된 판이 있으면: 이어하기 / 새로 시작
+	draw_rect(Rect2(Vector2.ZERO, VIEW), Color(0, 0, 0, 0.6))
+	var ar := Rect2(200, 120, 240, 150)
+	panel(ar)
+	text(Vector2(ar.position.x, ar.position.y + 30), "저장된 판이 있습니다", UI["gold"], 12, ar.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	button(Rect2(ar.position.x + 40, ar.position.y + 44, 160, 30), "이어하기  (Enter)", "cont", UI["gold"], true, true)
+	button(Rect2(ar.position.x + 40, ar.position.y + 82, 160, 26), "새로 시작 (저장한 판 지움)", "fresh", C["dim"])
+	button(Rect2(ar.position.x + 40, ar.position.y + 114, 160, 24), "닫기", "ask_close", C["dim"])
+
+
+func _draw_pause() -> void:
+	draw_rect(Rect2(Vector2.ZERO, VIEW), Color(0.02, 0.01, 0.04, 0.7))
+	if pause_settings:
+		_draw_settings_panel()
+		return
+	var pr := Rect2(200, 100, 240, 200)
+	panel(pr)
+	text(Vector2(pr.position.x, pr.position.y + 34), "일시정지", UI["gold"], 24, pr.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	var in_battle: bool = state in ["battle", "battle_end"]
+	if pause_ask == "title":
+		text(Vector2(pr.position.x, pr.position.y + 66), "처음 화면으로 갈까요?", C["text"], 12, pr.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+		var note: String = "판은 저장됩니다 · 이 밤은 아침(배치)부터 다시" if in_battle else "판은 저장됩니다 · '게임 시작'에서 이어하기"
+		text(Vector2(pr.position.x, pr.position.y + 86), note, UI["muted"], 12, pr.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+		button(Rect2(pr.position.x + 24, pr.position.y + 120, 90, 28), "처음 화면으로", "pz_yes", UI["gold"], true, true)
+		button(Rect2(pr.position.x + 126, pr.position.y + 120, 90, 28), "아니요", "pz_no", C["dim"])
+		return
+	text(Vector2(pr.position.x, pr.position.y + 56), "챕터 %d · %s %d" % [run.chapter, "밤" if in_battle else "아침", fought.y if in_battle else run.night], UI["muted"], 12, pr.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	button(Rect2(pr.position.x + 40, pr.position.y + 72, 160, 30), "계속하기  (Esc)", "pz_resume", UI["gold"], true, true)
+	button(Rect2(pr.position.x + 40, pr.position.y + 110, 160, 26), "환경설정", "pz_settings", UI["gold"])
+	button(Rect2(pr.position.x + 40, pr.position.y + 144, 160, 26), "저장하고 처음 화면으로", "pz_title", UI["gold"])
 
 
 func _load_opts() -> void:
@@ -100,37 +198,52 @@ func _save_opts() -> void:
 func _apply_opts() -> void:
 	shake_on = opt["shake"]
 	numbers_on = opt["numbers"]
+	music_vol = float(opt["music"])
+	sfx_vol = float(opt["sound"])
 	tutorial_enabled = opt["tutorial"]
 	if DisplayServer.get_name() != "headless":
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if opt["fullscreen"] else DisplayServer.WINDOW_MODE_WINDOWED)
 
 
 const OPT_ROWS := [
-	["fullscreen", "화면", ["창 모드", "전체 화면"]],
-	["speed", "전투 속도", ["보통 ×1", "빠르게 ×2"]],
-	["shake", "화면 흔들림", ["끄기", "켜기"]],
-	["numbers", "피해 숫자", ["끄기", "켜기"]],
-	["tutorial", "처음 안내", ["끄기", "켜기"]],
+	["music", "음악", ["끄기", "작게", "보통", "크게"], [0.0, 0.35, 0.7, 1.0]],
+	["sound", "효과음", ["끄기", "작게", "보통", "크게"], [0.0, 0.35, 0.7, 1.0]],
+	["fullscreen", "화면", ["창 모드", "전체 화면"], [false, true]],
+	["speed", "전투 속도", ["보통 ×1", "빠르게 ×2"], [1, 2]],
+	["shake", "화면 흔들림", ["끄기", "켜기"], [false, true]],
+	["numbers", "피해 숫자", ["끄기", "켜기"], [false, true]],
+	["tutorial", "처음 안내", ["끄기", "켜기"], [false, true]],
 ]
 
 
-func _opt_index(k: String) -> int:
-	var v = opt[k]
-	if k == "speed":
-		return 1 if int(v) >= 2 else 0
-	return 1 if v else 0
+func _opt_index(row: Array) -> int:
+	var vals: Array = row[3]
+	var v = opt[row[0]]
+	var best := 0
+	for i in vals.size():
+		if typeof(vals[i]) == TYPE_BOOL:
+			if bool(v) == vals[i]:
+				return i
+		elif absf(float(vals[i]) - float(v)) < absf(float(vals[best]) - float(v)):
+			best = i
+	return best
 
 
 func _settings_input() -> void:
 	if clicked("back") or pressed(KEY_ESCAPE):
-		state = "title"
+		if pause_settings:
+			pause_settings = false
+		else:
+			state = "title"
 		return
 	for row in OPT_ROWS:
-		for i in 2:
+		for i in row[2].size():
 			if clicked("opt_%s_%d" % [row[0], i]):
-				opt[row[0]] = (i + 1) if row[0] == "speed" else (i == 1)
+				opt[row[0]] = row[3][i]
 				_apply_opts()
 				_save_opts()
+				if row[0] == "sound":
+					sfx("confirm")
 	if clicked("opt_tut_reset"):
 		tut_seen.clear()
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(TUT_FILE))
@@ -140,19 +253,24 @@ func _settings_input() -> void:
 func _draw_settings() -> void:
 	_draw_title_bg_only()
 	draw_rect(Rect2(Vector2.ZERO, VIEW), Color(0, 0, 0, 0.55))
-	var pr := Rect2(150, 50, 340, 300)
+	_draw_settings_panel()
+
+
+func _draw_settings_panel() -> void:
+	var pr := Rect2(130, 24, 380, 352)
 	panel(pr)
 	button(Rect2(pr.position.x + 10, pr.position.y + 10, 70, 22), "‹ 뒤로", "back", UI["gold"])
 	text(Vector2(pr.position.x, pr.position.y + 30), "환경설정", UI["gold"], 24, pr.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 	for r in OPT_ROWS.size():
 		var row: Array = OPT_ROWS[r]
-		var y: float = pr.position.y + 60 + r * 38
-		text(Vector2(pr.position.x + 22, y + 17), row[1], UI["muted"])
-		var cur := _opt_index(row[0])
-		for i in 2:
-			button(Rect2(pr.position.x + 120 + i * 104, y, 98, 24), row[2][i], "opt_%s_%d" % [row[0], i], UI["gold"] if i == cur else C["dim"], true, i == cur)
-	button(Rect2(pr.position.x + 120, pr.position.y + 252, 202, 22), "처음 안내 다시 보기", "opt_tut_reset", C["dim"])
-	text(Vector2(pr.position.x, pr.position.y + 292), "소리는 아직 없습니다 (데모 다음 단계)", C["dim"], 12, pr.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+		var y: float = pr.position.y + 52 + r * 36
+		text(Vector2(pr.position.x + 20, y + 17), row[1], UI["muted"])
+		var cur := _opt_index(row)
+		var n: int = row[2].size()
+		var w: float = (260.0 - (n - 1) * 6.0) / n
+		for i in n:
+			button(Rect2(pr.position.x + 104 + i * (w + 6.0), y, w, 24), row[2][i], "opt_%s_%d" % [row[0], i], UI["gold"] if i == cur else C["dim"], true, i == cur)
+	button(Rect2(pr.position.x + 104, pr.position.y + 310, 260, 22), "처음 안내 다시 보기", "opt_tut_reset", C["dim"])
 
 
 ## 처음 화면 배경만 (제목·버튼 없이) — 환경설정·랭킹 뒤에
@@ -198,20 +316,63 @@ func _tut_pick() -> String:
 
 func _new_run() -> void:
 	run = KilnRun.new(int(Time.get_unix_time_from_system()), meta.effects() if meta != null else {})
+	if PD.DEMO:
+		run.last_chapter = PD.DEMO_LAST_CHAPTER
 	kiln = run.kiln
 	state = "prep"
 	selected = -1
 	battle = null
 
 
+## 일시정지 창을 여는 화면 (Esc). 상점·뽑기·대기실 등은 Esc 가 로비로 돌아가기라 그대로 둔다
+const PAUSE_STATES := ["prep", "deploy", "battle", "battle_end", "night_end", "fire", "load", "reveal"]
+
+
+## 화면마다 배경 음악: 낮(로비·가마·상점) = lobby, 밤 = battle, 최종 보스 밤 = boss. 밤 결과 창은 짧은 가락만
+func _pick_music() -> void:
+	if state in ["deploy", "battle"]:
+		music("boss" if battle != null and battle.boss_stage else "battle")
+	elif state in ["battle_end", "night_end"]:
+		pass
+	else:
+		music("lobby")
+
+
 func _physics_process(_d: float) -> void:
-	if state not in ["meta", "records", "codex", "settings"]:
-		back_to_menu_if_esc()
+	_pick_music()
+	# 일시정지 (2026-11-28 "esc키로 인한 판 사라짐"): Esc 는 바로 나가지 않고 창을 연다. 그동안 모든 것이 멈춘다
+	if paused:
+		_pause_input()
+		queue_redraw()
+		end_input()
+		return
+	if pressed(KEY_ESCAPE) and state in PAUSE_STATES and not show_help and not promo_pick and pause_ok():
+		paused = true
+		pause_ask = ""
+		sfx("pause")
+		queue_redraw()
+		end_input()
+		return
 	match state:
 		"title":
 			# 처음 화면은 게임 시작 · 랭킹 · 환경설정 셋만 (2026-11-28 사용자). 전술 강화·도감은 로비에서
-			if clicked("start") or pressed(KEY_ENTER) or pressed(KEY_KP_ENTER):
-				_new_run()
+			if start_ask:
+				if clicked("cont") or pressed(KEY_ENTER) or pressed(KEY_KP_ENTER):
+					start_ask = false
+					_continue_run()
+				elif clicked("fresh"):
+					start_ask = false
+					KilnRun.clear_save()
+					_new_run()
+					_save_run()
+				elif clicked("ask_close") or pressed(KEY_ESCAPE):
+					start_ask = false
+			elif clicked("start") or pressed(KEY_ENTER) or pressed(KEY_KP_ENTER):
+				if KilnRun.has_save():
+					start_ask = true
+				else:
+					_new_run()
+					_save_run()
 			elif clicked("to_records"):
 				state = "records"
 			elif clicked("to_settings"):
@@ -259,6 +420,7 @@ func _physics_process(_d: float) -> void:
 						var bp := _bench_pos(i, run.queue.size())
 						burst(bp + Vector2(0, 8), CLAY_TONES[2], 12, 2.2, 2.0)
 						shake = maxf(shake, 1.5)
+						sfx("clay", 0.8, 0.12)
 		"load":
 			_tick_fire()
 			load_t += 1
@@ -268,6 +430,7 @@ func _physics_process(_d: float) -> void:
 					var dc := _door_screen_box(FIRE_O).get_center()
 					burst(dc + Vector2(0, 30), CLAY_TONES[3], 10, 2.0, 2.0)
 					shake = maxf(shake, 2.0)
+					sfx("kiln_load", 0.8, 0.1)
 			if load_t >= _load_start(nq - 1) + LOAD_FLY + 16:
 				state = "fire"
 		"fire":
@@ -275,6 +438,7 @@ func _physics_process(_d: float) -> void:
 			if (pressed(KEY_SPACE) or clicked("heat")) and kiln.heat < PD.KILN_MAX_HEAT:
 				kiln.heat_up()
 				shake = maxf(shake, 1.0 + kiln.heat * 0.4)
+				sfx("fire", 0.6 + kiln.heat * 0.06, 0.03)
 				var bx := _door_screen_box(FIRE_O)
 				for i in 8 + kiln.heat * 2:
 					flames.append({"pos": Vector2(bx.position.x + bx.size.x * randf_range(0.1, 0.9), bx.end.y - randf_range(2.0, 14.0)),
@@ -282,6 +446,7 @@ func _physics_process(_d: float) -> void:
 			if clicked("bet"):
 				bet_on = not bet_on
 			if pressed(KEY_ENTER) or pressed(KEY_KP_ENTER) or clicked("open"):
+				sfx("fire", 1.0)
 				kiln.results = run.fire(bet_on)
 				bet_on = false
 				bet_told = false
@@ -300,7 +465,10 @@ func _physics_process(_d: float) -> void:
 				reveal_t += 1
 				if reveal_t == 24 or reveal_t == 44:
 					shake = maxf(shake, 4.0)
+				if reveal_t == 24 or reveal_t == 44:
+					sfx("crackle", 0.8)
 				if reveal_t == OPEN_T - 6:
+					sfx("crack")
 					do_flash(NEUTRAL, 16)
 					shake = maxf(shake, 7.0)
 				var due := (reveal_t - OPEN_T) / CARD_GAP + 1 if reveal_t >= OPEN_T else 0
@@ -325,6 +493,7 @@ func _physics_process(_d: float) -> void:
 				var bk: String = run.last_bet["key"]
 				var good: bool = bk != "bust"
 				show_banner("가마신: %s!" % run.last_bet["name"], run.last_bet["desc"], C["accent"] if good else C["danger"], 110)
+				sfx("reveal_legend" if bk == "jackpot" else ("coin" if good else "deny"))
 				do_flash(C["accent"] if good else C["danger"], 16 if bk == "jackpot" else 8)
 				shake = maxf(shake, 10.0 if bk == "jackpot" else 4.0)
 				burst(Vector2(320, 200), C["accent"] if good else C["dim"], 40 if bk == "jackpot" else 16, 4.0, 3.0)
@@ -349,11 +518,14 @@ func _physics_process(_d: float) -> void:
 				meta.embers += last_embers
 				state = "battle_end"
 				end_wait = 48
+				music("")
+				sfx("lose" if run.state == "lost" else ("chapter_clear" if (run.chapter_cleared or run.state == "won") else "win"))
 				banner = {}
 				last_rank = -1
-				if run.chapter_cleared:
+				if run.chapter_cleared or run.state == "won":
 					last_rank = meta.add_record(fought.x, run.last_chapter_time, "%d명" % run.army.size())
 				if run.state in ["lost", "won"]:
+					KilnRun.clear_save()
 					new_best = meta.note_run(fought.x, fought.y, run.total_kills, run.state == "won")
 				meta.save()
 		"battle_end":
@@ -374,8 +546,10 @@ func _physics_process(_d: float) -> void:
 					state = "prep"
 					battle = null
 					selected = -1
+					_save_run()   # 아침마다 저장
 				else:
 					battle = null
+					KilnRun.clear_save()   # 판이 끝났다
 					state = "title"
 			elif clicked("to_meta2"):
 				battle = null
@@ -493,6 +667,7 @@ func _prep_input() -> void:
 			if clicked("card%d" % sd["id"]):
 				var key: String = run.shop[shop_pick]
 				if run.buy(shop_pick, sd["id"]):
+					sfx("coin")
 					float_text(Vector2(250, 120), "%s → %s" % [PD.SHOP_ITEMS[key]["name"], sd["name"]], C["accent"])
 					burst(Vector2(320, 200), UI["gold"], 18, 2.5, 2.0)
 					shake = 2.0
@@ -520,6 +695,7 @@ func _prep_input() -> void:
 					else:
 						shop_pick = i
 				elif run.buy(i, -1):
+					sfx("coin")
 					float_text(Vector2(440, 150), ("%s → 가방" % KilnRun.equip_name(run.last_bought)) if it["stat"] == "equip" else "%s!" % it["name"], C["accent"])
 					burst(Vector2(470, 180), UI["gold"], 16, 2.5, 2.0)
 					shake = 2.0
@@ -536,6 +712,7 @@ func _prep_input() -> void:
 		for i in run.inventory.size():
 			if clicked("eq%d" % i):
 				run.equip(selected, run.inventory[i]["id"])
+				sfx("equip")
 				shake = 2.0
 				break
 	if selected >= 0 and clicked("promo"):
@@ -544,6 +721,7 @@ func _prep_input() -> void:
 		if clicked("card%d" % s["id"]):
 			if promo_pick and run.can_promote(selected, s["id"]):
 				var m: Dictionary = run.promote(selected, s["id"])
+				sfx("reveal_legend")
 				show_banner("전직! %s" % m["name"], "흡수한 스킬: %s" % PD.skill_name(m["promo"], m["element"]), C["accent"], 100)
 				do_flash(C["accent"], 14)
 				shake = 6.0
@@ -561,6 +739,7 @@ func _prep_input() -> void:
 			if not m.is_empty():
 				_tut_done("star")
 				selected = m["id"]
+				sfx("star_up")
 				float_text(Vector2(150, 150), "합치기! %s %s" % [m["name"], "★".repeat(m["star"])], C["accent"], 24)
 				shake = 4.0
 			break
@@ -671,6 +850,7 @@ func _deploy_input() -> void:
 
 
 func _start_battle() -> void:
+	_save_run()   # 밤 직전에 저장: 전투 중에 나가면 이 밤의 아침(배치까지)부터 다시
 	fought = Vector2i(run.chapter, run.night)
 	battle = run.start_night()
 	_map_units()
@@ -718,6 +898,7 @@ func _gfx_tick() -> void:
 			if tap and gfx["t"] > 8:
 				gfx["taps"] += 1
 				gfx["t"] = 0
+				sfx("crack", 0.5 + gfx["taps"] * 0.15, 0.1)
 				shake = maxf(shake, 3.0 + gfx["taps"] * 2.5)
 				burst(c + Vector2(randf_range(-18, 18), randf_range(-30, 10)), CLAY_TONES[2], 8 + gfx["taps"] * 5, 3.0, 2.5)
 				if gfx["taps"] >= gfx["need"]:
@@ -729,6 +910,7 @@ func _gfx_tick() -> void:
 					burst(c, CLAY_TONES[1], 30, 4.0, 3.5)
 		"burst":
 			if gfx["t"] == 14:
+				sfx("reveal_" + {"hero": "hero", "legendary": "legend", "mythic": "mythic"}.get(gfx["grade"], "rare"))
 				burst(c, gc.lightened(0.3), 40, 5.0, 2.5)   # 겉흙이 다 떨어진 뒤에야 등급 빛
 			if gfx["t"] > 44:
 				gfx["phase"] = "show"
@@ -897,11 +1079,15 @@ func _reveal_one(i: int) -> void:
 	card_at[i] = t
 	if r["cracked"]:
 		burst(Vector2(320, 330), CLAY_TONES[2], 10, 2.0, 2.0)
+		sfx("crack", 0.6)
 		return
 	var surv := _survivors()
 	var p := _card_pos(surv.find(i), surv.size())
 	var gc: Color = GRADE_COL[PD.ROLE_GRADE.get(r["role"], "common")]
+	var g1: String = PD.ROLE_GRADE.get(r["role"], "common")
+	sfx({"common": "reveal_common", "uncommon": "reveal_uncommon", "rare": "reveal_rare", "hero": "reveal_hero", "legendary": "reveal_legend", "mythic": "reveal_mythic"}.get(g1, "reveal_common"), 0.9)
 	if r["tier"] == "legend" and r.get("before", "") != "legend":
+		sfx("reveal_legend")
 		burst(p, C["accent"], 40, 4.5, 3.0)
 		do_flash(C["accent"], 18)
 		shake = maxf(shake, 9.0)
@@ -968,6 +1154,10 @@ func _draw() -> void:
 					_draw_draft()
 				elif battle.pending == "reinforce":
 					_draw_reinforce()
+	if paused:
+		_draw_pause()
+	if state == "title" and start_ask:
+		_draw_start_ask()
 	draw_fx()
 
 
@@ -1198,7 +1388,7 @@ func _draw_records() -> void:
 		text(Vector2(br.position.x, br.position.y + 22), "가장 멀리 간 판: 아직 없음", C["dim"], 12, br.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 	else:
 		var bb: Dictionary = meta.best
-		var reach: String = "모든 챕터 클리어!" if bb.get("all", false) else "챕터 %d · 밤 %d" % [bb["chapter"], bb["night"]]
+		var reach: String = ("데모 클리어! (챕터 %d)" % bb["chapter"] if PD.DEMO else "모든 챕터 클리어!") if bb.get("all", false) else "챕터 %d · 밤 %d" % [bb["chapter"], bb["night"]]
 		text(Vector2(br.position.x, br.position.y + 22), "가장 멀리 간 판: %s  ·  처치 %d  ·  %s" % [reach, bb["kills"], str(bb["date"]).substr(5)], UI["gold"], 12, br.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 	text(Vector2(0, 100), "챕터별 가장 빠른 클리어 (밤 전투 시간 합)", UI["muted"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
 	for c in PD.CHAPTERS.size():
@@ -1207,6 +1397,10 @@ func _draw_records() -> void:
 		panel(Rect2(x, y, 198, 132))
 		text(Vector2(x + 8, y + 18), "챕터 %d · %s" % [c + 1, PD.CHAPTERS[c]["name"]], UI["gold"])
 		var list: Array = meta.records.get(str(c + 1), [])
+		if PD.DEMO and c + 1 > PD.DEMO_LAST_CHAPTER:
+			text(Vector2(x + 8, y + 42), "정식판에서 열립니다", C["dim"])
+			draw_rect(Rect2(x, y, 198, 132), Color(0, 0, 0, 0.35))
+			continue
 		if list.is_empty():
 			text(Vector2(x + 8, y + 42), "아직 기록 없음", C["dim"])
 		for i in mini(5, list.size()):
@@ -1952,7 +2146,10 @@ func _draw_night_end() -> void:
 	# 제목 판 (도장처럼 펼쳐짐)
 	var title := ""
 	var sub := ""
-	if run.state == "won":
+	if run.state == "won" and run.last_chapter < PD.CHAPTERS.size():
+		title = "데모 클리어! 챕터 %d 최종 보스 격파" % run.last_chapter
+		sub = "데모는 여기까지입니다 — 챕터 %d부터는 정식판에서" % (run.last_chapter + 1)
+	elif run.state == "won":
 		title = "모든 챕터를 지켰다!"
 	elif lost:
 		title = "마을이 무너졌다"
@@ -3154,16 +3351,19 @@ func _pending_input() -> void:
 		if run.draft_offer.is_empty():
 			run.roll_draft()
 			draft_shown_t = t
+			sfx("draft")
 		if clicked("tc_reroll"):
 			if not run.reroll_draft():
 				float_text(Vector2(300, 330), "진주 부족", C["danger"])
 			else:
 				draft_shown_t = t
+				sfx("draft")
 			return
 		for i in run.draft_offer.size():
 			if clicked("tc%d" % i) or pressed(KEY_1 + i):
 				var id: String = run.draft_offer[i]
 				run.pick_tactic(id, battle)
+				sfx("card_pick")
 				show_banner("전술: %s" % PD.TACTICS[id]["name"], PD.TACTICS[id]["desc"], RARE_COL[PD.TACTICS[id]["rare"]], 80)
 				do_flash(RARE_COL[PD.TACTICS[id]["rare"]], 10)
 				return
@@ -3189,6 +3389,7 @@ func _pending_input() -> void:
 			for g in got:
 				unit_sid[g[0].id] = g[1]
 			rf_pick = []
+			sfx("reinforce")
 			show_banner("원군 도착!", "대기실 병사 %d명이 마을 앞에 섰다" % got.size(), UI["gold"], 90)
 			shake = maxf(shake, 6.0)
 

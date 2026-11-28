@@ -490,6 +490,7 @@ func clicked(id: String) -> bool:
 	var m := get_local_mouse_position()
 	for b in buttons:
 		if b["id"] == id and b["rect"].has_point(m):
+			sfx("click")
 			return true
 	return false
 
@@ -532,8 +533,95 @@ func do_flash(color: Color, life := 16) -> void:
 var _shake_now := Vector2.ZERO
 
 
+# ---------------- 소리 (2026-11-28 "효과음과 음악") ----------------
+## assets/audio/sfx/<이름>.ogg · assets/audio/music/<이름>.ogg (scripts/make_audio.py 가 만든다). 없으면 조용히 넘어간다
+var sfx_vol := 0.8
+var music_vol := 0.6
+var _sfx_players: Array = []
+var _sfx_last := {}
+var _audio_cache := {}
+var _mus_a: AudioStreamPlayer
+var _mus_b: AudioStreamPlayer
+var _mus_name := ""
+var _mus_fade := 1.0          # 0→1: 새 곡이 커지고 옛 곡이 줄어든다
+const SFX_GAP := {"hit": 3, "hurt": 5, "arrow": 3, "die": 3, "click": 3, "heal": 8, "summon": 10, "skill": 4, "crackle": 20}
+const SFX_VOL := {"hit": 0.35, "hurt": 0.25, "arrow": 0.3, "die": 0.45, "heal": 0.4, "click": 0.6, "summon": 0.5, "skill": 0.55,
+	"skill_fire": 0.55, "skill_water": 0.55, "skill_earth": 0.6, "die_big": 0.8}
+
+
+func _audio(path: String) -> AudioStream:
+	if _audio_cache.has(path):
+		return _audio_cache[path]
+	var st: AudioStream = load(path) if ResourceLoader.exists(path) else null
+	_audio_cache[path] = st
+	return st
+
+
+func sfx(name: String, vol := 1.0, pitch_var := 0.05) -> void:
+	if sfx_vol <= 0.0 or not is_inside_tree():
+		return
+	if t - _sfx_last.get(name, -999) < SFX_GAP.get(name, 2):
+		return
+	var st := _audio("res://assets/audio/sfx/%s.ogg" % name)
+	if st == null:
+		return
+	_sfx_last[name] = t
+	if _sfx_players.is_empty():
+		for i in 14:
+			var pl := AudioStreamPlayer.new()
+			add_child(pl)
+			_sfx_players.append(pl)
+	var pick: AudioStreamPlayer = _sfx_players[0]
+	for pl in _sfx_players:
+		if not pl.playing:
+			pick = pl
+			break
+	pick.stream = st
+	pick.volume_db = linear_to_db(maxf(0.001, vol * SFX_VOL.get(name, 0.8) * sfx_vol))
+	pick.pitch_scale = 1.0 + randf_range(-pitch_var, pitch_var)
+	pick.play()
+	_sfx_players.erase(pick)
+	_sfx_players.append(pick)   # 가장 오래된 것부터 다시 쓴다
+
+
+## 배경 음악: 같은 곡이면 그대로, 다르면 1초 동안 겹쳐 바꾼다 ("" 이면 끈다)
+func music(name: String) -> void:
+	if name == _mus_name or not is_inside_tree():
+		return
+	if _mus_a == null:
+		_mus_a = AudioStreamPlayer.new()
+		_mus_b = AudioStreamPlayer.new()
+		add_child(_mus_a)
+		add_child(_mus_b)
+	_mus_name = name
+	var tmp := _mus_a
+	_mus_a = _mus_b
+	_mus_b = tmp   # b = 옛 곡 (줄어든다)
+	_mus_a.stop()
+	if name != "":
+		var st := _audio("res://assets/audio/music/%s.ogg" % name)
+		if st != null:
+			if "loop" in st:
+				st.loop = true
+			_mus_a.stream = st
+			_mus_a.volume_db = -60.0
+			_mus_a.play()
+	_mus_fade = 0.0
+
+
+func _tick_music() -> void:
+	if _mus_a == null:
+		return
+	_mus_fade = minf(1.0, _mus_fade + 1.0 / 60.0)
+	_mus_a.volume_db = linear_to_db(maxf(0.0005, _mus_fade * music_vol * 0.7))
+	_mus_b.volume_db = linear_to_db(maxf(0.0005, (1.0 - _mus_fade) * music_vol * 0.7))
+	if _mus_fade >= 1.0 and _mus_b.playing:
+		_mus_b.stop()
+
+
 func tick_fx() -> void:
 	t += 1
+	_tick_music()
 	_tick_atmosphere()
 	shake = maxf(0.0, shake * 0.85 - 0.05)
 	_shake_now = shake_offset()
@@ -674,6 +762,7 @@ func step_battle() -> void:
 		if u.team == "enemy" and u.kind in PD.BOSSES and not boss_seen.has(u.id):
 			boss_seen[u.id] = true
 			var sk_names: Array = u.bskills.map(func(z): return PD.BOSS_SKILLS[z]["name"]) if "bskills" in u else []
+			sfx("boss_appear")
 			show_banner("%s 출현!" % u.name, ("보스 스킬: " + " · ".join(sk_names) + " — 붉은 원을 피하라") if not sk_names.is_empty() else "챕터 대장 — 쓰러뜨리면 다음 챕터로", C["danger"], 120)
 			shake = maxf(shake, 8.0)
 	# 합동 기술 파도: 벽 그림(fx/fire_wall·water_wave·earth_crack)이 있으면 세로로 이어 재생, 없으면 입자
@@ -742,13 +831,29 @@ func step_battle() -> void:
 				shake = maxf(shake, 5.0)
 				hitstop = maxi(hitstop, 2)
 			"summon":
+				sfx("summon")
 				burst(e["pos"] + FIELD_OFFSET, Color(0.75, 0.55, 1.0), 12, 2.4, 2.0)
 				light(e["pos"], 26.0, Color(0.7, 0.5, 1.0, 0.6), 10)
 			"skill":
 				_skill_fx(e)
+				sfx({"fire": "skill_fire", "water": "skill_water", "earth": "skill_earth"}.get(e.get("element", ""), "skill"))
+			"special":
+				sfx("skill")
+			"shot":
+				sfx("arrow")
+			"synergy":
+				sfx("combo")
+			"reinforce":
+				sfx("reinforce")
+			"tactic":
+				sfx("card_pick")
+			"village_hit":
+				sfx("hurt", 0.8)
 			"boss_warn":
+				sfx("boss_warn", 0.7)
 				floats.append({"pos": e["pos"] + FIELD_OFFSET + Vector2(-24, -44), "text": e["name"] + "!", "color": Color(1.0, 0.55, 0.4), "size": 16, "t": 50, "life": 50})
 			"boss_skill":
+				sfx({"slam": "boss_slam", "rain": "boss_rain", "roar": "boss_roar"}.get(e["id"], "boss_slam"))
 				var bcol: Color = Color(1.0, 0.8, 0.35) if e["id"] == "roar" else Color(1.0, 0.4, 0.2)
 				for p2 in e["pos"]:
 					burst(p2 + FIELD_OFFSET, bcol, 18, 3.0, 2.5)
@@ -756,6 +861,7 @@ func step_battle() -> void:
 				shake = maxf(shake, 6.0 if e["id"] == "slam" else 3.0)
 				hitstop = maxi(hitstop, 3)
 			"heal":
+				sfx("heal")
 				start_attack_motion(e["unit"], "healer", Vector2.RIGHT)
 				light(e["pos"], 26.0, Color(0.5, 1.0, 0.6, 0.6), 14)
 				light(e["from"], 16.0, Color(1.0, 0.9, 0.5, 0.5), 10)
@@ -769,6 +875,10 @@ func step_battle() -> void:
 				m3["squash"] = 0.25
 				var amt: float = e["amount"]
 				if e["team"] == "enemy":
+					sfx("hit_big" if amt >= 20.0 else "hit", 1.0 if amt >= 20.0 else 0.8)
+				else:
+					sfx("hurt")
+				if e["team"] == "enemy":
 					_element_hit_fx(e["pos"], e["element"], d, amt >= 20.0)
 					var ic: Color = C.get(e["element"], C["text"]).lightened(0.6) if e["element"] != "" else Color.WHITE
 					impacts.append({"pos": e["pos"] - d * 4.0, "t": 6, "life": 6, "size": 16.0 if amt >= 20.0 else 10.0, "color": ic, "rot": randf() * 0.8})
@@ -780,6 +890,10 @@ func step_battle() -> void:
 				else:
 					light(e["pos"], 14.0, Color(1.0, 0.3, 0.25, 0.5), 8)
 			"death":
+				if e["team"] == "enemy":
+					sfx("die_big" if e["big"] else "die", 1.0, 0.12)
+				else:
+					sfx("hurt", 1.2, 0.0)
 				var who: String = e.get("who", "")
 				corpses.append({"pos": e["pos"], "vel": Vector2(randf_range(1.0, 2.0) * (1.0 if e["team"] == "enemy" else -1.0), -3.5),
 					"t": 22, "life": 22, "team": e["team"], "who": who, "element": e.get("element", ""), "id": e["unit"]})
@@ -1115,6 +1229,8 @@ func rainbow(phase: float) -> Color:
 
 ## 전투를 멈추고 고르는 창이 떠 있나 (그동안 빛·안개·숫자를 그리지 않아 창이 또렷하게)
 func battle_paused_ui() -> bool:
+	if get("paused") == true:
+		return true
 	return battle != null and "pending" in battle and battle.pending != "" and get("state") == "battle"
 
 
@@ -2191,7 +2307,7 @@ func draw_battle_hud(title: String) -> void:
 			text(Vector2(170, 368), "%d / %d" % [ceili(u.hp), roundi(u.max_hp)], C["text"], 12, 300.0, HORIZONTAL_ALIGNMENT_RIGHT)
 			break
 	if not battle_paused_ui():
-		text(Vector2(0, 345), "아군은 알아서 싸웁니다 · Esc 처음으로", C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+		text(Vector2(0, 345), "아군은 알아서 싸웁니다 · Esc 일시정지", C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
 
 
 ## 합동 기술마다: 유약 색 원이 차오르고, 다 차면 발동. 남은 초를 함께 보여 준다

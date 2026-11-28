@@ -42,7 +42,11 @@ func _all() -> void:
 	var k = await _open("res://src/game/kiln_scene.tscn")
 	if k.get_script() == null:
 		print("kiln 불러오기 실패"); quit(1); return
+	k.save_enabled = false   # 찍는 동안 판 저장 안 함
 	await _snap("p00b_kiln_title")
+	k.start_ask = true
+	await _snap("p00f_title_continue")
+	k.start_ask = false
 	k.meta.embers = 64
 	k.meta.levels = {"core": 1, "wall": 2, "clay": 1, "ticket": 1, "train": 1, "purse": 1, "fire": 1}
 	k.state = "meta"
@@ -293,6 +297,15 @@ func _all() -> void:
 		k.cutin = {}
 		await _frames(2)
 		await _snap(c[2])
+	# 일시정지 창 (Esc)
+	k.paused = true
+	await _frames(2)
+	await _snap("p07h_pause")
+	k.pause_ask = "title"
+	await _frames(2)
+	await _snap("p07i_pause_confirm")
+	k.pause_ask = ""
+	k.paused = false
 	# 최종 보스 스킬 예고 (챕터 5: 스킬 3개)
 	run.chapter = 5
 	run.night = 6
@@ -339,6 +352,23 @@ func _all() -> void:
 	k.end_t = 90
 	await _frames(5)
 	await _snap("p07c_kiln_chapter_clear")
+	# 데모 끝 (챕터 3 최종 보스)
+	run.last_chapter = 3
+	run.chapter = 3
+	run.night = 6
+	run.state = "prep"
+	k.fought = Vector2i(3, 6)
+	var bd = run.start_night()
+	bd.units = bd.units.filter(func(u): return u.team == "ally")
+	bd.spawn_queue = []
+	bd.step()
+	run.end_night(bd)
+	k.battle = bd
+	k.state = "night_end"
+	k.end_t = 90
+	await _frames(5)
+	await _snap("p07j_demo_clear")
+	run.last_chapter = 5
 	# 챕터 3 밤 클리어 (전리품에 장비)
 	run.chapter = 3
 	run.night = 2

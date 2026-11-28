@@ -48,6 +48,7 @@ var chapter_time := 0.0          # 이번 챕터 밤 전투 시간 합 (초) —
 var last_chapter_time := 0.0     # 방금 넘긴 챕터의 시간
 var total_kills := 0
 var nights_cleared := 0
+var last_chapter: int = D.CHAPTERS.size()   # 이 판의 마지막 챕터 (데모는 D.DEMO_LAST_CHAPTER)
 
 
 func _init(seed_value: int, meta_effects := {}) -> void:
@@ -744,8 +745,8 @@ func end_night(b) -> void:
 		last_chapter_time = chapter_time
 		chapter_time = 0.0
 		chapter += 1
-		if chapter > D.CHAPTERS.size():
-			chapter = D.CHAPTERS.size()
+		if chapter > mini(last_chapter, D.CHAPTERS.size()):
+			chapter = mini(last_chapter, D.CHAPTERS.size())
 			night = D.KILN_NIGHTS
 			state = "won"
 			return
@@ -945,3 +946,77 @@ func reinforce(b, ids: Array) -> Array:
 	b.events.append({"kind": "reinforce", "count": out.size(), "clay": out.size() * D.REINFORCE_CLAY})
 	b.resume()
 	return out
+
+
+# ---------------- 판 저장 (Esc·창 닫기로 판이 사라지지 않게, 2026-11-28) ----------------
+## 아침(로비)과 밤 시작 직전에 저장한다. 전투 한가운데는 저장하지 않는다 → 불러오면 그 밤의 아침부터
+const SAVE_VERSION := 1
+const RUN_SAVE := "user://kiln_run.save"
+const _NO_SAVE := ["kiln", "rng", "results", "last_draw", "last_bet", "last_bought", "draft_offer"]
+
+
+static func _vars_of(o: Object, skip: Array) -> Dictionary:
+	var d := {}
+	for p in o.get_property_list():
+		if p["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE and not skip.has(p["name"]):
+			var v = o.get(p["name"])
+			d[p["name"]] = v.duplicate(true) if (v is Array or v is Dictionary) else v
+	return d
+
+
+static func _set_vars(o: Object, d: Dictionary) -> void:
+	for k in d:
+		if k in o:
+			o.set(k, d[k])
+
+
+func to_save() -> Dictionary:
+	return {"v": SAVE_VERSION, "run": _vars_of(self, _NO_SAVE), "rng": [rng.seed, rng.state],
+		"kiln": _vars_of(kiln, ["rng", "results"]), "kiln_rng": [kiln.rng.seed, kiln.rng.state]}
+
+
+func load_save(d: Dictionary) -> bool:
+	if d.get("v", 0) != SAVE_VERSION:
+		return false
+	_set_vars(self, d["run"])
+	rng.seed = d["rng"][0]
+	rng.state = d["rng"][1]
+	_set_vars(kiln, d["kiln"])
+	kiln.rng.seed = d["kiln_rng"][0]
+	kiln.rng.state = d["kiln_rng"][1]
+	tactics = []
+	draft_offer = []
+	return true
+
+
+func save_to(path := RUN_SAVE) -> bool:
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		return false
+	f.store_var(to_save())
+	return true
+
+
+static func has_save(path := RUN_SAVE) -> bool:
+	return FileAccess.file_exists(path)
+
+
+static func clear_save(path := RUN_SAVE) -> void:
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path) if path.begins_with("user://") else path)
+
+
+## 저장한 판을 불러온다 (없거나 깨졌으면 null)
+static func load_from(path := RUN_SAVE, meta_effects := {}):
+	if not FileAccess.file_exists(path):
+		return null
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return null
+	var d = f.get_var()
+	if not (d is Dictionary):
+		return null
+	var r = load("res://src/proto/kiln_run.gd").new(0, meta_effects)
+	if not r.load_save(d):
+		return null
+	return r

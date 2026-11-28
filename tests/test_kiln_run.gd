@@ -229,6 +229,23 @@ func test_chapters_advance() -> bool:
 	b2.step()
 	run.end_night(b2)
 	check(run.state == "won", "마지막 챕터를 넘기면 끝까지 지켰다")
+	# 데모: 챕터 3 최종 보스까지 (2026-11-28 "3챕터까지만 열도록")
+	var demo = KilnRun.new(77)
+	demo.last_chapter = PD.DEMO_LAST_CHAPTER
+	demo.draw("spear", "fire")
+	demo.fire()
+	for ch in range(1, PD.DEMO_LAST_CHAPTER + 1):
+		demo.chapter = ch
+		demo.night = PD.KILN_NIGHTS
+		demo.state = "prep"
+		var bd = demo.start_night()
+		bd.units = bd.units.filter(func(u): return u.team == "ally")
+		bd.spawn_queue = []
+		bd.step()
+		demo.end_night(bd)
+		if ch < PD.DEMO_LAST_CHAPTER:
+			check(demo.state == "prep" and demo.chapter == ch + 1, "데모: 챕터 %d 뒤 챕터 %d" % [ch, ch + 1])
+	check(demo.state == "won" and demo.chapter == PD.DEMO_LAST_CHAPTER, "데모: 챕터 %d 최종 보스를 넘기면 끝 (챕터 4는 안 열림)" % PD.DEMO_LAST_CHAPTER)
 	return true
 
 
@@ -1223,4 +1240,35 @@ func test_reinforcements() -> bool:
 	r2.fire()
 	r2.clay = 10
 	check(not r2.start_night().reinforce_ok, "챕터 1 에는 원군 없음")
+	return true
+
+
+## 판 저장: 저장했다 불러오면 같은 판 (병사·자원·밤·챕터·가마·뽑기 운까지) — Esc·창 닫기로 판이 사라지지 않게
+func test_run_save() -> bool:
+	var path := "user://test_run_save.save"
+	var run = KilnRun.new(91)
+	run.last_chapter = 3
+	run.draw("spear", "fire")
+	run.draw("archer", "water")
+	run.fire()
+	var b = run.start_night()
+	b.units = b.units.filter(func(u): return u.team == "ally")
+	b.spawn_queue = []
+	b.step()
+	run.end_night(b)
+	run.pearls = 7
+	check(run.save_to(path), "저장된다")
+	check(KilnRun.has_save(path), "저장 파일이 있다")
+	var r2 = KilnRun.load_from(path)
+	check(r2 != null, "불러온다")
+	check(var_to_str(r2.to_save()) == var_to_str(run.to_save()), "불러온 판이 저장한 판과 같다")
+	check(r2.army.size() == run.army.size() and r2.night == run.night and r2.pearls == 7 and r2.last_chapter == 3, "병사·밤·진주·데모 챕터가 그대로")
+	# 운도 이어진다: 같은 다음 뽑기
+	run.draw("spear", "earth")
+	r2.draw("spear", "earth")
+	run.fire()
+	r2.fire()
+	check(var_to_str(run.army.map(func(s): return [s["role"], s["tier"]])) == var_to_str(r2.army.map(func(s): return [s["role"], s["tier"]])), "불러온 뒤 뽑기 결과도 같다")
+	KilnRun.clear_save(path)
+	check(not KilnRun.has_save(path), "판이 끝나면 지운다")
 	return true

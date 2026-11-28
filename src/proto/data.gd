@@ -494,6 +494,7 @@ static func boss_skills(chapter: int) -> Array:
 # ---------- 데모 ----------
 const VERSION := "0.1.0"
 const DEMO := true                # 처음 화면에 DEMO 표시
+const DEMO_LAST_CHAPTER := 3      # 데모는 챕터 3 최종 보스까지 (2026-11-28 "3챕터까지만 열도록")
 
 # ---------- 여러 밤 (가마의 병사 한 판) ----------
 const KILN_NIGHTS := 6            # 챕터마다 밤 6번, 여섯째 밤은 최종 보스 (2026-11-28 "각 챕터별로 6번째 밤 ... 최종 보스")

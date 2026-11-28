@@ -22,6 +22,7 @@ func bot_merge(run) -> void:
 
 func bot_prep(run, heat: int) -> void:
 	bot_merge(run)
+	run.set_combo(run.best_combo())
 	while run.can_draw() and run.army.size() + run.queued_new() < run.cap():
 		run.draw()
 	for s in run.army.duplicate():
@@ -410,25 +411,26 @@ func test_waves_grow_and_chief_on_last_night() -> bool:
 
 func test_synergy_wave_sweeps_left_to_right() -> bool:
 	var b = Battle.new(1, [])
-	for i in 3:
-		b.add_ally("archer", "fire", "normal", "t")
+	b.spawn_queue = []
+	b.combo_id = "blaze"
+	for r in ["slinger", "cannon", "archer"]:
+		var u = b.add_ally(r, "fire", "normal", "t")
+		u.max_hp = 1000000.0
+		u.hp = u.max_hp
 	var near = b.add_enemy("goblin", 100.0)
 	var far = b.add_enemy("goblin", 100.0)
-	near.pos = Vector2(120, 100)
-	far.pos = Vector2(560, 100)
-	near.hp = 1000.0
-	far.hp = 1000.0
-	var hit_near := -1
-	var hit_far := -1
+	near.hp = 100000.0
+	far.hp = 100000.0
+	var order: Array = []
 	for i in PD.SYNERGY_FIRST + 120:
 		near.pos = Vector2(120, 100)
 		far.pos = Vector2(560, 100)
 		b.step()
-		if hit_near < 0 and near.burn_t > 0:
-			hit_near = b.frame
-		if hit_far < 0 and far.burn_t > 0:
-			hit_far = b.frame
-	check(hit_near > 0 and hit_far > hit_near, "파도가 가까운 적부터 차례로 맞힌다: %d, %d" % [hit_near, hit_far])
+		for w in b.waves:
+			for id in w.get("hit", []):
+				if not order.has(id):
+					order.append(id)
+	check(order.size() == 2 and order[0] == near.id and order[1] == far.id, "파도가 가까운 적부터 차례로 맞힌다: %s" % str(order))
 	return true
 
 
@@ -456,7 +458,7 @@ func test_skills_all_roles_and_star_levels() -> bool:
 	check(PD.KILN_ROLES.size() == 17 and not PD.KILN_ROLES.has("bulgasari"), "병사 17종, 불가사리 없음")
 	check(PD.grade_roles("mythic") == ["dragon", "baekho", "jujak", "hyeonmu"], "신화 = 청룡·백호·주작·현무")
 	for r in PD.KILN_ROLES:
-		check(PD.SKILLS.has(r) and PD.SKILLS[r]["up"].size() == 3, "%s 스킬과 ★3·★4·★5 강화" % r)
+		check(PD.SKILLS.has(r) and PD.skill_info(r, "water", 0)["up"].size() == 3, "%s 스킬과 ★3·★4·★5 강화" % r)
 		check(PD.faction_of(r) != "", "%s 은(는) 진영이 있다" % r)
 	check([1, 2, 3, 4, 5].map(func(st): return PD.skill_level(st)) == [0, 0, 1, 2, 3], "스킬 단계: ★1·2 기본, ★3·4·5 강화")
 	for r in PD.KILN_ROLES:
@@ -634,7 +636,8 @@ func test_meta_tree() -> bool:
 	m.embers = 100
 	check(not m.can_buy("command"), "앞 칸(성벽) 없이 지휘 한도는 못 산다")
 	check(m.buy("wall") and m.embers == 100 - Meta.NODES["wall"]["cost"][0], "성벽 1단계")
-	check(m.buy("command"), "이제 지휘 한도")
+	check(not m.can_buy("command"), "마을 수리 없이 지휘 한도는 못 산다")
+	check(m.buy("repair") and m.buy("command"), "마을 수리 → 지휘 한도")
 	check(m.buy("clay") and m.buy("train"), "흙 창고·단련")
 	var e: Dictionary = m.effects()
 	var run = KilnRun.new(3, e)
@@ -647,7 +650,26 @@ func test_meta_tree() -> bool:
 	var m2 = Meta.new("user://test_meta.cfg")
 	m2.load_saved()
 	check(m2.level("command") == 1 and m2.embers == m.embers, "저장·불러오기")
-	check(Meta.embers_for(2, 12, 400) == 2 * 10 + 12 * 2 + 10, "불씨 = 챕터×10 + 밤×2 + 처치/40")
+	check(Meta.NODES.size() >= 22 and Meta.BRANCH_NAME.size() == 6, "전술 강화 %d칸 · 가지 6개" % Meta.NODES.size())
+	for id in Meta.NODES:
+		var n: Dictionary = Meta.NODES[id]
+		check(n["cost"].size() == n["max"] and n["cost"].all(func(c): return c <= 6), "%s 값은 불씨 6 이하 (★3 밤마다 1개)" % id)
+		check(n["need"] == "" or Meta.NODES.has(n["need"]), "%s 앞 칸이 있다" % id)
+	return true
+
+
+## 불씨: 아침·밤을 ★3(마을 90%↑)으로 넘길 때마다 1개
+func test_embers_from_three_stars() -> bool:
+	for case in [[1.0, 1], [0.8, 0]]:
+		var run = KilnRun.new(9)
+		run.draw("spear", "fire")
+		run.fire()
+		var b = run.start_night()
+		b.spawn_queue = []
+		b.step()
+		b.village_hp = PD.VILLAGE_HP * case[0]
+		run.end_night(b)
+		check(run.embers_earned == case[1], "마을 %d%% → 불씨 %d" % [int(case[0] * 100), case[1]])
 	return true
 
 
@@ -746,4 +768,198 @@ func test_enemy_cannot_hit_from_off_field() -> bool:
 	for i in 90:
 		b2.step()
 	check(a2.pos.x > x0 + 20.0 or not e2.alive, "멀리서 쏘는 적에게 다가간다 (%.0f → %.0f)" % [x0, a2.pos.x])
+	return true
+
+
+
+## 유약마다 스킬이 다르다: 이름 51개가 모두 다르고, 설명의 숫자가 실제 피해와 같다
+func test_skills_differ_by_glaze() -> bool:
+	var names := {}
+	for r in PD.KILN_ROLES:
+		for e in PD.ELEMENTS:
+			names[PD.skill_name(r, e)] = true
+			var info: Dictionary = PD.skill_info(r, e, 0)
+			check(info["desc"] != "" and info["elem"] != "", "%s %s 설명" % [r, e])
+	check(names.size() == PD.KILN_ROLES.size() * 3, "스킬 이름 %d개가 모두 다르다 (%d)" % [PD.KILN_ROLES.size() * 3, names.size()])
+	# 창병: 설명의 % = 실제 피해 (진사는 +25%)
+	for e in PD.ELEMENTS:
+		var b = Battle.new(5, [])
+		b.spawn_queue = []
+		var u = b.add_ally("spear", e, "normal", "창병", 1.0, {"star": 3})
+		var t = b.add_enemy("goblin", u.pos.y)
+		t.hp = 100000.0
+		t.max_hp = 100000.0
+		t.pos = u.pos + Vector2(40, 0)
+		var hp0: float = t.hp
+		b._skill(u, "spear")
+		var pct: float = (hp0 - t.hp) / u.atk * 100.0
+		var want: int = roundi(PD.SKILLS["spear"]["pct"] * 100.0 * 1.5 * (PD.SKILL_FIRE_POW if e == "fire" else 1.0))
+		check(PD.skill_info("spear", e, 1)["desc"].find("%d%%" % want) >= 0, "창병 %s 설명에 %d%%" % [e, want])
+		check(absf(pct - want) <= 1.0 + t.armor * 100.0 / u.atk, "창병 %s ★3 피해 공격력의 %d%% (실제 %.0f%%)" % [e, want, pct])
+		match e:
+			"water": check(t.slow_t > 0, "청자: 맞은 적 느리게")
+			"fire": check(t.burn_t > 0, "진사: 맞은 적 화상")
+			"earth": check(t.stun_t > 0 and u.shield_hp > 0.0, "흑유: 기절 + 보호막")
+	# 돕는 스킬: 무당 유약별
+	for e in PD.ELEMENTS:
+		var b2 = Battle.new(6, [])
+		b2.spawn_queue = []
+		var h = b2.add_ally("healer", e, "normal", "무당", 1.0, {"star": 1})
+		var a = b2.add_ally("spear", "water", "normal", "창병", 1.0, {"star": 1})
+		a.pos = h.pos + Vector2(10, 0)
+		a.hp = a.max_hp * 0.3
+		b2._skill(h, "healer")
+		match e:
+			"water": check(a.hp > a.max_hp * 0.3, "청자 굿: 회복")
+			"fire": check(a.buff_t > 0, "진사 굿: 공격력 오름")
+			"earth": check(a.shield_hp > 0.0, "흑유 굿: 보호막")
+	return true
+
+
+## 스킬 균형: 공격 스킬마다 '한 번에 주는 피해 ÷ 재사용 초' (공격력 10, ★3, 적 6명 무리)를 재서
+## 가장 센 것이 가운데 값의 3배를 넘지 않게. 표는 출력으로 남긴다
+func test_skill_balance() -> bool:
+	var rows: Array = []
+	for r in PD.KILN_ROLES:
+		if PD.SKILLS[r]["kind"] != "hit":
+			continue
+		for e in PD.ELEMENTS:
+			var cl: float = _skill_damage(r, e, 6)
+			var one: float = _skill_damage(r, e, 1)
+			var sec: float = PD.SKILLS[r]["cd"] / float(PD.FPS)
+			rows.append([r, e, roundi(cl), roundi(one), (cl + one) / 2.0 / sec])
+	var vals: Array = rows.map(func(x): return x[4])
+	vals.sort()
+	var med: float = vals[vals.size() / 2]
+	print("  스킬 균형 (공격력 10, ★3): 역할 유약 / 무리6 한번 / 대장1 한번 / 평균 초당")
+	for x in rows:
+		print("    %-9s %-6s %5d %5d  %5.1f%s" % [x[0], x[1], x[2], x[3], x[4], "  ← 셈" if x[4] > med * 2.0 else ("  ← 약함" if x[4] < med / 2.0 else "")])
+	print("    가운데 값 %.1f / 가장 큼 %.1f / 가장 작음 %.1f" % [med, vals[-1], vals[0]])
+	check(vals[-1] <= med * 3.0, "가장 센 스킬이 가운데 값의 3배 이하 (%.1f vs %.1f)" % [vals[-1], med])
+	check(vals[0] >= med / 3.0, "가장 약한 스킬이 가운데 값의 1/3 이상 (%.1f vs %.1f)" % [vals[0], med])
+	return true
+
+
+## 스킬 한 번의 피해 (공격력 10, ★3). n 명이 앞에 모여 있을 때
+func _skill_damage(r: String, e: String, n: int) -> float:
+	var b = Battle.new(7, [])
+	b.spawn_queue = []
+	var u = b.add_ally(r, e, "normal", r, 1.0, {"star": 3})
+	u.atk = 10.0
+	u.pos = Vector2(200, 130)
+	var es: Array = []
+	for i in n:
+		var t = b.add_enemy("goblin", 130.0)
+		t.hp = 100000.0
+		t.max_hp = 100000.0
+		t.armor = 0.0
+		t.pos = Vector2(240 + (i % 3) * 14, 118 + (i / 3) * 20) if n > 1 else Vector2(240, 130)
+		es.append(t)
+	b._skill(u, r)
+	var lost: float = 0.0
+	for t in es:
+		lost += 100000.0 - t.hp
+	return lost
+
+
+
+## 합동 기술 고르기: 하나만, 부대에 필요한 병사가 있어야 쓸 수 있다
+func test_combo_select_one() -> bool:
+	var run = KilnRun.new(4)
+	for r in ["spear", "shield", "archer"]:
+		run.draw(r, "water")
+	run.fire()
+	check(run.combo_ready("tide") and not run.combo_ready("blaze"), "부대에 창병·방패병·궁수 → 해일 진격만")
+	check(run.best_combo() == "tide", "쓸 수 있는 것 중 고르기")
+	check(run.set_combo("tide") and run.combo == "tide", "고르기")
+	check(run.set_combo("quake") and run.combo == "quake", "다시 고르면 바뀐다 (하나만)")
+	var b = run.start_night()
+	check(b.combo_id == "quake", "전투에 고른 것 하나만 넘어간다")
+	return true
+
+
+## 진주 상점 확률표: 합 100%, 뽑기권은 하루 한 칸(1장, 드물게 5장), 장비는 챕터 3부터, 사면 가방으로
+func test_shop_table_tickets_equip() -> bool:
+	for ch in [1, 3]:
+		var tot := 0.0
+		for r in PD.shop_table(ch):
+			tot += r[1]
+		check(absf(tot - 1.0) < 1e-6, "챕터 %d 확률 합 100%%" % ch)
+	check(not PD.shop_table(1).any(func(r): return PD.SHOP_ITEMS[r[0]]["stat"] == "equip"), "챕터 1·2 에는 장비 없음")
+	check(PD.shop_table(3).any(func(r): return PD.SHOP_ITEMS[r[0]]["stat"] == "equip"), "챕터 3부터 장비")
+	var run = KilnRun.new(11)
+	var t5 := 0
+	var days := 2000
+	for d in days:
+		run.restock()
+		var nt: int = run.shop.filter(func(k): return PD.SHOP_ITEMS[k]["stat"] == "ticket").size()
+		check(nt <= 1, "뽑기권은 하루 한 칸만")
+		if run.shop.has("ticket5"):
+			t5 += 1
+	check(t5 > 0 and t5 < days * 0.15, "5장 꾸러미는 드물게 (%d/%d일)" % [t5, days])
+	run.chapter = 3
+	run.shop = ["eq_blade", "ticket5", "", ""]
+	run.pearls = 99
+	var inv0: int = run.inventory.size()
+	check(run.buy(0) and run.inventory.size() == inv0 + 1 and run.inventory[-1]["type"] == "blade", "장비를 사면 가방으로")
+	var tk0: int = run.tickets
+	check(run.buy(1) and run.tickets == tk0 + 5, "꾸러미는 뽑기권 5장")
+	return true
+
+
+## 전직 점검 (대기실·합치기와 함께): 재료가 대기실에 있어도 되고, 전직한 병사를 합쳐도 전직이 남는다
+func test_promotion_with_reserve_and_merge() -> bool:
+	var run = KilnRun.new(21)
+	var a: Dictionary = run._add_soldier("spear", "fire", "normal", 3)
+	var ing: Dictionary = run._add_soldier("shield", "earth", "normal", 1, true)   # 대기실
+	ing["equip"] = {"id": 999, "type": "blade", "level": 1}
+	check(not run.in_army(ing["id"]) and run.promo_partners(a["id"]).has(ing["id"]), "대기실 병사도 전직 재료")
+	var inv0: int = run.inventory.size()
+	var m: Dictionary = run.promote(a["id"], ing["id"])
+	check(not m.is_empty() and m["promo"] == "shield" and run.soldier(ing["id"]).is_empty(), "전직: 방패병 스킬을 얻고 재료는 사라진다")
+	check(run.inventory.size() == inv0 + 1, "재료의 장비는 가방으로")
+	check(not run.can_promote(a["id"], run._add_soldier("cavalry", "fire", "normal")["id"]), "한 번만 전직")
+	# 전직한 ★3 + ★3 둘 → 합치면 ★4, 전직은 남는다
+	run._add_soldier("spear", "water", "normal", 3)
+	run._add_soldier("spear", "earth", "normal", 3, true)
+	var g: Array = run.merge_groups().filter(func(x): return x.has(a["id"]))
+	check(not g.is_empty(), "전직한 병사도 같은 병사·같은 별이면 합칠 수 있다")
+	var mm: Dictionary = run.merge(g[0])
+	check(mm["star"] == 4 and mm["promo"] == "shield", "합쳐도 전직(방패병 스킬)은 남는다")
+	var b = run.start_night()
+	var u = b.units.filter(func(o): return o.kind == "spear" and o.skills.size() == 2)
+	check(not u.is_empty() and u[0].skills == ["spear", "shield"], "전투에서 스킬 2개")
+	return true
+
+
+## 장비 점검: 챕터 3 전에는 못 끼고, 끼면 능력치가 오르고, 빼기·바꾸기·대기실로 보내기·돌려보내기에서 장비가 사라지지 않는다
+func test_equipment_flow() -> bool:
+	var run = KilnRun.new(22)
+	var s: Dictionary = run._add_soldier("spear", "fire", "normal")
+	var it := {"id": 501, "type": "blade", "level": 2}
+	run.inventory.append(it)
+	check(not run.equip(s["id"], 501), "챕터 1 에는 장비를 못 낀다")
+	run.chapter = 3
+	check(run.equip(s["id"], 501) and run.inventory.is_empty(), "챕터 3: 끼운다")
+	var st: Dictionary = run.soldier_stats(s)
+	var plain: Dictionary = run._add_soldier("spear", "fire", "normal")
+	check(st["atk"] > run.soldier_stats(plain)["atk"], "칼날++ 공격력이 정보창 수치에 보인다 (%d > %d)" % [st["atk"], run.soldier_stats(plain)["atk"]])
+	run.inventory.append({"id": 502, "type": "armor", "level": 1})
+	check(run.equip(s["id"], 502) and run.inventory.size() == 1 and run.inventory[0]["id"] == 501, "바꿔 끼우면 전 장비는 가방으로")
+	check(run.unequip(s["id"]) and run.inventory.size() == 2 and s["equip"].is_empty(), "빼기")
+	run.equip(s["id"], 501)
+	check(run.to_reserve(s["id"]) and run.soldier(s["id"])["equip"]["id"] == 501, "대기실로 가도 장비는 그대로")
+	check(run.release(s["id"]) and run.inventory.any(func(x): return x["id"] == 501), "돌려보내면 장비는 가방으로")
+	# 모든 장비 종류가 전투 능력치에 들어간다
+	for t in PD.EQUIPS:
+		var r2 = KilnRun.new(23)
+		r2.chapter = 3
+		var a: Dictionary = r2._add_soldier("spear", "fire", "normal")
+		var c: Dictionary = r2._add_soldier("spear", "fire", "normal")
+		r2.inventory.append({"id": 600, "type": t, "level": 1})
+		r2.equip(a["id"], 600)
+		var b = r2.start_night()
+		var ua = b.units.filter(func(o): return o.team == "ally")[0]
+		var uc = b.units.filter(func(o): return o.team == "ally")[1]
+		check(ua.atk > uc.atk or ua.max_hp > uc.max_hp or ua.cd_max < uc.cd_max or ua.regen > uc.regen, "%s 장비가 전투에 들어간다" % t)
 	return true

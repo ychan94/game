@@ -102,27 +102,120 @@ static func draw_odds() -> Dictionary:
 		by[r] = GRADE_ODDS[g] / grade_roles(g).size()
 	return by
 # ---------- 고유 스킬 (병사마다 하나, 별 ★3·★4·★5 에서 강화) ----------
-## cd: 재사용 프레임. lv: ★1~2 = 0, ★3 = 1, ★4 = 2, ★5 = 3. 위력 배율 = 1 + 0.5 × lv
-## up: ★3/★4/★5 에서 무엇이 더 세지나 (화면 안내)
+## 스킬 (2026-11-28 "색깔이 다르면 스킬이 다르도록 ... 스킬마다 정확한 퍼뎀 수치")
+## cd: 재사용 프레임. pct: 피해 = 공격력 × pct (★ 단계마다 위력 × (1 + 0.5 × lv), lv: ★3 = 1, ★4 = 2, ★5 = 3)
+## 설명은 skill_info() 가 수치에서 만든다 → 화면에 나오는 숫자 = 실제 계산
 const SKILLS := {
-	"spear": {"name": "돌격 찌르기", "cd": 300, "desc": "적에게 뛰어들어 공격력 ×2.5", "up": ["위력 ×1.5", "위력 ×2", "찌른 적 1초 기절"]},
-	"archer": {"name": "연사", "cd": 330, "desc": "가까운 적 3명에게 화살 (공격력 ×1.5)", "up": ["화살 4발", "화살 5발", "화살 6발 · 위력 ×2.5"]},
-	"shield": {"name": "방패 벽", "cd": 420, "desc": "주변 아군 4초간 받는 피해 -40%", "up": ["범위 넓게", "더 넓게", "적을 모두 끌어당김"]},
-	"axe": {"name": "회오리 베기", "cd": 330, "desc": "주변 적 모두 공격력 ×2", "up": ["위력 ×1.5", "범위·위력 ↑", "위력 ×2.5"]},
-	"cavalry": {"name": "돌파", "cd": 360, "desc": "앞으로 내달려 지나는 적 모두 공격력 ×2", "up": ["위력 ×1.5", "더 멀리", "지나간 적 밀쳐냄"]},
-	"slinger": {"name": "바윗돌", "cd": 300, "desc": "큰 돌로 공격력 ×2.5 + 기절", "up": ["기절 길게", "주변까지 맞힘", "위력 ×2.5"]},
-	"healer": {"name": "큰 굿", "cd": 420, "desc": "주변 아군 모두 회복", "up": ["회복 ×1.5", "회복 ×2", "보호막까지"]},
-	"cannon": {"name": "신기전 일제 사격", "cd": 420, "desc": "적 4명에게 불화살 (공격력 ×1.2, 폭발)", "up": ["5발", "6발", "7발 · 위력 ×2.5"]},
-	"twin": {"name": "칼춤", "cd": 300, "desc": "주변 적을 6번 벤다 (공격력 ×0.8)", "up": ["7번", "8번", "9번 · 위력 ×2.5"]},
-	"general": {"name": "진군의 북", "cd": 480, "desc": "모든 아군 5초간 공격력 +30%", "up": ["+40%", "+50%", "+60% · 공격 속도도"]},
-	"sniper": {"name": "관통 화살", "cd": 360, "desc": "한 줄을 꿰뚫는 화살 (공격력 ×3)", "up": ["위력 ×1.5", "위력 ×2", "위력 ×2.5"]},
-	"haetae": {"name": "화염 숨결", "cd": 360, "desc": "앞쪽 적 모두 불태움 (공격력 ×1.5 + 화상)", "up": ["위력 ×1.5", "더 멀리", "화상 두 배"]},
-	"cheoyong": {"name": "역신 쫓는 춤", "cd": 480, "desc": "주변 적 모두 1초 기절", "up": ["기절 길게", "범위 넓게", "기절 2초"]},
-	"dragon": {"name": "용오름", "cd": 540, "desc": "모든 적에게 물기둥 (공격력 ×1.2 + 느리게)", "up": ["위력 ×1.5", "위력 ×2", "위력 ×2.5"]},
-	"baekho": {"name": "범의 포효", "cd": 420, "desc": "가장 강한 적에게 덮쳐 공격력 ×5, 주변 기절", "up": ["위력 ×1.5", "위력 ×2", "위력 ×2.5 · 기절 길게"]},
-	"jujak": {"name": "불새 강림", "cd": 480, "desc": "불꽃 깃털 8개가 쏟아진다 (공격력 ×1 + 화상)", "up": ["10개", "12개", "14개 · 위력 ×2.5"]},
-	"hyeonmu": {"name": "거북 등딱지", "cd": 540, "desc": "모든 아군에게 보호막 (최대 체력 20%)", "up": ["25%", "30%", "35%"]},
+	"spear": {"name": "돌격 찌르기", "cd": 300, "pct": 3.5, "kind": "hit"},
+	"archer": {"name": "연사", "cd": 330, "pct": 1.5, "kind": "hit"},
+	"shield": {"name": "방패 벽", "cd": 420, "pct": 0.0, "kind": "support"},
+	"axe": {"name": "회오리 베기", "cd": 330, "pct": 2.0, "kind": "hit"},
+	"cavalry": {"name": "돌파", "cd": 360, "pct": 1.4, "kind": "hit"},
+	"slinger": {"name": "바윗돌", "cd": 300, "pct": 3.0, "kind": "hit"},
+	"healer": {"name": "큰 굿", "cd": 420, "pct": 0.0, "kind": "support"},
+	"cannon": {"name": "신기전 일제 사격", "cd": 420, "pct": 0.8, "kind": "hit"},
+	"twin": {"name": "칼춤", "cd": 300, "pct": 0.8, "kind": "hit"},
+	"general": {"name": "진군의 북", "cd": 480, "pct": 0.0, "kind": "support"},
+	"sniper": {"name": "관통 화살", "cd": 360, "pct": 3.0, "kind": "hit"},
+	"haetae": {"name": "화염 숨결", "cd": 360, "pct": 1.5, "kind": "hit"},
+	"cheoyong": {"name": "역신 쫓는 춤", "cd": 480, "pct": 1.0, "kind": "hit"},
+	"dragon": {"name": "용오름", "cd": 540, "pct": 1.2, "kind": "hit"},
+	"baekho": {"name": "범의 포효", "cd": 420, "pct": 7.0, "kind": "hit"},
+	"jujak": {"name": "불새 강림", "cd": 480, "pct": 1.0, "kind": "hit"},
+	"hyeonmu": {"name": "거북 등딱지", "cd": 540, "pct": 0.0, "kind": "support"},
 }
+## 유약마다 스킬 이름 [청자, 진사, 흑유]
+const SKILL_NAMES := {
+	"spear": ["물살 찌르기", "불창 돌격", "바위 꿰뚫기"],
+	"archer": ["물방울 연사", "불화살 연사", "돌촉 연사"],
+	"shield": ["물막이 방패", "불벽 방패", "바위 방패"],
+	"axe": ["소용돌이 베기", "불회오리 베기", "땅울림 베기"],
+	"cavalry": ["물보라 돌파", "불말 돌파", "지축 돌파"],
+	"slinger": ["물수제비 돌", "불덩이 돌", "큰 바윗돌"],
+	"healer": ["맑은 물 굿", "불씨 굿", "흙 굿"],
+	"cannon": ["물폭탄 신기전", "대신기전", "철환 신기전"],
+	"twin": ["물결 칼춤", "불꽃 칼춤", "흙먼지 칼춤"],
+	"general": ["물결 진군고", "불꽃 진군고", "철벽 진군고"],
+	"sniper": ["물줄기 관통", "불꽃 관통", "철촉 관통"],
+	"haetae": ["물안개 숨결", "화염 숨결", "흙먼지 숨결"],
+	"cheoyong": ["물 위의 춤", "불탈 춤", "땅 구르는 춤"],
+	"dragon": ["물기둥 용오름", "불기둥 용오름", "흙기둥 용오름"],
+	"baekho": ["서리 포효", "불꽃 포효", "바위 포효"],
+	"jujak": ["비 깃털 강림", "불새 강림", "돌깃털 강림"],
+	"hyeonmu": ["물 등딱지", "불 등딱지", "바위 등딱지"],
+}
+## 유약 효과: 공격 스킬은 맞은 적에게, 돕는 스킬은 받은 아군에게
+const SKILL_FIRE_POW := 1.25      # 진사: 피해 +25% + 화상
+const SKILL_WATER_SLOW := 180     # 청자: 맞은 적 3초 느리게 (40%)
+const SKILL_EARTH_STUN := 30      # 흑유: 맞은 적 0.5초 기절
+const SKILL_EARTH_SHIELD := 0.15  # 흑유: 쓴 병사 최대 체력 15% 보호막
+const SKILL_SUP_HEAL := 0.10      # 청자 돕는 스킬: 받은 아군 최대 체력 10% 회복
+const SKILL_SUP_ATK := 0.15       # 진사 돕는 스킬: 받은 아군 4초 공격력 +15%
+const SKILL_SUP_SHIELD := 0.10    # 흑유 돕는 스킬: 받은 아군 최대 체력 10% 보호막
+
+
+static func skill_name(role: String, element: String) -> String:
+	var i: int = ELEMENTS.find(element)
+	return SKILL_NAMES[role][i] if i >= 0 and SKILL_NAMES.has(role) else SKILLS[role]["name"]
+
+
+## 스킬 설명 (실제 계산 수치로). lv = 스킬 단계 (★3 = 1). 화면은 이것만 쓴다
+static func skill_info(role: String, element: String, lv: int) -> Dictionary:
+	var sk: Dictionary = SKILLS[role]
+	var mul: float = 1.0 + 0.5 * lv
+	var fire: bool = element == "fire"
+	var pc := func(x: float) -> String: return "%d%%" % roundi(x * mul * (SKILL_FIRE_POW if fire else 1.0) * 100.0)
+	var d := ""
+	match role:
+		"spear": d = "가장 가까운 적에게 뛰어들어 공격력의 %s 피해%s" % [pc.call(sk["pct"]), " · 1초 기절" if lv >= 3 else ""]
+		"archer": d = "가까운 적 %d명에게 화살, 한 발에 공격력의 %s" % [3 + lv, pc.call(sk["pct"])]
+		"shield": d = "반경 %d 안 아군 4초간 받는 피해 -40%%%s" % [70 + 30 * lv, " · 적을 끌어당김" if lv >= 3 else ""]
+		"axe": d = "반경 %d 안 적 모두 공격력의 %s" % [45 + 8 * lv, pc.call(sk["pct"])]
+		"cavalry": d = "앞으로 %d 내달려 지나는 적 모두 공격력의 %s%s" % [110 + 30 * lv, pc.call(sk["pct"]), " · 밀쳐냄" if lv >= 3 else ""]
+		"slinger": d = "큰 돌로 공격력의 %s + %.1f초 기절%s" % [pc.call(sk["pct"]), (50 + 20 * lv) / 60.0, (" · 주변 %s" % pc.call(1.2)) if lv >= 2 else ""]
+		"healer": d = "주변 아군 모두 치유력의 %d%% 회복%s" % [roundi(150 * mul), " · 보호막 10%" if lv >= 3 else ""]
+		"cannon": d = "적 %d명에게 불화살 공격력의 %s + 주변 폭발 %s" % [4 + lv, pc.call(sk["pct"]), pc.call(sk["pct"] * 0.5)]
+		"twin": d = "주변 적을 %d번 벤다, 한 번에 공격력의 %s" % [6 + lv, pc.call(sk["pct"])]
+		"general": d = "모든 아군 5초간 공격력 +%d%%%s" % [30 + 10 * lv, " · 공격 속도도" if lv >= 3 else ""]
+		"sniper": d = "한 줄을 꿰뚫어 맞은 적 모두 공격력의 %s" % pc.call(sk["pct"])
+		"haetae": d = "앞쪽 반경 %d 적 모두 공격력의 %s + 화상" % [90 + 30 * lv, pc.call(sk["pct"])]
+		"cheoyong": d = "반경 %d 적 모두 공격력의 %s + %.1f초 기절" % [120 + 25 * lv, pc.call(sk["pct"]), (60 + 20 * lv) / 60.0]
+		"dragon": d = "모든 적에게 공격력의 %s + 3초 느리게" % pc.call(sk["pct"])
+		"baekho": d = "가장 강한 적에게 덮쳐 공격력의 %s, 주변 기절" % pc.call(sk["pct"])
+		"jujak": d = "깃털 %d개, 하나에 공격력의 %s + 화상" % [8 + 2 * lv, pc.call(sk["pct"])]
+		"hyeonmu": d = "모든 아군에게 최대 체력의 %d%% 보호막" % (20 + 5 * lv)
+	var e := ""
+	if sk["kind"] == "hit":
+		e = {"water": "청자: 맞은 적 3초간 40% 느리게", "fire": "진사: 피해 +25% · 3초 화상", "earth": "흑유: 맞은 적 0.5초 기절 · 나에게 보호막 15%"}.get(element, "")
+	else:
+		e = {"water": "청자: 받은 아군 체력 10% 회복", "fire": "진사: 받은 아군 4초간 공격력 +15%", "earth": "흑유: 받은 아군 보호막 10%"}.get(element, "")
+	var ups := []
+	for i in 3:
+		ups.append(skill_info_short(role, i + 1))
+	return {"name": skill_name(role, element), "base": sk["name"], "cd": sk["cd"], "desc": d, "elem": e, "up": ups}
+
+
+## ★3·★4·★5 에서 무엇이 오르나 (짧게)
+static func skill_info_short(role: String, lv: int) -> String:
+	var m := "위력 ×%.1f" % (1.0 + 0.5 * lv)
+	match role:
+		"spear": return m + (" · 1초 기절" if lv >= 3 else "")
+		"archer": return "화살 %d발 · %s" % [3 + lv, m]
+		"shield": return "반경 %d%s" % [70 + 30 * lv, " · 끌어당김" if lv >= 3 else ""]
+		"axe": return "반경 %d · %s" % [45 + 8 * lv, m]
+		"cavalry": return "거리 %d · %s%s" % [110 + 30 * lv, m, " · 밀쳐냄" if lv >= 3 else ""]
+		"slinger": return "기절 %.1f초 · %s%s" % [(50 + 20 * lv) / 60.0, m, " · 주변까지" if lv >= 2 else ""]
+		"healer": return "회복 ×%.1f%s" % [1.0 + 0.5 * lv, " · 보호막" if lv >= 3 else ""]
+		"cannon": return "%d발 · %s" % [4 + lv, m]
+		"twin": return "%d번 · %s" % [6 + lv, m]
+		"general": return "공격력 +%d%%%s" % [30 + 10 * lv, " · 공격 속도" if lv >= 3 else ""]
+		"cheoyong": return "반경 %d · 기절 %.1f초 · %s" % [120 + 25 * lv, (60 + 20 * lv) / 60.0, m]
+		"haetae": return "반경 %d · %s%s" % [90 + 30 * lv, m, " · 화상 두 배" if lv >= 3 else ""]
+		"jujak": return "깃털 %d개 · %s" % [8 + 2 * lv, m]
+		"hyeonmu": return "보호막 %d%%" % (20 + 5 * lv)
+	return m
+
+
 const SKILL_FIRST := 0.5          # 첫 스킬은 재사용 시간의 절반 뒤
 
 
@@ -161,13 +254,32 @@ const PEARL_PER_KILLS := 6        # 처치 6마리마다 진주 1
 const PEARL_BOSS := 5             # 대장을 쓰러뜨리면 진주 5
 const SHOP_SLOTS := 4             # 아침마다 진열 4개
 const SHOP_REROLL := 1            # 진열 다시 굴리기 진주 1
+## w: 진열될 몫 (확률표에 % 로 보인다), from: 이 챕터부터 나온다 (2026-11-28 "뽑기권은 많이 나와도 1개만 ... 낮은 확률로 5개", "챕터 3부터는 장비도")
 const SHOP_ITEMS := {
-	"whetstone": {"name": "숫돌", "price": 3, "desc": "공격력 +15%", "stat": "atk", "val": 0.15},
-	"scale": {"name": "쇠비늘", "price": 3, "desc": "체력 +20%", "stat": "hp", "val": 0.2},
-	"scroll": {"name": "비급서", "price": 4, "desc": "스킬 위력 +25%", "stat": "skill", "val": 0.25},
-	"bell": {"name": "신령 방울", "price": 4, "desc": "스킬 재사용 -15%", "stat": "cdr", "val": 0.15},
-	"ticket": {"name": "뽑기권", "price": 2, "desc": "뽑기 1번", "stat": "ticket", "val": 1.0},
+	"whetstone": {"name": "숫돌", "price": 3, "desc": "공격력 +15%", "stat": "atk", "val": 0.15, "w": 20},
+	"scale": {"name": "쇠비늘", "price": 3, "desc": "체력 +20%", "stat": "hp", "val": 0.2, "w": 20},
+	"scroll": {"name": "비급서", "price": 4, "desc": "스킬 위력 +25%", "stat": "skill", "val": 0.25, "w": 16},
+	"bell": {"name": "신령 방울", "price": 4, "desc": "스킬 재사용 -15%", "stat": "cdr", "val": 0.15, "w": 16},
+	"ticket": {"name": "뽑기권", "price": 2, "desc": "뽑기권 1장", "stat": "ticket", "val": 1.0, "w": 10},
+	"ticket5": {"name": "뽑기권 꾸러미", "price": 8, "desc": "뽑기권 5장", "stat": "ticket", "val": 5.0, "w": 2},
+	"eq_blade": {"name": "강철 칼날", "price": 5, "desc": "장비: 공격력", "stat": "equip", "type": "blade", "w": 6, "from": 3},
+	"eq_armor": {"name": "두석린갑", "price": 5, "desc": "장비: 체력", "stat": "equip", "type": "armor", "w": 6, "from": 3},
+	"eq_charm": {"name": "신속 부적", "price": 5, "desc": "장비: 공격 속도", "stat": "equip", "type": "charm", "w": 6, "from": 3},
+	"eq_gourd": {"name": "약 호리병", "price": 5, "desc": "장비: 체력 회복", "stat": "equip", "type": "gourd", "w": 6, "from": 3},
 }
+
+
+## 이 챕터 진열 확률표 [[key, 몫(0~1)], ...] — 화면의 표와 restock 이 같이 쓴다
+static func shop_table(chapter: int) -> Array:
+	var tot := 0.0
+	var rows: Array = []
+	for k in SHOP_ITEMS:
+		if chapter >= SHOP_ITEMS[k].get("from", 1):
+			rows.append([k, float(SHOP_ITEMS[k]["w"])])
+			tot += SHOP_ITEMS[k]["w"]
+	for r in rows:
+		r[1] /= tot
+	return rows
 const UPG_MAX := 1.0              # 한 병사의 같은 강화는 +100% 까지 (재사용 단축은 50%)
 
 
@@ -204,7 +316,63 @@ const SLOW_FRAMES := 90
 const SLOW_MUL := 0.5
 const KNOCKBACK := 14.0
 const SPECIAL_EVERY := 360       # 요변·전설은 6초마다 혼자 특수기
-const SYNERGY_COUNT := 3         # 같은 속성 3이면 합동 기술
+const SYNERGY_COUNT := 3         # (예전) 같은 속성 3이면 합동 기술 — 2026-11-28 부터 병사 조합 합동 기술(COMBOS)로 바뀜
+## 합동 기술: 부대에 필요한 병사가 모두 있으면, 로비에서 고른 하나만 쓴다 (2026-11-28 "병사 조합에 따른 합동 공격 ... 무조건 1개만 선택")
+## needs: 꼭 있어야 하는 병사들, any: [후보 병사들, 몇 종] (신화처럼 고르는 조건), element: 파도·컷신 빛깔, pow: 파도 위력 배율
+## bonus: 파도와 함께 오는 효과 (atk 모든 아군 공격력 / shield 보호막 / heal 회복 / stun 기절 / slow 느리게)
+const COMBOS := {
+	"tide": {"name": "해일 진격", "needs": ["spear", "shield", "archer"], "element": "water", "pow": 1.0, "bonus": "slow", "desc": "물마루가 전장을 휩쓸어 적을 밀어내고 느리게 한다"},
+	"blaze": {"name": "화염 폭풍", "needs": ["slinger", "cannon", "archer"], "element": "fire", "pow": 1.3, "bonus": "", "desc": "불길이 전장을 훑고 지나가며 모두 불태운다"},
+	"quake": {"name": "대지 가르기", "needs": ["axe", "shield", "cavalry"], "element": "earth", "pow": 1.0, "bonus": "stun", "desc": "땅을 갈라 적을 1.5초 기절시킨다"},
+	"march": {"name": "진군의 함성", "needs": ["general", "spear", "cavalry"], "element": "fire", "pow": 0.8, "bonus": "atk", "desc": "불 파도와 함께 모든 아군 6초간 공격력 +40%"},
+	"fortress": {"name": "철벽진", "needs": ["shield", "haetae", "hyeonmu"], "element": "earth", "pow": 0.7, "bonus": "shield", "desc": "흙 파도와 함께 모든 아군에게 최대 체력 25% 보호막"},
+	"rite": {"name": "큰 굿판", "needs": ["healer", "cheoyong", "twin"], "element": "water", "pow": 0.8, "bonus": "heal", "desc": "맑은 물결과 함께 모든 아군 체력 40% 회복"},
+	"volley": {"name": "명궁 일제 사격", "needs": ["archer", "sniper", "slinger"], "element": "water", "pow": 1.4, "bonus": "slow", "desc": "화살비가 물결처럼 쏟아져 적을 느리게 한다"},
+	"guardians": {"name": "사신 강림", "needs": [], "any": [["dragon", "baekho", "jujak", "hyeonmu"], 2], "element": "fire", "pow": 2.2, "bonus": "atk", "desc": "신화 둘이 힘을 합쳐 거대한 불 파도 + 공격력 +40%"},
+}
+const COMBO_ATK := 0.4             # atk: 공격력 +40%
+const COMBO_ATK_FRAMES := 360      # 6초
+const COMBO_SHIELD := 0.25         # shield: 최대 체력 25%
+const COMBO_HEAL := 0.4            # heal: 최대 체력 40%
+const COMBO_STUN := 90             # stun: 1.5초
+
+
+## 이 병사들(역할 목록)로 합동 기술을 쓸 수 있나
+static func combo_ok(id: String, roles: Array) -> bool:
+	if not COMBOS.has(id):
+		return false
+	var c: Dictionary = COMBOS[id]
+	for r in c["needs"]:
+		if not roles.has(r):
+			return false
+	if c.has("any"):
+		var n := 0
+		for r in c["any"][0]:
+			if roles.has(r):
+				n += 1
+		if n < c["any"][1]:
+			return false
+	return true
+
+
+## 합동 기술에 드는 병사 종류 (needs + any 후보)
+static func combo_roles(id: String) -> Array:
+	var c: Dictionary = COMBOS[id]
+	var out: Array = c["needs"].duplicate()
+	if c.has("any"):
+		for r in c["any"][0]:
+			if not out.has(r):
+				out.append(r)
+	return out
+
+
+## 조건을 글로: "창병 + 방패병 + 궁수" / "청룡·백호·주작·현무 중 2"
+static func combo_need_text(id: String) -> String:
+	var c: Dictionary = COMBOS[id]
+	var parts: Array = c["needs"].map(func(r): return ROLE_NAME_KILN[r])
+	if c.has("any"):
+		parts.append("%s 중 %d종" % ["·".join(c["any"][0].map(func(r): return ROLE_NAME_KILN[r])), c["any"][1]])
+	return " + ".join(parts)
 const SYNERGY_FIRST := 360       # 첫 합동 기술은 6초 뒤 (2026-11-28 "쿨타임이 너무 짧은 것 같아": 3초 → 6초)
 const SYNERGY_EVERY := 900       # 그 뒤 15초마다 (8초 → 15초)
 const SYNERGY_POWER := 12.0      # 합동 기술 기본 위력 (같은 속성 3마리 기준). 높으면 승부가 합동 기술 하나로 갈린다
@@ -233,10 +401,10 @@ const BOSSES := ["chief", "gumiho", "imugi", "reaper", "king"]
 ## 챕터: 아침 5번·밤 5번. 다섯째 밤에 대장. hp: 도깨비 체력 배율 (챕터 첫 밤 기준)
 const CHAPTERS := [
 	{"name": "마을 어귀", "new": "", "boss": "chief", "hp": 1.0, "boss_hp": 1.0},
-	{"name": "여우골 숲", "new": "fox", "boss": "gumiho", "hp": 1.6, "boss_hp": 0.8},
-	{"name": "안개 늪", "new": "armored", "boss": "imugi", "hp": 2.4, "boss_hp": 0.65},
-	{"name": "얼음 고개", "new": "ghost", "boss": "reaper", "hp": 3.4, "boss_hp": 0.65},
-	{"name": "도깨비 성", "new": "giant", "boss": "king", "hp": 4.6, "boss_hp": 0.65},
+	{"name": "여우골 숲", "new": "fox", "boss": "gumiho", "hp": 2.1, "boss_hp": 0.8},
+	{"name": "안개 늪", "new": "armored", "boss": "imugi", "hp": 4.3, "boss_hp": 0.65},
+	{"name": "얼음 고개", "new": "ghost", "boss": "reaper", "hp": 6.6, "boss_hp": 0.65},
+	{"name": "도깨비 성", "new": "giant", "boss": "king", "hp": 9.0, "boss_hp": 0.65},
 ]
 const CHAPTER_NEW_EVERY := 3      # 챕터의 새 적: 도깨비 3마리마다 1마리가 새 적으로
 const CLAY_PER_CHAPTER := 12      # 챕터를 넘기면 흙 보너스

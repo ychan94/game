@@ -174,6 +174,22 @@ func _all() -> void:
 	await _snap("p05i_kiln_barracks")
 	k.res_pick = -1
 	k.state = "shop"
+	# 합동 기술 고르기
+	run.set_combo(run.best_combo() if run.best_combo() != "" else "blaze")
+	k.state = "combo"
+	await _snap("p05j_kiln_combo")
+	# 도감 네 칸
+	k.codex_from = "prep"
+	k.state = "codex"
+	for tb in [["unit", "dragon"], ["skill", "spear"], ["combo", "spear"], ["rule", "spear"]]:
+		k.codex_tab = tb[0]
+		k.codex_role = tb[1]
+		await _snap("p05k_codex_" + tb[0])
+	# 상점 목록·확률표
+	k.state = "shop"
+	k.shop_table = true
+	await _snap("p05l_shop_table")
+	k.shop_table = false
 	k.state = "prep"
 	# 전직: ★3 창병 + 같은 관군 재료
 	var sp3: Dictionary = run._add_soldier("spear", "earth", "fine", 3)
@@ -191,6 +207,7 @@ func _all() -> void:
 	# 전투: 합동 기술 파도가 지나가는 순간
 	k.fought = Vector2i(run.chapter, run.night)
 	k.battle = run.start_night()
+	k.battle.combo_id = "blaze"
 	k.battle.village_hp = 99999.0
 	k.state = "battle"
 	var got_wave := false

@@ -782,8 +782,9 @@ func step_battle() -> void:
 			"synergy":
 				# 합동 기술 컷신: 전투를 잠깐 멈추고 그 유약의 병사들이 줄지어 달려든다
 				var who: Array = []
+				var cr: Array = PD.combo_roles(e["combo"]) if e.has("combo") else []
 				for u in battle.units:
-					if u.team == "ally" and u.alive and u.element == e["element"] and who.size() < 5:
+					if u.team == "ally" and u.alive and (cr.has(u.kind) if not cr.is_empty() else u.element == e["element"]) and who.size() < 5:
 						who.append(soldier_sprite(u.kind, u.element))
 				cutin = {"element": e["element"], "name": e["name"], "count": e["count"], "who": who, "t": 0, "life": CUTIN_LEN}
 				hitstop = maxi(hitstop, CUTIN_LEN)
@@ -2109,13 +2110,14 @@ func _draw_synergy_cooldowns() -> void:
 		var total: float = PD.SYNERGY_FIRST if battle.stats["synergies"] == 0 else PD.SYNERGY_EVERY
 		var k: float = clampf(1.0 - left / total, 0.0, 1.0)
 		var c := Vector2(600 - i * 56, 22)
-		var col: Color = C[e].lightened(0.3)
+		var el: String = PD.COMBOS[e]["element"] if PD.COMBOS.has(e) else e
+		var col: Color = C[el].lightened(0.3)
 		draw_circle(c, 14.0, Color(0.08, 0.07, 0.1))
 		draw_arc(c, 12.0, -PI / 2.0, -PI / 2.0 + TAU * k, 32, col, 4.0)
 		if left < 30:
 			draw_circle(c, 15.0 + 2.0 * sin(t * 0.6), Color(col.r, col.g, col.b, 0.35))
 		text(c + Vector2(-20, 5), "%d" % ceili(left / 60.0), C["text"], 12, 40.0, HORIZONTAL_ALIGNMENT_CENTER)
-		text(c + Vector2(-40, 30), PD.SYNERGY_NAME[e], col, 12, 80.0, HORIZONTAL_ALIGNMENT_CENTER)
+		text(c + Vector2(-50, 30), fit(PD.COMBOS[e]["name"] if PD.COMBOS.has(e) else PD.SYNERGY_NAME.get(e, e), 100.0), col, 12, 100.0, HORIZONTAL_ALIGNMENT_CENTER)
 		i += 1
 
 

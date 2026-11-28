@@ -58,29 +58,32 @@ func test_battle_same_seed_same_result() -> bool:
 	return true
 
 
-func test_synergy_needs_three_same_element() -> bool:
-	for n_fire in [2, 3]:
+## 합동 기술은 병사 조합으로: 고른 하나만, 필요한 병사가 모두 있을 때만 (2026-11-28)
+func test_combo_needs_roles() -> bool:
+	for case in [[["spear", "shield", "archer"], "tide", true], [["spear", "shield"], "tide", false], [["spear", "shield", "archer"], "", false],
+			[["dragon", "jujak"], "guardians", true], [["dragon"], "guardians", false]]:
 		var b = Battle.new(1)
-		for i in n_fire:
-			b.add_ally("archer", "fire", "normal", "t")
-		b.add_ally("shield", "earth", "normal", "t")
-		var fired := false
-		for i in 400:
+		b.combo_id = case[1]
+		for r in case[0]:
+			b.add_ally(r, "fire", "normal", "t")
+		var fired := ""
+		for i in PD.SYNERGY_FIRST + 40:
 			b.step()
 			for e in b.events:
 				if e["kind"] == "synergy":
-					fired = true
-		check(fired == (n_fire >= 3), "불 %d개: 합동 기술 %s" % [n_fire, "나와야 함" if n_fire >= 3 else "안 나와야 함"])
+					fired = e["combo"]
+		check((fired == case[1]) == case[2] or (not case[2] and fired == ""), "%s + %s: 합동 기술 %s" % [str(case[0]), case[1], "나와야 함" if case[2] else "안 나와야 함"])
+	check(PD.COMBOS.size() >= 8, "합동 기술 %d가지" % PD.COMBOS.size())
 	return true
 
 
 ## 균형: 안전하게 구운 보통 군대도 대체로 지키고, 운 좋은 군대는 훨씬 시원하게 지킨다
-func _avg(plan: Array, seeds := 6) -> Dictionary:
+func _avg(plan: Array, seeds := 6, night := 1) -> Dictionary:
 	var wins := 0
 	var hp := 0.0
 	var t := 0.0
 	for s in seeds:
-		var b = Battle.new(100 + s)
+		var b = Battle.new(100 + s, PD.wave_plan(night))
 		_army(b, plan)
 		_run(b)
 		if b.result == "win":
@@ -90,12 +93,17 @@ func _avg(plan: Array, seeds := 6) -> Dictionary:
 	return {"wins": wins, "hp": hp / seeds, "time": t / seeds}
 
 
+## 2026-11-28 사용자 승인 ("테스트를 둘째 밤 기준으로"): 전투를 화면 가운데로 옮긴 뒤 첫 밤은 두 군대 모두 마을이 멀쩡해 차이가 안 난다.
+## '안전한 군대도 지킨다'는 첫 밤, '운이 좋으면 확실히 낫다'는 둘째 밤(도깨비 +45%)에서 잰다
 func test_balance_safe_vs_lucky_kiln() -> bool:
-	var safe := _avg([["shield", "earth", "normal"], ["spear", "fire", "normal"], ["spear", "water", "fine"],
-		["archer", "fire", "normal"], ["archer", "water", "normal"]])
-	var lucky := _avg([["shield", "fire", "fine"], ["spear", "fire", "legend"], ["spear", "fire", "fine"],
-		["archer", "fire", "legend"], ["archer", "water", "fine"]])
-	print("RESULT_JSON:" + JSON.stringify({"proto": "kiln", "safe": safe, "lucky": lucky}))
-	check(safe["wins"] >= 3, "안전한 군대도 절반은 지켜야 (억울함 방지): %s" % [safe])
-	check(lucky["wins"] == 6 and lucky["hp"] > safe["hp"] + 20.0, "운 좋은 군대는 확실히 더 시원해야: %s vs %s" % [lucky, safe])
+	var safe_army := [["shield", "earth", "normal"], ["spear", "fire", "normal"], ["spear", "water", "fine"],
+		["archer", "fire", "normal"], ["archer", "water", "normal"]]
+	var lucky_army := [["shield", "fire", "fine"], ["spear", "fire", "legend"], ["spear", "fire", "fine"],
+		["archer", "fire", "legend"], ["archer", "water", "fine"]]
+	var safe := _avg(safe_army)
+	var safe2 := _avg(safe_army, 6, 2)
+	var lucky2 := _avg(lucky_army, 6, 2)
+	print("RESULT_JSON:" + JSON.stringify({"proto": "kiln", "safe": safe, "safe_n2": safe2, "lucky_n2": lucky2}))
+	check(safe["wins"] >= 3, "안전한 군대도 첫 밤은 절반은 지켜야 (억울함 방지): %s" % [safe])
+	check(lucky2["wins"] == 6 and lucky2["hp"] > safe2["hp"] + 20.0, "운 좋은 군대는 둘째 밤에 확실히 낫다: %s vs %s" % [lucky2, safe2])
 	return true

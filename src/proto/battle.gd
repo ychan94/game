@@ -68,7 +68,10 @@ var units: Array = []
 var events: Array = []
 var village_hp := D.VILLAGE_HP
 var spawn_queue: Array = []
-var synergy_t := {}
+var synergy_t := {}             # 합동 기술 남은 시간 {combo_id: 프레임}
+var combo_id := ""               # 고른 합동 기술 (D.COMBOS), 없으면 ""
+var combo_cd_mul := 1.0          # 전술 강화: 합동 기술 재사용 배율
+var combo_first_cut := 0         # 전술 강화: 첫 발동 앞당김 (프레임)
 var done := false
 var result := ""
 var stats := {"kills": 0, "specials": 0, "synergies": 0, "damage": 0.0}
@@ -103,7 +106,7 @@ func add_ally(role: String, element: String, tier: String, name: String, stat_mu
 	u.atk = s["atk"] * m * (1.0 + mods.get("atk", 0.0))
 	u.regen = mods.get("regen", 0.0)
 	u.heal = D.HEAL_AMOUNT * (1.0 + (m - 1.0) * D.HEAL_SCALE) if role == "healer" else 0.0
-	u.range = s["range"]
+	u.range = s["range"] * (1.0 + mods.get("range", 0.0))
 	u.cd_max = maxi(6, roundi(s["cd"] / (1.0 + mods.get("haste", 0.0))))
 	u.speed = s["speed"]
 	u.radius = 9.0 + (3.0 if tier == "legend" else 0.0) 
@@ -136,9 +139,11 @@ static func default_line() -> Dictionary:
 
 ## 병사를 둘 수 있는 곳: 마을 담장 앞부터 전장 끝까지 어디든 (사용자: "모든 맵에 자유롭게")
 ## 아군이 나갈 수 있는 오른쪽 끝: 적이 나오는 화면 끝까지 쫓아가 전투가 화면 밖으로 밀리지 않게
-const ALLY_MAX_X: float = FIELD.size.x - 64.0
-## 적은 이 선 안으로 들어와야 공격한다: 화면 밖(아군이 못 닿는 곳)에서 쏘지 못하게 (2026-11-28 사용자 요청)
-const ENEMY_ATTACK_X: float = ALLY_MAX_X + 16.0
+## 싸움터를 화면 가운데로 (2026-11-28 "거의 끝에서만 전투가 일어나니까 ... 적들이 조금 더 화면에 나올때부터 공격이 가능하도록")
+## 아군은 화면 70% 선까지만 나가고, 적은 그 선 근처까지 걸어 들어와야 공격한다. 원거리 아군은 화면에 보이는 적만 쏜다
+const ALLY_MAX_X: float = FIELD.size.x * 0.7
+const ENEMY_ATTACK_X: float = ALLY_MAX_X + 24.0
+const VISIBLE_X: float = FIELD.size.x - 24.0
 const DEPLOY := Rect2(VILLAGE_X + 12.0, 12.0, ALLY_MAX_X - VILLAGE_X - 12.0, FIELD.size.y - 24.0)
 
 
@@ -323,6 +328,8 @@ func _pick_target(u: U):
 	for t in units:
 		if not t.alive or t.team == u.team:
 			continue
+		if u.team == "ally" and t.pos.x > VISIBLE_X:
+			continue   # 아직 화면 밖
 		var d: float = u.pos.distance_to(t.pos)
 		if d < bd:
 			bd = d
@@ -476,25 +483,43 @@ func _special(u: U) -> void:
 			_element_burst(t, u.element, 30.0, u)
 
 
-## 같은 속성 3이면 합동 기술 (화면 전체)
+## 합동 기술 (병사 조합): 로비에서 고른 것(combo_id) 하나만. 필요한 병사가 살아 있으면 재사용마다 발동
 func _synergy() -> void:
-	var counts := {}
+	if combo_id == "":
+		return
+	var roles: Array = []
+	var n := 0
+	var cr: Array = D.combo_roles(combo_id)
 	for u in units:
-		if u.alive and u.team == "ally" and u.element != "":
-			counts[u.element] = counts.get(u.element, 0) + 1
-	for e in counts:
-		if counts[e] < D.SYNERGY_COUNT:
-			synergy_t.erase(e)
-			continue
-		if not synergy_t.has(e):
-			synergy_t[e] = D.SYNERGY_FIRST
-		synergy_t[e] -= 1
-		if synergy_t[e] <= 0:
-			synergy_t[e] = D.SYNERGY_EVERY
-			stats["synergies"] += 1
-			var power: float = synergy_power * counts[e] / D.SYNERGY_COUNT
-			events.append({"kind": "synergy", "element": e, "count": counts[e], "name": D.SYNERGY_NAME[e]})
-			waves.append({"element": e, "x": VILLAGE_X, "power": power})
+		if u.alive and u.team == "ally":
+			if not roles.has(u.kind):
+				roles.append(u.kind)
+			if cr.has(u.kind):
+				n += 1
+	if not D.combo_ok(combo_id, roles):
+		synergy_t.erase(combo_id)
+		return
+	if not synergy_t.has(combo_id):
+		synergy_t[combo_id] = maxi(30, roundi(D.SYNERGY_FIRST * combo_cd_mul) - combo_first_cut)
+	synergy_t[combo_id] -= 1
+	if synergy_t[combo_id] > 0:
+		return
+	synergy_t[combo_id] = roundi(D.SYNERGY_EVERY * combo_cd_mul)
+	stats["synergies"] += 1
+	var c: Dictionary = D.COMBOS[combo_id]
+	# 위력: 조건 병사가 많을수록 (3명 기준, 최대 2배)
+	var power: float = synergy_power * c["pow"] * clampf(n / 3.0, 1.0, 2.0)
+	events.append({"kind": "synergy", "element": c["element"], "count": n, "name": c["name"], "combo": combo_id})
+	waves.append({"element": c["element"], "x": VILLAGE_X, "power": power, "bonus": c["bonus"]})
+	for u in _allies():
+		match c["bonus"]:
+			"atk":
+				u.buff_t = maxi(u.buff_t, D.COMBO_ATK_FRAMES)
+				u.buff_val = maxf(u.buff_val, D.COMBO_ATK)
+			"shield":
+				u.shield_hp += u.max_hp * D.COMBO_SHIELD
+			"heal":
+				u.hp = minf(u.max_hp, u.hp + u.max_hp * D.COMBO_HEAL)
 
 
 ## 합동 기술 파도: 마을 쪽에서 오른쪽으로 휩쓸며, 지나가는 자리의 적이 맞는다
@@ -507,6 +532,11 @@ func _move_waves() -> void:
 			if u.alive and u.team == "enemy" and u.pos.x > x0 and u.pos.x <= w["x"] and not hit.has(u.id):
 				hit.append(u.id)   # 한 파도는 한 적을 한 번만 (해일에 밀린 적을 또 맞혀 끝까지 끌고 가지 않게)
 				_element_burst(u, w["element"], w["power"], null)
+				match w.get("bonus", ""):
+					"stun":
+						u.stun_t = maxi(u.stun_t, D.COMBO_STUN)
+					"slow":
+						u.slow_t = maxi(u.slow_t, D.SLOW_FRAMES * 3)
 		w["hit"] = hit
 	waves = waves.filter(func(w): return w["x"] < FIELD.size.x + 20.0)
 
@@ -575,7 +605,7 @@ func _allies() -> Array:
 
 
 func _nearest_enemies(p: Vector2, n: int, max_d := INF) -> Array:
-	var es: Array = _enemies().filter(func(o): return o.pos.distance_to(p) <= max_d)
+	var es: Array = _enemies().filter(func(o): return o.pos.distance_to(p) <= max_d and o.pos.x <= VISIBLE_X)
 	es.sort_custom(func(a, b): return a.pos.distance_to(p) < b.pos.distance_to(p))
 	return es.slice(0, n)
 
@@ -584,38 +614,42 @@ func _nearest_enemies(p: Vector2, n: int, max_d := INF) -> Array:
 func _skill(u: U, role: String) -> void:
 	var lv: int = u.skill_lv
 	var pw: float = (1.0 + 0.5 * lv) * u.skill_pow
+	if u.element == "fire":
+		pw *= D.SKILL_FIRE_POW   # 진사: 피해 +25%
 	var atk: float = u.atk * _general_buff(u)
 	var hits: Array = []
+	var helped: Array = []   # 돕는 스킬을 받은 아군 (유약 효과를 준다)
 	match role:
 		"spear":
 			var t = _nearest_enemies(u.pos, 1, 180.0)
 			if not t.is_empty():
 				u.pos = t[0].pos - Vector2(t[0].radius + u.radius, 0)
 				u.pos.x = minf(u.pos.x, ALLY_MAX_X)
-				_hurt(t[0], atk * 2.5 * pw, u, true)
+				_hurt(t[0], atk * D.SKILLS["spear"]["pct"] * pw, u, true)
 				if lv >= 3:
 					t[0].stun_t = maxi(t[0].stun_t, 60)
 				hits = t
 		"archer":
 			hits = _nearest_enemies(u.pos, 3 + lv, u.range + 60.0)
 			for t in hits:
-				_hurt(t, atk * 1.5 * pw, u, true)
+				_hurt(t, atk * D.SKILLS["archer"]["pct"] * pw, u, true)
 		"shield":
 			for o in _allies():
 				if o.pos.distance_to(u.pos) <= 70.0 + 30.0 * lv:
 					o.guard_t = 240
+					helped.append(o)
 			if lv >= 3:
 				u.taunt_t = 240
 		"axe":
 			hits = _nearest_enemies(u.pos, 99, 45.0 + 8.0 * lv)
 			for t in hits:
-				_hurt(t, atk * 2.0 * pw, u, true)
+				_hurt(t, atk * D.SKILLS["axe"]["pct"] * pw, u, true)
 		"cavalry":
 			var x0: float = u.pos.x
 			var x1: float = minf(FIELD.size.x - 10.0, x0 + 110.0 + 30.0 * lv)
 			for t in _enemies():
 				if t.pos.x >= x0 - 10.0 and t.pos.x <= x1 and absf(t.pos.y - u.pos.y) < 26.0:
-					_hurt(t, atk * 2.0 * pw, u, true)
+					_hurt(t, atk * D.SKILLS["cavalry"]["pct"] * pw, u, true)
 					if lv >= 3:
 						_push(t, 30.0)
 					hits.append(t)
@@ -623,7 +657,7 @@ func _skill(u: U, role: String) -> void:
 		"slinger":
 			var t2 = _nearest_enemies(u.pos, 1, u.range + 60.0)
 			if not t2.is_empty():
-				_hurt(t2[0], atk * 2.5 * pw, u, true)
+				_hurt(t2[0], atk * D.SKILLS["slinger"]["pct"] * pw, u, true)
 				t2[0].stun_t = maxi(t2[0].stun_t, 50 + 20 * lv)
 				hits = t2
 				if lv >= 2:
@@ -635,6 +669,7 @@ func _skill(u: U, role: String) -> void:
 				if o.pos.distance_to(u.pos) <= u.range + 30.0:
 					var amt: float = minf(o.max_hp - o.hp, u.heal * 1.5 * (1.0 + 0.5 * lv) * u.skill_pow)
 					o.hp += amt
+					helped.append(o)
 					if lv >= 3:
 						o.shield_hp += o.max_hp * 0.1
 					events.append({"kind": "heal", "pos": o.pos, "from": u.pos, "amount": amt, "unit": u.id, "target": o.id, "element": u.element})
@@ -644,10 +679,10 @@ func _skill(u: U, role: String) -> void:
 				if es.is_empty():
 					break
 				var t3 = es[rng.randi() % es.size()]
-				_hurt(t3, atk * 1.2 * pw, u, true)
+				_hurt(t3, atk * D.SKILLS["cannon"]["pct"] * pw, u, true)
 				for o in _nearest_enemies(t3.pos, 99, 30.0):
 					if o != t3:
-						_hurt(o, atk * 0.6 * pw, u, true)
+						_hurt(o, atk * D.SKILLS["cannon"]["pct"] * 0.5 * pw, u, true)
 				hits.append(t3)
 		"twin":
 			for i in (6 + lv):
@@ -655,12 +690,13 @@ func _skill(u: U, role: String) -> void:
 				if near.is_empty():
 					break
 				var t4 = near[i % near.size()]
-				_hurt(t4, atk * 0.8 * pw, u, true)
+				_hurt(t4, atk * D.SKILLS["twin"]["pct"] * pw, u, true)
 				hits.append(t4)
 		"general":
 			for o in _allies():
 				o.buff_t = 300
 				o.buff_val = 0.3 + 0.1 * lv
+				helped.append(o)
 				if lv >= 3:
 					o.haste_t = 300
 		"sniper":
@@ -670,22 +706,22 @@ func _skill(u: U, role: String) -> void:
 				for o in _enemies():
 					var rel: Vector2 = o.pos - u.pos
 					if rel.dot(dir) > 0.0 and absf(rel.cross(dir)) < 16.0:
-						_hurt(o, atk * 3.0 * pw, u, true)
+						_hurt(o, atk * D.SKILLS["sniper"]["pct"] * pw, u, true)
 						hits.append(o)
 		"haetae":
 			for o in _enemies():
 				if o.pos.x > u.pos.x - 10.0 and o.pos.distance_to(u.pos) < 90.0 + 30.0 * lv:
-					_hurt(o, atk * 1.5 * pw, u, true)
+					_hurt(o, atk * D.SKILLS["haetae"]["pct"] * pw, u, true)
 					o.burn_t = D.BURN_FRAMES * (2 if lv >= 3 else 1)
 					hits.append(o)
 		"cheoyong":
 			for o in _nearest_enemies(u.pos, 99, 120.0 + 25.0 * lv):
-				_hurt(o, atk * 1.0 * pw, u, true)
+				_hurt(o, atk * D.SKILLS["cheoyong"]["pct"] * pw, u, true)
 				o.stun_t = maxi(o.stun_t, 60 + 20 * lv)
 				hits.append(o)
 		"dragon":
 			for o in _enemies():
-				_hurt(o, atk * 1.2 * pw, u, true)
+				_hurt(o, atk * D.SKILLS["dragon"]["pct"] * pw, u, true)
 				o.slow_t = maxi(o.slow_t, 180)
 				hits.append(o)
 		"baekho":
@@ -696,7 +732,7 @@ func _skill(u: U, role: String) -> void:
 			if best != null:
 				u.pos = best.pos - Vector2(best.radius + u.radius, 0)
 				u.pos.x = minf(u.pos.x, ALLY_MAX_X)
-				_hurt(best, atk * 5.0 * pw, u, true)
+				_hurt(best, atk * D.SKILLS["baekho"]["pct"] * pw, u, true)
 				for o in _nearest_enemies(best.pos, 99, 50.0):
 					o.stun_t = maxi(o.stun_t, 45 + (30 if lv >= 3 else 0))
 				hits = [best]
@@ -706,15 +742,40 @@ func _skill(u: U, role: String) -> void:
 				if es2.is_empty():
 					break
 				var t6 = es2[rng.randi() % es2.size()]
-				_hurt(t6, atk * 1.0 * pw, u, true)
+				_hurt(t6, atk * D.SKILLS["jujak"]["pct"] * pw, u, true)
 				t6.burn_t = D.BURN_FRAMES
 				hits.append(t6)
 		"hyeonmu":
 			for o in _allies():
 				o.shield_hp += o.max_hp * (0.2 + 0.05 * lv) * u.skill_pow
+				helped.append(o)
+	# 유약 효과 (청자 느리게 · 진사 화상 · 흑유 기절+보호막 / 돕는 스킬은 회복 · 공격력 · 보호막)
+	match u.element:
+		"water":
+			for o in hits:
+				if o.alive:
+					o.slow_t = maxi(o.slow_t, D.SKILL_WATER_SLOW)
+			for o in helped:
+				o.hp = minf(o.max_hp, o.hp + o.max_hp * D.SKILL_SUP_HEAL)
+		"fire":
+			for o in hits:
+				if o.alive:
+					o.burn_t = maxi(o.burn_t, D.BURN_FRAMES)
+			for o in helped:
+				if o.buff_t <= 0 or o.buff_val < D.SKILL_SUP_ATK:
+					o.buff_val = maxf(o.buff_val if o.buff_t > 0 else 0.0, D.SKILL_SUP_ATK)
+				o.buff_t = maxi(o.buff_t, 240)
+		"earth":
+			for o in hits:
+				if o.alive:
+					o.stun_t = maxi(o.stun_t, D.SKILL_EARTH_STUN)
+			if not hits.is_empty():
+				u.shield_hp += u.max_hp * D.SKILL_EARTH_SHIELD
+			for o in helped:
+				o.shield_hp += o.max_hp * D.SKILL_SUP_SHIELD
 	stats["skills"] = stats.get("skills", 0) + 1
 	events.append({"kind": "skill", "role": role, "unit": u.id, "pos": u.pos, "lv": lv, "element": u.element,
-		"name": D.SKILLS[role]["name"], "targets": hits.map(func(o): return o.pos)})
+		"name": D.skill_name(role, u.element), "targets": hits.map(func(o): return o.pos)})
 
 
 

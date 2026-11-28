@@ -35,6 +35,10 @@ var bet_busts := 0               # 내기 꽝 횟수 (3번이면 다음 내기 �
 var last_bet := {}               # 방금 내기 결과 (화면용) {key, name, desc, ids}
 var last_draw := {}              # 방금 뽑은 것 (화면용)
 var last_stars := 0              # 방금 밤의 별 (마을 체력 %)
+var last_bought := {}            # 방금 상점에서 산 장비 (화면용)
+var combo := ""                  # 로비에서 고른 합동 기술 (하나만)
+var embers_earned := 0           # 이번 판에서 얻은 불씨 (★3 밤마다 1)
+var free_rerolls := 0            # 오늘 아침 남은 공짜 다시 진열
 
 
 var meta := {}                   # 전술 강화 효과 (판 시작 때 받는다)
@@ -52,8 +56,10 @@ func _init(seed_value: int, meta_effects := {}) -> void:
 	tickets += int(meta.get("start_tickets", 0.0))
 	pearls += int(meta.get("start_pearls", 0.0))
 	kiln.safe_bonus = int(meta.get("safe_heat", 0.0))
+	kiln.fine_bonus = meta.get("fine_bonus", 0.0)
 	kiln.shard_need = maxi(1, D.SHARDS_FOR_LEGEND - int(meta.get("shard_need", 0.0)))
 	restock()
+	free_rerolls = int(meta.get("free_reroll", 0.0))
 
 
 func bet_pity() -> int:
@@ -177,6 +183,35 @@ func over_cap() -> int:
 
 func can_start_night() -> bool:
 	return state == "prep" and queue.is_empty() and not army.is_empty() and over_cap() == 0
+
+
+## 합동 기술: 지금 부대로 쓸 수 있나 / 고르기 (하나만)
+func army_roles() -> Array:
+	var out: Array = []
+	for s in army:
+		if not out.has(s["role"]):
+			out.append(s["role"])
+	return out
+
+
+func combo_ready(id: String) -> bool:
+	return D.combo_ok(id, army_roles())
+
+
+func set_combo(id: String) -> bool:
+	if id != "" and not D.COMBOS.has(id):
+		return false
+	combo = id
+	return true
+
+
+## 지금 부대로 쓸 수 있는 합동 기술 중 가장 센 것 (봇·처음 고를 때)
+func best_combo() -> String:
+	var best := ""
+	for id in D.COMBOS:
+		if combo_ready(id) and (best == "" or D.COMBOS[id]["pow"] > D.COMBOS[best]["pow"]):
+			best = id
+	return best
 
 
 ## 병사 돌려보내기: 부대에서 빼고 흙 조금
@@ -453,6 +488,10 @@ func _bet(new_ids: Array) -> void:
 func start_night():
 	var b = Battle.new(rng.randi(), D.wave_plan(night, true, chapter))
 	b.village_hp = village_hp
+	b.combo_id = combo
+	b.synergy_power *= 1.0 + meta.get("combo_pow", 0.0)
+	b.combo_cd_mul = maxf(0.4, 1.0 - meta.get("combo_cd", 0.0))
+	b.combo_first_cut = int(meta.get("combo_first", 0.0))
 	b.village_guard = meta.get("village_guard", 0.0)
 	for s in army:
 		var home = s.get("home", null)
@@ -485,7 +524,7 @@ func soldier_mods(s: Dictionary) -> Dictionary:
 		m["atk"] = m.get("atk", 0.0) + D.PROMO_BONUS
 		m["hp"] = m.get("hp", 0.0) + D.PROMO_BONUS
 	m["star"] = s["star"]
-	for k in ["atk", "hp", "cdr"]:
+	for k in ["atk", "hp", "cdr", "haste", "range"]:
 		if meta.has(k):
 			m[k] = m.get(k, 0.0) + meta[k]
 	return m
@@ -552,15 +591,35 @@ func promote(base_id: int, ing_id: int) -> Dictionary:
 
 
 # ---------------- 진주 상점 ----------------
+## 진열: 확률표(shop_table)대로 4칸. 뽑기권은 하루에 한 칸만 (1장 또는 드물게 5장 꾸러미)
 func restock() -> void:
-	var keys: Array = D.SHOP_ITEMS.keys()
+	var table: Array = D.shop_table(chapter)
 	shop = []
+	var has_ticket := false
 	for i in D.SHOP_SLOTS:
-		shop.append(keys[rng.randi() % keys.size()])
+		var key := ""
+		for tries in 20:
+			var x := rng.randf()
+			for r in table:
+				x -= r[1]
+				key = r[0]
+				if x < 0.0:
+					break
+			if not (has_ticket and D.SHOP_ITEMS[key]["stat"] == "ticket"):
+				break
+		if D.SHOP_ITEMS[key]["stat"] == "ticket":
+			has_ticket = true
+		shop.append(key)
 
 
 func reroll_shop() -> bool:
-	if pearls < D.SHOP_REROLL or state != "prep":
+	if state != "prep":
+		return false
+	if free_rerolls > 0:
+		free_rerolls -= 1
+		restock()
+		return true
+	if pearls < D.SHOP_REROLL:
 		return false
 	pearls -= D.SHOP_REROLL
 	restock()
@@ -579,7 +638,12 @@ func buy(slot: int, soldier_id := -1) -> bool:
 	if pearls < price(shop[slot]):
 		return false
 	if it["stat"] == "ticket":
-		tickets += 1
+		tickets += int(it["val"])
+	elif it["stat"] == "equip":
+		var eq := _roll_equip()
+		eq["type"] = it["type"]
+		inventory.append(eq)
+		last_bought = eq
 	else:
 		var s := soldier(soldier_id)
 		if s.is_empty():
@@ -623,6 +687,10 @@ func end_night(b) -> void:
 	if last_stars >= 3:
 		tk = D.TICKETS_PER_NIGHT + last_kills / D.TICKET_PER_KILLS + (D.TICKETS_BOSS if boss_night else 0) + int(meta.get("night_tickets", 0.0))
 	var cl: int = D.CLAY_PER_NIGHT if last_stars >= 1 else 0
+	if last_stars >= 3:
+		embers_earned += 1   # 불씨: ★3 밤마다 1개 (화면이 전술 강화에 더한다)
+	village_hp = minf(D.VILLAGE_HP, village_hp + D.VILLAGE_HP * meta.get("night_repair", 0.0))
+	pearls += int(meta.get("night_pearls", 0.0))
 	tickets += tk
 	clay += cl
 	last_reward = cl
@@ -634,6 +702,7 @@ func end_night(b) -> void:
 	var pr: int = last_kills / D.PEARL_PER_KILLS + (D.PEARL_BOSS if boss_night else 0)
 	pearls += pr
 	restock()
+	free_rerolls = int(meta.get("free_reroll", 0.0))
 	last_loot = {"tickets": tk, "clay": cl, "pearls": pr, "equip": got, "chapter_clay": 0, "boss": boss_night, "stars": last_stars}
 	night += 1
 	chapter_cleared = false

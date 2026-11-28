@@ -111,6 +111,24 @@ func _all() -> void:
 	k.gfx = {}
 	await _frames(260)
 	await _snap("p04_kiln_reveal_done")
+	# 많이 구웠을 때 (가마 30칸): 작은 카드 여러 줄
+	var keep: Array = k.kiln.results
+	var many: Array = []
+	for i in 24:
+		var r0: Dictionary = keep[i % keep.size()].duplicate()
+		r0["cracked"] = false
+		many.append(r0)
+	many[5]["cracked"] = true
+	k.kiln.results = many
+	k.reveal_shown = many.size()
+	for i in many.size():
+		k.card_at[i] = -100
+	await _frames(2)
+	await _snap("p04b_kiln_reveal_many")
+	k.kiln.results = keep
+	k.card_at = {}
+	for i in keep.size():
+		k.card_at[i] = -100
 	# 둘째 밤 준비: 병사가 남아 있고, 진사 창병 3명이면 합치기 버튼
 	run.night = 2
 	run.clay = 9
@@ -146,6 +164,16 @@ func _all() -> void:
 	k.state = "shop"
 	run.pearls = 9
 	await _snap("p05f_kiln_shop")
+	# 대기실: 부대 자리를 넘게 구운 병사들
+	var D2 = load("res://src/proto/data.gd")
+	var roles: Array = D2.KILN_ROLES
+	for i in 52:
+		run._add_soldier(roles[(i * 7) % roles.size()], D2.ELEMENTS[i % 3], "legend" if i % 11 == 0 else ("fine" if i % 4 == 0 else "normal"), 2 if i % 9 == 0 else 1, true)
+	k.state = "barracks"
+	k.res_pick = run.reserve[3]["id"]
+	await _snap("p05i_kiln_barracks")
+	k.res_pick = -1
+	k.state = "shop"
 	k.state = "prep"
 	# 전직: ★3 창병 + 같은 관군 재료
 	var sp3: Dictionary = run._add_soldier("spear", "earth", "fine", 3)

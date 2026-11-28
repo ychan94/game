@@ -136,7 +136,9 @@ static func default_line() -> Dictionary:
 
 ## 병사를 둘 수 있는 곳: 마을 담장 앞부터 전장 끝까지 어디든 (사용자: "모든 맵에 자유롭게")
 ## 아군이 나갈 수 있는 오른쪽 끝: 적이 나오는 화면 끝까지 쫓아가 전투가 화면 밖으로 밀리지 않게
-const ALLY_MAX_X: float = FIELD.size.x - 80.0
+const ALLY_MAX_X: float = FIELD.size.x - 64.0
+## 적은 이 선 안으로 들어와야 공격한다: 화면 밖(아군이 못 닿는 곳)에서 쏘지 못하게 (2026-11-28 사용자 요청)
+const ENEMY_ATTACK_X: float = ALLY_MAX_X + 16.0
 const DEPLOY := Rect2(VILLAGE_X + 12.0, 12.0, ALLY_MAX_X - VILLAGE_X - 12.0, FIELD.size.y - 24.0)
 
 
@@ -268,9 +270,11 @@ func _act(u: U) -> void:
 		return
 	var target = _pick_target(u)
 	if u.team == "enemy":
-		if target != null and u.pos.distance_to(target.pos) <= u.range + target.radius + u.radius:
+		if target != null and u.pos.x <= ENEMY_ATTACK_X and u.pos.distance_to(target.pos) <= u.range + target.radius + u.radius:
+			u.tgt = target
 			_attack(u, target)
 		else:
+			u.tgt = null
 			u.pos.x -= spd
 			if target != null and absf(target.pos.y - u.pos.y) > 4.0 and u.pos.distance_to(target.pos) < 120.0:
 				u.pos.y += signf(target.pos.y - u.pos.y) * spd * 0.6
@@ -296,7 +300,7 @@ func _act(u: U) -> void:
 		if d <= u.range + target.radius + u.radius:
 			u.idle_t = 0
 			_attack(u, target)
-		elif spd > 0.0 and target.pos.distance_to(u.home) < D.ALLY_LEASH + D.ALLY_AGGRO:
+		elif spd > 0.0 and (target.pos.distance_to(u.home) < D.ALLY_LEASH + D.ALLY_AGGRO or target.tgt == u):
 			u.idle_t = 0
 			u.pos += (target.pos - u.pos).normalized() * spd
 			u.pos.x = minf(u.pos.x, ALLY_MAX_X)
@@ -334,6 +338,18 @@ func _pick_target(u: U):
 				sd = d
 				shield = t
 	if u.team == "ally":
+		# 나를 때리는 적이 있으면 그 적부터 (멀리서 쏘는 적에게 가만히 맞고 있지 않게). 지금 목표를 이미 때리고 있으면 그대로
+		var busy: bool = u.tgt != null and u.tgt.alive and u.pos.distance_to(u.tgt.pos) <= u.range + u.tgt.radius + u.radius
+		if not busy:
+			var att = null
+			var ad := INF
+			for t2 in units:
+				if t2.alive and t2.team != u.team and t2.tgt == u and u.pos.distance_to(t2.pos) < ad:
+					ad = u.pos.distance_to(t2.pos)
+					att = t2
+			if att != null:
+				u.tgt = att
+				return att
 		# 붙잡은 목표가 살아 있고 너무 멀어지지 않았으면 그대로 (신궁은 사거리 안 가장 강한 적)
 		if u.kind != "sniper" and u.tgt != null and u.tgt.alive and u.pos.distance_to(u.tgt.pos) <= maxf(u.range + 40.0, D.ALLY_AGGRO * 1.3):
 			return u.tgt

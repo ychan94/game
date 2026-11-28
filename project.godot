@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="1분 시험판 (가마의 병사 · 알을 품는 성)"
+config/name="KILNBORN"
 run/main_scene="res://src/game/launcher.tscn"
 config/features=PackedStringArray("4.7")
 

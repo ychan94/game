@@ -7,7 +7,7 @@ const PD = preload("res://src/proto/data.gd")
 const VIEW := Vector2(640, 400)
 const FIELD_OFFSET := Vector2(0, 64)
 const C := {
-	"bg": Color("15131d"), "text": Color("efe8da"), "dim": Color("8e869b"), "accent": Color("ffcf5a"),
+	"bg": Color("15131d"), "text": Color("efe8da"), "dim": Color("9d95aa"), "accent": Color("ffcf5a"),
 	"danger": Color("ff5a4f"), "good": Color("7ee08a"), "panel": Color(0.07, 0.06, 0.1, 0.94), "card": Color("231f2f"),
 	"grass_a": Color("23301f"), "grass_b": Color("1f2b1c"), "village": Color("6b4f3a"), "roof": Color("a2493a"),
 	"water": Color("7fc7b8"), "fire": Color("d9533f"), "earth": Color("5a4236"),
@@ -16,7 +16,8 @@ const C := {
 }
 
 var font: FontFile
-var font_bold: FontFile          # 피해 숫자용 굵은 글꼴
+var font_bold: FontFile          # 굵은 글꼴: 피해 숫자·버튼·이름
+var font_head: FontFile          # 제목 글꼴 (크기 20 이상): 도현
 var buttons: Array = []          # 이번 프레임에 그린 버튼 [{rect, id}]
 var _prev := {}
 var _mouse_prev := false
@@ -51,14 +52,11 @@ const FX_FPS := 20               # 이펙트 그림 한 장면당 3프레임 (�
 
 
 func _ready() -> void:
-	font = load("res://assets/fonts/Galmuri11.ttf")
-	font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
-	font.hinting = TextServer.HINTING_NONE
-	font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
-	font_bold = load("res://assets/fonts/Galmuri11-Bold.ttf")
-	font_bold.antialiasing = TextServer.FONT_ANTIALIASING_NONE
-	font_bold.hinting = TextServer.HINTING_NONE
-	font_bold.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+	# 글꼴 (2026-11-28 "폰트가 눈에 잘 들어오도록"): 본문 Pretendard Medium · 굵게 Pretendard Bold · 제목 도현 (모두 OFL)
+	# 화면은 1280×800 으로 그리므로 매끈한 글꼴이 그 해상도로 또렷하게 나온다 (그림은 픽셀, 글자는 매끈하게)
+	font = _load_font("Pretendard-Medium.otf", "Galmuri11.ttf")
+	font_bold = _load_font("Pretendard-Bold.otf", "Galmuri11-Bold.ttf")
+	font_head = _load_font("DoHyeon-Regular.ttf", "Galmuri11-Bold.ttf")
 	var g := GradientTexture2D.new()
 	g.width = 64
 	g.height = 64
@@ -802,27 +800,55 @@ func step_battle() -> void:
 # ---------------- 그리기 도우미 ----------------
 ## 폭에 맞춰 자르기 (넘치면 … ) — 글자가 다른 칸 밑으로 들어가 겹치지 않게
 func fit(s: String, width: float, size := 12) -> String:
-	if font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x <= width:
+	var f: Font = font_head if size >= 20 else font
+	if f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x <= width:
 		return s
 	var out := s
-	while out.length() > 1 and font.get_string_size(out + "…", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x > width:
+	while out.length() > 1 and f.get_string_size(out + "…", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x > width:
 		out = out.substr(0, out.length() - 1)
 	return out + "…"
 
 
 ## 글자: 갈무리 픽셀 글꼴은 12의 배수 크기에서만 또렷하다 → 크기를 12·24·36 으로 맞추고, 자리는 정수 픽셀로
 func text(pos: Vector2, s: String, color: Color = C["text"], size := 12, width := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
-	size = maxi(12, roundi(size / 12.0) * 12)
+	size = maxi(11, size)
 	pos = pos.round()
+	var f: Font = font_head if size >= 20 else font
+	if size >= 20:
+		# 큰 제목: 아래로 살짝 그림자 (어두운 바탕에서도 또렷하게)
+		var sh := Color(0, 0, 0, 0.55 * color.a)
+		if width > 0.0:
+			draw_multiline_string(f, pos + Vector2(0, 1.5), s, align, width, size, -1, sh)
+		else:
+			draw_string(f, pos + Vector2(0, 1.5), s, align, -1, size, sh)
 	if width > 0.0:
-		draw_multiline_string(font, pos, s, align, width, size, -1, color)
+		draw_multiline_string(f, pos, s, align, width, size, -1, color)
 	else:
-		draw_string(font, pos, s, align, -1, size, color)
+		draw_string(f, pos, s, align, -1, size, color)
+
+
+func _load_font(file: String, fallback: String) -> FontFile:
+	var path := "res://assets/fonts/" + file
+	var f: FontFile = null
+	if ResourceLoader.exists(path):
+		f = load(path)
+	elif FileAccess.file_exists(path):
+		f = FontFile.new()
+		f.load_dynamic_font(ProjectSettings.globalize_path(path))
+	if f == null:
+		f = load("res://assets/fonts/" + fallback)
+		f.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+		f.hinting = TextServer.HINTING_NONE
+	else:
+		f.antialiasing = TextServer.FONT_ANTIALIASING_GRAY
+		f.hinting = TextServer.HINTING_LIGHT
+	f.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+	return f
 
 
 # ---------------- UI 부품 (옻칠 바탕 + 금박 테두리, 시안: claude.ai 아티팩트 "가마의 병사 UI 개편 시안") ----------------
 const UI := {"ground": Color("120e16"), "lacquer": Color("1c1622"), "inner": Color("18131d"), "deep": Color("120e16"),
-	"gold": Color("e8c35a"), "gold_dk": Color("a8862e"), "bronze": Color("5a4630"), "line": Color("3a2e22"), "muted": Color("a89cb0")}
+	"gold": Color("e8c35a"), "gold_dk": Color("a8862e"), "bronze": Color("5a4630"), "line": Color("3a2e22"), "muted": Color("b6abbe")}
 
 
 ## UI 그림 (Codex, assets/sprites/ui/*.png) 이 있으면 9조각 늘이기로 그린다. 없으면 false → 코드로 그린다
@@ -894,14 +920,78 @@ func button(rect: Rect2, label: String, id: String, color: Color = C["accent"], 
 	var tint: Color = (Color.WHITE if primary else Color.WHITE.lerp(edge, 0.45)) if enabled else Color(0.5, 0.48, 0.55)
 	if hover:
 		tint = tint.lightened(0.15)
-	if not nine("button_primary_9" if primary else "button_9", r, 6, tint):
+	if not enabled:
+		tint = Color(0.36, 0.34, 0.4)   # 못 누르는 버튼: 어둡게 (글자는 아래에서 밝게 골라 읽히게)
+	var art_name := "button_primary_9" if primary else "button_9"
+	var art: bool = nine(art_name, r, 6, tint)
+	if not art:
 		rrect(r, fill)
 		draw_rect(Rect2(r.position + Vector2(2, 1), Vector2(r.size.x - 4, 1)), Color(1, 1, 1, 0.08 if not primary else 0.25))
 		rline(r, edge)
-	var tc: Color = (UI["lacquer"] if primary else edge) if enabled else Color("6b6478")
+	# 글자 색: 실제 바탕색(그림 평균 × 물들인 색)과의 명암 대비를 재서 고른다 (WCAG 대비 4.5 이상, 못 누르는 버튼은 3 이상)
+	var bg: Color = fill
+	if art:
+		var avg: Color = _tex_avg(art_name)
+		bg = Color(avg.r * tint.r, avg.g * tint.g, avg.b * tint.b)
+	var tc: Color = _readable_on(bg, edge.lightened(0.15) if not (primary or art) else Color(0, 0, 0, 0), 4.5 if enabled else 3.0)
+	if not enabled:
+		tc.a = 0.85
 	var lab := fit(label, r.size.x - 8.0)
-	var w: float = font.get_string_size(lab, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-	draw_string(font, (r.position + Vector2((r.size.x - w) / 2.0, r.size.y / 2.0 + 5.0)).round(), lab, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, tc)
+	var w: float = font_bold.get_string_size(lab, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+	draw_string(font_bold, (r.position + Vector2((r.size.x - w) / 2.0, r.size.y / 2.0 + 5.0)).round(), lab, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, tc)
+
+
+## 바탕 bg 위에서 읽히는 글자 색: prefer 가 대비 기준을 넘으면 그 색, 아니면 진한 색·밝은 색 중 대비가 큰 쪽
+func _readable_on(bg: Color, prefer: Color, need: float) -> Color:
+	if prefer.a > 0.0 and contrast_ratio(prefer, bg) >= need:
+		return prefer
+	var dark := Color("1c1622")
+	var light := Color("f6f0e4")
+	return dark if contrast_ratio(dark, bg) >= contrast_ratio(light, bg) else light
+
+
+static func _lin(c: float) -> float:
+	return c / 12.92 if c <= 0.04045 else pow((c + 0.055) / 1.055, 2.4)
+
+
+static func rel_lum(c: Color) -> float:
+	return 0.2126 * _lin(c.r) + 0.7152 * _lin(c.g) + 0.0722 * _lin(c.b)
+
+
+static func contrast_ratio(a: Color, b: Color) -> float:
+	var la := rel_lum(a)
+	var lb := rel_lum(b)
+	return (maxf(la, lb) + 0.05) / (minf(la, lb) + 0.05)
+
+
+## UI 그림 가운데 부분의 평균 색 (버튼 바탕 밝기를 알려고)
+var _avg_cache := {}
+
+
+func _tex_avg(name: String) -> Color:
+	if _avg_cache.has(name):
+		return _avg_cache[name]
+	var out := Color(0.5, 0.5, 0.5)
+	var tx := tex("ui/" + name)
+	if tx != null:
+		var img: Image = tx.get_image()
+		if img != null:
+			if img.is_compressed():
+				img.decompress()
+			var w := img.get_width()
+			var h := img.get_height()
+			var sum := Vector3.ZERO
+			var n := 0
+			for y in range(h / 4, h * 3 / 4):
+				for x in range(w / 4, w * 3 / 4):
+					var c := img.get_pixel(x, y)
+					if c.a > 0.5:
+						sum += Vector3(c.r, c.g, c.b)
+						n += 1
+			if n > 0:
+				out = Color(sum.x / n, sum.y / n, sum.z / n)
+	_avg_cache[name] = out
+	return out
 
 
 ## 패널: 옻칠 바탕 + 청동 테두리 + 안쪽 선 + 금박 모서리 장식. title 이 있으면 위쪽에 제목 판

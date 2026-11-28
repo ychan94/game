@@ -135,7 +135,9 @@ static func default_line() -> Dictionary:
 
 
 ## 병사를 둘 수 있는 곳: 마을 담장 앞부터 전장 끝까지 어디든 (사용자: "모든 맵에 자유롭게")
-const DEPLOY := Rect2(VILLAGE_X + 12.0, 12.0, FIELD.size.x - VILLAGE_X - 32.0, FIELD.size.y - 24.0)
+## 아군이 나갈 수 있는 오른쪽 끝: 적이 나오는 화면 끝까지 쫓아가 전투가 화면 밖으로 밀리지 않게
+const ALLY_MAX_X: float = FIELD.size.x - 80.0
+const DEPLOY := Rect2(VILLAGE_X + 12.0, 12.0, ALLY_MAX_X - VILLAGE_X - 12.0, FIELD.size.y - 24.0)
 
 
 ## 아군 대열: 방패 앞, 창 가운데, 궁수 뒤 (직접 배치한 병사는 그대로)
@@ -297,6 +299,7 @@ func _act(u: U) -> void:
 		elif spd > 0.0 and target.pos.distance_to(u.home) < D.ALLY_LEASH + D.ALLY_AGGRO:
 			u.idle_t = 0
 			u.pos += (target.pos - u.pos).normalized() * spd
+			u.pos.x = minf(u.pos.x, ALLY_MAX_X)
 		else:
 			u.idle_t += 1
 	else:
@@ -572,6 +575,7 @@ func _skill(u: U, role: String) -> void:
 			var t = _nearest_enemies(u.pos, 1, 180.0)
 			if not t.is_empty():
 				u.pos = t[0].pos - Vector2(t[0].radius + u.radius, 0)
+				u.pos.x = minf(u.pos.x, ALLY_MAX_X)
 				_hurt(t[0], atk * 2.5 * pw, u, true)
 				if lv >= 3:
 					t[0].stun_t = maxi(t[0].stun_t, 60)
@@ -675,6 +679,7 @@ func _skill(u: U, role: String) -> void:
 					best = o
 			if best != null:
 				u.pos = best.pos - Vector2(best.radius + u.radius, 0)
+				u.pos.x = minf(u.pos.x, ALLY_MAX_X)
 				_hurt(best, atk * 5.0 * pw, u, true)
 				for o in _nearest_enemies(best.pos, 99, 50.0):
 					o.stun_t = maxi(o.stun_t, 45 + (30 if lv >= 3 else 0))
@@ -701,7 +706,7 @@ func _skill(u: U, role: String) -> void:
 func order_move(id: int, pos: Vector2) -> bool:
 	for u in units:
 		if u.id == id and u.alive and u.team == "ally":
-			u.home = Vector2(clampf(pos.x, VILLAGE_X + 12.0, FIELD.size.x - 20.0), clampf(pos.y, 16.0, FIELD.size.y - 16.0))
+			u.home = Vector2(clampf(pos.x, VILLAGE_X + 12.0, ALLY_MAX_X), clampf(pos.y, 16.0, FIELD.size.y - 16.0))
 			u.fixed_home = true
 			u.move_t = 240
 			u.tgt = null

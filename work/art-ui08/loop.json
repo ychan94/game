@@ -1,0 +1,207 @@
+{
+  "task": "ui08",
+  "started": "2026-11-28",
+  "max_rounds": 6,
+  "patience": 2,
+  "min_gain": 0.3,
+  "rounds": [
+    {
+      "round": 1,
+      "time": "2026-11-28T11:12",
+      "files": {
+        "icon_ticket.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            16,
+            16
+          ]
+        },
+        "icon_clay.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            16,
+            16
+          ]
+        },
+        "icon_pearl.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            16,
+            16
+          ]
+        },
+        "icon_shard.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            16,
+            16
+          ]
+        },
+        "icon_ember.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            16,
+            16
+          ]
+        },
+        "icon_fire.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            16,
+            16
+          ]
+        },
+        "icon_blade.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            16,
+            16
+          ]
+        },
+        "icon_armor.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            16,
+            16
+          ]
+        },
+        "icon_charm.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            16,
+            16
+          ]
+        },
+        "icon_gourd.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            16,
+            16
+          ]
+        },
+        "icon_whetstone.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            16,
+            16
+          ]
+        },
+        "icon_scale.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            16,
+            16
+          ]
+        },
+        "icon_scroll.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            16,
+            16
+          ]
+        },
+        "icon_bell.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            16,
+            16
+          ]
+        },
+        "panel_9.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            48,
+            48
+          ]
+        },
+        "panel_corner.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            14,
+            14
+          ]
+        },
+        "button_9.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            24,
+            24
+          ]
+        },
+        "button_primary_9.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            24,
+            24
+          ]
+        },
+        "card_9.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            24,
+            24
+          ]
+        },
+        "title_plate_9.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            20,
+            14
+          ]
+        },
+        "chip_9.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            16,
+            16
+          ]
+        },
+        "merchant.png": {
+          "speckles": 0,
+          "broken_lines": 0,
+          "size": [
+            48,
+            64
+          ]
+        }
+      },
+      "metrics": {
+        "speckles": 0,
+        "broken_lines": 0
+      },
+      "reviews": {
+        "B": {
+          "ai_tell": 6,
+          "style_fit": 6,
+          "comment": "merchant.png: 모자 챙에 노랑·갈색 점이 흩뿌려져 잡티처럼 보이고 짚 엮음 결이 안 읽힘. 왼손 보따리(왼쪽 아래)·모자 꽃(왼쪽 위) 가장자리가 녹아 무엇인지 불분명. 얼굴은 기준 인형의 회색 도자기와 같지만 눈·입이 점으로 흩어져 있고, 부드러운 명암 단계가 기준의 단순한 2~3단 명암보다 세밀해 다른 방식으로 그린 느낌. 아이콘: 외곽선·적은 색은 깔끔하나 icon_shard(검은 삼각형)·icon_ember(검은 폭탄 모양)는 이름과 안 맞게 읽히고, icon_charm(가는 체크무늬 막대)·icon_whetstone(회색 막대)은 너무 작고 모호. 틀(button·card·panel·title_plate·chip)은 정돈되어 AI 티 없으나 밝은 회색·금색 둥근 버튼이 기준의 어둡고 차분한 팔레트보다 깨끗하고 채도가 높아 다른 세트처럼 보임."
+        },
+        "A": {
+          "ai_tell": 7,
+          "style_fit": 7,
+          "comment": "아이콘 14종(icon_*)과 9분할 부품(button/card/chip/panel/title_plate)은 외곽선이 1px 진한 색으로 일정하고, 명암이 2~3단계로 정돈돼 있으며 색 수도 적어서 사람이 찍은 도트로 보여요. 다만 icon_charm의 빨강·노랑 체크 무늬는 의미 없는 반복처럼 보이고, icon_whetstone(뼈나 물고기처럼 보임)·icon_scale·icon_ember(검은 솥처럼 보임)는 무엇인지 알아보기 어려워요. merchant.png가 가장 약해요. 뺨·이마에 흩어진 회색 잡티가 있고, 오른손(화면 오른쪽 가운데)이 뭉개졌고, 머리카락과 갓 아래 경계가 녹아내려서 눈여겨보면 AI 티가 보여요. 그림체를 보면 외곽선 색, 채도를 낮춘 색, 회청색 유약 피부는 기준 그림(sheet.png의 유약 인형·도깨비)과 같은 게임으로 읽혀요. 하지만 merchant는 48x64 크기에 디테일 밀도가 기준보다 높고 명암 단계도 많아요. 패널·버튼은 단색 면에 둥근 모서리만 있어서 기준 그림의 손맛 있는 질감보다 밋밋해요."
+        }
+      }
+    }
+  ]
+}

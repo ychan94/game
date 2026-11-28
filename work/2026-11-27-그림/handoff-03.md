@@ -71,18 +71,19 @@
 - `assets/sprites/nest/egg_spear.png` (새 파일)
 - `assets/sprites/nest/egg_archer.png` (새 파일)
 - `assets/sprites/nest/egg_shield.png` (새 파일)
-- `assets/sprites/enemy/goblin.png` (새 파일)
+- `assets/sprites/enemy/goblin.png` (이미 있는 임시 기준 그림 — 사용자 허락으로 새로 그려 덮어쓴다)
 - `assets/sprites/enemy/imp.png` (새 파일)
 - `assets/sprites/enemy/brute.png` (새 파일)
 - `assets/sprites/field/grass_a.png` (새 파일)
 - `assets/sprites/field/grass_b.png` (새 파일)
-- `assets/sprites/field/house.png` (새 파일)
+- `assets/sprites/field/house.png` (이미 있는 임시 기준 그림 — 사용자 허락으로 새로 그려 덮어쓴다)
 - `assets/sprites/field/house_broken.png` (새 파일)
 
 이 목록에 없는 파일은 만들거나 고치지 않는다.
 
 ## 보호 검사 결과 (Claude가 미리 확인함)
 - `python3 scripts/protected.py <위 파일들>` → 걸린 파일 없음 (모두 새 파일)
+- 2026-11-27 다시 확인: `python scripts/protected.py <위 19개>` → 걸린 파일 없음. goblin.png·house.png 는 클라우드 Claude가 넣은 임시 그림이고, 사용자가 "assets/sprites/enemy/goblin.png 와 field/house.png 는 지금 기준 그림을 넣어 둔 거라 Codex가 새로 그려도 돼." 라고 허락함
 - 이 검사는 Claude가 했다. Codex는 다시 돌리지 않는다.
 
 ## 하면 안 되는 일

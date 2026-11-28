@@ -95,3 +95,54 @@
   → 그림 10장·작업 메모(NOTES.md, handoff-02.report.md)·sheet-02.png·screens-02/ 커밋. history.csv·백업 csv 제외
 - 2026-11-27 "가마 문은 게임 쪽을 아치로 맞추기로 했어. 클라우드 Claude가 이미 고쳐서 올렸으니 커밋한 다음 git pull --rebase 로 받아 줘."
 - 2026-11-27 "받은 다음 스크린샷을 다시 찍어서 불 올리기 화면(불 6, 불 9)과 빚기 화면, 전투 화면을 보여 줘. 그다음 푸시해 줘."
+
+## handoff-03 진행 (2026-11-27)
+- 2026-11-27 "클라우드 Claude가 불·빛·전투 연출을 고쳐서 올렸어. git pull 해 줘."
+  → git pull --ff-only (a424f7d → 7e843e6)
+- 2026-11-27 "그다음 work/2026-11-27-그림/handoff-03.md 로 codex-handoff 진행해 줘 (알을 품는 성 + 도깨비·풀밭·집 19장)."
+- 2026-11-27 "끝나면 검사하고, 비교 시트와 게임 화면 스크린샷을 보여 줘. 그림 커밋은 내가 보고 나서 할게."
+- 보호 검사: `python scripts/protected.py <handoff-03 범위 19개>` → 걸린 파일 없음 (모두 새 파일)
+- 작업 전 git status --porcelain:
+  ```
+   M reports/boss/history.csv
+  ?? reports/boss/history-local-backup.csv
+  ?? work/2026-11-27-그림/screens-02b/
+  ```
+
+## handoff-03 결과 확인 (Claude, 2026-11-27)
+- Codex 보고: `결과: 통과` (handoff-03.report.md). 방법: image_gen 생성 → 코드로 축소·팔레트·투명·외곽선·눈 색 정리
+- 새 그림: 범위 19장 (nest 12 · enemy 3 · field 4). 보호 검사 걸린 파일 없음
+- 범위 밖 변경 (되돌리지 않음, 사용자에게 알림): project.godot(머리 주석·aspect="keep" 삭제), 글꼴 .import 2개, kiln/*.png.import 10개, src/game/glow_layer.gd.uid
+  → 모두 15:57:43~44 에 한꺼번에 생김 (Codex 그림은 16:10~16:12). Godot 편집기(창 있는 exe) 프로세스가 떠 있음. Codex 보고서에는 Godot 실행 흔적 없음 → 편집기가 프로젝트를 열며 만든 것으로 보임
+- check_sprites.py: 알을 품는 성 12/12 · 공통(적) 3/3 · 공통(들판) 4/4 통과, 전체 29/29 통과 · art_loop 잡티 0·끊긴 선 0
+  시트: sheet-03-nest.png, sheet-03-enemy.png, sheet-03-field.png · 풀밭 이어 붙이기 grass-tiled-03.png (가장자리 차이 0)
+- 게임 화면: screens-03/ (15장) 직접 봄
+  - 볼 점: 풀밭이 초록 없이 어두운 흙색이라 풀로 읽히는지 / 무늬가 규칙적으로 반복되어 보임
+  - 볼 점: house 창 불빛이 따뜻한 색이 아니고 house_broken 과 거의 같아 보임
+  - 볼 점: 깨우기 화면(p09)에서 "전설!" 띠가 새로 나온 괴수를 가림
+- test.py --stage all: p0·p1·boss 통과 (history.csv 에 기록 더해짐)
+- 그림 커밋 안 함: 사용자가 본 뒤
+
+## handoff-03 다시 진행 (2026-11-27)
+- 2026-11-27 "클라우드 Claude가 가마의 병사를 밤 5번 구조로 바꾸고(병사 누적·다시 굽기·합치기·흙), 도깨비·한옥 그림, 합동 기술 파도를 넣었어. git pull 해 줘."
+  → 받아올 goblin.png·house.png 와 같은 경로에 1회차 Codex 그림(커밋 안 됨)이 있어 pull 이 막힘
+  → 1회차 19장·보고서·시트·스크린샷을 work/2026-11-27-그림/handoff-03-run1/ 로 옮김 (지우지 않음) 후 git pull --ff-only (7e843e6 → 40df6a6)
+- 2026-11-27 "그다음 handoff-03 진행해 줘. 단, assets/sprites/enemy/goblin.png 와 field/house.png 는 지금 기준 그림을 넣어 둔 거라 Codex가 새로 그려도 돼."
+  → handoff-03.md 범위에 두 파일 덮어쓰기 허락을 적고 Codex 다시 실행
+- 보호 검사: `python scripts/protected.py <19개> handoff-03.md` → 걸린 파일 없음
+- 2026-11-27 "Godot 편집기가 만든 파일(project.godot, .import, .uid)은 버리지 말고 커밋해 줘. 단 project.godot 의 run/main_scene 이 res://src/game/launcher.tscn 그대로인지 먼저 확인해 줘."
+  → main_scene = res://src/game/launcher.tscn 확인. project.godot 변경은 머리 주석 교체 + aspect="keep"(Godot 기본값) 삭제뿐. 글꼴 .import 는 줄바꿈 차이뿐
+  → project.godot, 글꼴 .import 2, kiln/*.png.import 10, glow_layer.gd.uid 커밋
+- 2026-11-27 "handoff-03 2회차가 끝나면 1회차(handoff-03-run1)와 2회차를 그림마다 나란히 비교한 시트와 게임 화면 스크린샷을 보여 줘. 둘 중 고르는 건 내가 할게. 고른 다음에 커밋해."
+
+## handoff-03 2회차 결과 확인 (Claude, 2026-11-27)
+- Codex 보고: `결과: 통과` (handoff-03.report.md). 방법: image_gen 생성 → C# 으로 축소·팔레트·외곽선·눈·창문 보정
+- 바뀐 그림: 범위 19장 (goblin.png·house.png 는 허락대로 덮어씀). 보호 검사 걸린 파일 없음
+- 범위 밖: goblin.png.import, house.png.import, src/proto/kiln_run.gd.uid, tests/test_kiln_run.gd.uid
+  → 17:12:12 한꺼번에 생김 (pull 직후, Codex 그림 17:21~ 보다 먼저). Godot 편집기가 만든 것으로 보임. 되돌리지 않음
+- check_sprites.py 29/29 통과 · art_loop 잡티 nest/creature_spear_water 1개 외 0 · 끊긴 선 0
+- 비교: compare-03.png (그림마다 1회차/2회차 4배), compare-03-screens.png (같은 지금 코드에서 1회차·2회차 게임 화면)
+  - 1회차 화면은 1회차 그림을 잠깐 넣어 찍고 2회차로 되돌림 (sha256 확인). 2회차 사본: handoff-03-run2/
+  - screens_proto 가 실행마다 알·전투 장면이 조금 달라 같은 장면끼리 완전히 같지는 않음
+- test.py --stage all: p0 8 · p1 33 · boss 5 통과
+- 커밋 안 함: 사용자가 1·2회차 중 고른 뒤

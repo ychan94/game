@@ -875,11 +875,17 @@ func _draw_title_front(marchers := true) -> void:
 		glow(self, fp, 5.0, Color(1.0, 0.8, 0.4, 0.5 * fa))
 	# 제목
 	var title := "KILNBORN"   # 게임 이름 (2026-11-28 사용자: "KILNBORN 이거만 해서 이름 정하자")
-	var w: float = font_bold.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36).x
 	glow(self, Vector2(320, 92), 120.0, Color(1.0, 0.75, 0.35, 0.12))
-	for oo in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 3)]:
-		draw_string(font_bold, Vector2(320 - w / 2.0, 104).round() + oo, title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36, Color("1a1208"))
-	draw_string(font_bold, Vector2(320 - w / 2.0, 104).round(), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36, UI["gold"])
+	var logo := tex("ui/logo")
+	if logo != null:
+		# 로고 그림 (Codex, 지시서 11): 320×80 자리에 원래 크기로, 불빛이 살짝 숨 쉰다
+		glow(self, Vector2(320, 80), 90.0 + 6.0 * sin(t * 0.05), Color(1.0, 0.6, 0.25, 0.10))
+		draw_texture_rect(logo, Rect2(Vector2(320, 76) - logo.get_size() / 2.0, logo.get_size()), false)
+	else:
+		var w: float = font_bold.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36).x
+		for oo in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 3)]:
+			draw_string(font_bold, Vector2(320 - w / 2.0, 104).round() + oo, title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36, Color("1a1208"))
+		draw_string(font_bold, Vector2(320 - w / 2.0, 104).round(), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36, UI["gold"])
 	var sub := "도자기 병사로 마을을 지키는 로그라이트 디펜스"
 	text(Vector2(320 - font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x / 2.0, 124), sub, Color("e8dcc0"))
 	# 버튼

@@ -36,7 +36,7 @@ var last_bet := {}               # 방금 내기 결과 (화면용) {key, name, 
 var last_draw := {}              # 방금 뽑은 것 (화면용)
 var last_stars := 0              # 방금 밤의 별 (마을 체력 %)
 var last_bought := {}            # 방금 상점에서 산 장비 (화면용)
-var tactics: Array = []          # 전술 뽑기로 고른 카드 (판이 끝날 때까지 모든 병사에게)
+var tactics: Array = []          # 전술 뽑기로 고른 카드 (그 밤에만 모든 병사에게)
 var draft_offer: Array = []      # 지금 내놓은 카드 3장
 var combo := ""                  # 로비에서 고른 합동 기술 (하나만)
 var embers_earned := 0           # 이번 판에서 얻은 불씨 (★3 밤마다 1)
@@ -508,11 +508,11 @@ func start_night():
 	var boss_night: bool = night >= D.KILN_NIGHTS
 	var b = Battle.new(rng.randi(), D.boss_plan(chapter) if boss_night else D.wave_plan(night, true, chapter))
 	b.boss_stage = boss_night
-	b.reinforce_ok = chapter >= D.REINFORCE_FROM_CHAPTER and not reserve.is_empty()
+	tactics = []   # 전술 카드는 그 밤에만 (2026-11-28 "그 밤에만 효과가 있는 방식")
+	draft_offer = []
+	b.reinforce_ok = can_reinforce()
 	b.draft_every = D.DRAFT_KILLS if chapter >= D.DRAFT_FROM_CHAPTER else 0
 	b.draft_next = D.DRAFT_KILLS
-	b.village_guard += tactic_val("village_guard")
-	b.combo_pow_mul += tactic_val("combo_pow")
 	b.village_hp = village_hp
 	b.combo_id = combo
 	b.combo_pow_mul = 1.0 + meta.get("combo_pow", 0.0)
@@ -701,6 +701,8 @@ func set_home(id: int, pos) -> void:
 
 
 func end_night(b) -> void:
+	tactics = []
+	draft_offer = []
 	village_hp = maxf(0.0, b.village_hp)
 	last_kills = b.stats["kills"]
 	total_kills += last_kills
@@ -905,7 +907,21 @@ func pick_tactic(id: String, b) -> void:
 	b.resume()
 
 
-# ---------------- 원군 (챕터 3부터) ----------------
+# ---------------- 원군 (챕터 2부터, 병사 1명당 흙 2) ----------------
+## 이 밤 원군을 부를 수 있나: 챕터 2부터, 대기실에 병사가 있고 흙이 1명 값은 있을 때
+func can_reinforce() -> bool:
+	return chapter >= D.REINFORCE_FROM_CHAPTER and not reserve.is_empty() and clay >= D.REINFORCE_CLAY
+
+
+## 지금 흙으로 부를 수 있는 원군 수
+func reinforce_max() -> int:
+	return mini(mini(D.REINFORCE_COUNT, reserve.size()), clay / D.REINFORCE_CLAY)
+
+
+## 원군을 부르지 않는다 → 예전처럼 도깨비가 약탈하고 물러간다
+func decline_reinforce(b) -> void:
+	b.resume()
+
 ## 원군으로 부를 대기실 병사 (힘이 센 순서)
 func best_reserve(n: int) -> Array:
 	var list: Array = reserve.duplicate()
@@ -916,7 +932,7 @@ func best_reserve(n: int) -> Array:
 ## 대기실 병사(최대 3명)를 마을 앞에 불러 전투를 잇는다. 돌려준 값: 전투 유닛들
 func reinforce(b, ids: Array) -> Array:
 	var out: Array = []
-	var picked: Array = ids.slice(0, D.REINFORCE_COUNT)
+	var picked: Array = ids.slice(0, reinforce_max())
 	for i in picked.size():
 		var s := soldier(picked[i])
 		if s.is_empty() or in_army(picked[i]):
@@ -925,6 +941,7 @@ func reinforce(b, ids: Array) -> Array:
 		var u = b.add_ally(s["role"], s["element"], s["tier"], s["name"], D.STAR_MUL[s["star"]], soldier_mods(s), Vector2(Battle.VILLAGE_X + 50.0, y))
 		u.pos = Vector2(Battle.VILLAGE_X + 6.0, y)
 		out.append([u, s["id"]])
-	b.events.append({"kind": "reinforce", "count": out.size()})
+	clay -= out.size() * D.REINFORCE_CLAY
+	b.events.append({"kind": "reinforce", "count": out.size(), "clay": out.size() * D.REINFORCE_CLAY})
 	b.resume()
 	return out

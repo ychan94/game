@@ -49,8 +49,11 @@ func _all() -> void:
 	k.meta_hover = ""
 	await _snap("p00c_kiln_meta")
 	k.meta.records = {"1": [{"time": 132.4, "date": "2026-11-29", "army": ""}, {"time": 151.0, "date": "2026-11-28", "army": ""}], "2": [{"time": 201.7, "date": "2026-11-29", "army": ""}]}
+	k.meta.best = {"reach": 34, "chapter": 3, "night": 4, "kills": 812, "all": false, "date": "2026-11-29"}
 	k.state = "records"
 	await _snap("p00d_kiln_records")
+	k.state = "settings"
+	await _snap("p00e_kiln_settings")
 	k.state = "prep"
 	var run = k.run
 	k.tut_seen = {}
@@ -250,11 +253,22 @@ func _all() -> void:
 			# 전술 뽑기 화면 (한 번 찍고 첫 카드)
 			got_draft = true
 			run.roll_draft()
+			k.draft_shown_t = k.t - 60   # 카드가 다 솟아오른 뒤
 			await _frames(3)
 			await _snap("p06e_tactic_draft")
 		_auto_pending(k, run)
 		if k.battle.done:
 			break
+	if not got_draft and not k.battle.done:
+		# 이 시드에서 50마리를 못 채웠으면 직접 띄워서 찍는다
+		k.battle.pending = "draft"
+		run.roll_draft()
+		k.draft_shown_t = k.t - 60
+		await _frames(3)
+		await _snap("p06e_tactic_draft")
+		k.draft_shown_t = k.t - 14   # 솟아오르는 중간
+		await _frames(1)
+		await _snap("p06e2_tactic_draft_rise")
 	while not k.battle.done:
 		await physics_frame
 		_auto_pending(k, run)
@@ -279,7 +293,24 @@ func _all() -> void:
 		k.cutin = {}
 		await _frames(2)
 		await _snap(c[2])
+	# 최종 보스 스킬 예고 (챕터 5: 스킬 3개)
+	run.chapter = 5
+	run.night = 6
+	run.state = "prep"
+	k.fought = Vector2i(5, 6)
+	k.battle = run.start_night()
+	k.battle.village_hp = 99999.0
+	k.boss_seen.clear()
+	k.state = "battle"
+	var guard := 0
+	while k.battle.boss_casts.filter(func(c): return c["t"] < c["warn"] / 2).is_empty() and guard < 1500 and not k.battle.done:
+		await physics_frame
+		_auto_pending(k, run)
+		guard += 1
+	k.cutin = {}
+	await _snap("p07g_boss_skill_warn")
 	# 원군 고르기 (챕터 3, 대기실 병사)
+	run.clay = 10
 	run.chapter = 3
 	run.night = 2
 	run.state = "prep"
@@ -340,4 +371,4 @@ func _auto_pending(k, run) -> void:
 			run.roll_draft()
 		run.pick_tactic(run.draft_offer[0], k.battle)
 	elif k.battle.pending == "reinforce":
-		run.reinforce(k.battle, run.best_reserve(3))
+		run.reinforce(k.battle, run.best_reserve(run.reinforce_max()))

@@ -54,6 +54,7 @@ const RECORDS_KEEP := 5          # 챕터마다 남기는 기록 수
 
 var embers := 0                  # 불씨
 var levels := {}                 # 칸 → 단계
+var best := {}                   # 가장 멀리 간 판 {chapter, night, kills, date}
 var records := {}                # "1".."5" → [{time, date, army}] (빠른 순)
 var path := SAVE
 
@@ -115,8 +116,19 @@ func add_record(chapter: int, seconds: float, army_note := "") -> int:
 	return rank if rank <= RECORDS_KEEP else -1
 
 
+## 판이 끝나면: 가장 멀리 간 기록 (챕터·밤이 더 깊거나, 같으면 처치가 많으면) 바꾼다. 새 기록이면 true
+func note_run(chapter: int, night: int, kills: int, cleared_all := false) -> bool:
+	var reach: int = chapter * 10 + night + (100 if cleared_all else 0)
+	var old: int = best.get("reach", -1)
+	if reach > old or (reach == old and kills > best.get("kills", 0)):
+		best = {"reach": reach, "chapter": chapter, "night": night, "kills": kills, "all": cleared_all, "date": Time.get_date_string_from_system()}
+		return true
+	return false
+
+
 func save() -> void:
 	var cf := ConfigFile.new()
+	cf.set_value("meta", "best", best)
 	cf.set_value("meta", "embers", embers)
 	cf.set_value("meta", "levels", levels)
 	cf.set_value("meta", "records", records)
@@ -130,3 +142,4 @@ func load_saved() -> void:
 	embers = cf.get_value("meta", "embers", 0)
 	levels = cf.get_value("meta", "levels", {"core": 1})
 	records = cf.get_value("meta", "records", {})
+	best = cf.get_value("meta", "best", {})

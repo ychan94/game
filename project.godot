@@ -5,6 +5,12 @@ config_version=5
 [application]
 
 config/name="KILNBORN"
+config/version="0.1.0"
+config/description="도자기 병사로 마을을 지키는 로그라이트 디펜스 (데모)"
+boot_splash/bg_color=Color(0.07, 0.055, 0.086, 1)
+boot_splash/image="res://assets/sprites/ui/logo.png"
+boot_splash/fullsize=false
+boot_splash/show_image=true
 config/icon="res://assets/sprites/ui/app_icon.png"
 run/main_scene="res://src/game/launcher.tscn"
 config/features=PackedStringArray("4.7")

@@ -26,6 +26,8 @@ var floats: Array = []           # 떠오르는 글자 [{pos, text, color, size,
 var banner := {}                 # {text, sub, color, t, life}
 var flash := {}                  # {color, t, life}
 var shake := 0.0
+var shake_on := true      # 환경설정: 화면 흔들림
+var numbers_on := true    # 환경설정: 피해 숫자
 var t := 0                       # 화면 프레임 (애니메이션용)
 var battle = null
 var view_style := "kiln"
@@ -671,7 +673,8 @@ func step_battle() -> void:
 	for u in battle.units:
 		if u.team == "enemy" and u.kind in PD.BOSSES and not boss_seen.has(u.id):
 			boss_seen[u.id] = true
-			show_banner("%s 출현!" % u.name, "챕터 대장 — 쓰러뜨리면 다음 챕터로", C["danger"], 100)
+			var sk_names: Array = u.bskills.map(func(z): return PD.BOSS_SKILLS[z]["name"]) if "bskills" in u else []
+			show_banner("%s 출현!" % u.name, ("보스 스킬: " + " · ".join(sk_names) + " — 붉은 원을 피하라") if not sk_names.is_empty() else "챕터 대장 — 쓰러뜨리면 다음 챕터로", C["danger"], 120)
 			shake = maxf(shake, 8.0)
 	# 합동 기술 파도: 벽 그림(fx/fire_wall·water_wave·earth_crack)이 있으면 세로로 이어 재생, 없으면 입자
 	for w in battle.waves:
@@ -743,6 +746,15 @@ func step_battle() -> void:
 				light(e["pos"], 26.0, Color(0.7, 0.5, 1.0, 0.6), 10)
 			"skill":
 				_skill_fx(e)
+			"boss_warn":
+				floats.append({"pos": e["pos"] + FIELD_OFFSET + Vector2(-24, -44), "text": e["name"] + "!", "color": Color(1.0, 0.55, 0.4), "size": 16, "t": 50, "life": 50})
+			"boss_skill":
+				var bcol: Color = Color(1.0, 0.8, 0.35) if e["id"] == "roar" else Color(1.0, 0.4, 0.2)
+				for p2 in e["pos"]:
+					burst(p2 + FIELD_OFFSET, bcol, 18, 3.0, 2.5)
+					light(p2, e["radius"] + 16.0, Color(bcol.r, bcol.g, bcol.b, 0.7), 14)
+				shake = maxf(shake, 6.0 if e["id"] == "slam" else 3.0)
+				hitstop = maxi(hitstop, 3)
 			"heal":
 				start_attack_motion(e["unit"], "healer", Vector2.RIGHT)
 				light(e["pos"], 26.0, Color(0.5, 1.0, 0.6, 0.6), 14)
@@ -1049,7 +1061,7 @@ func chip(r: Rect2, value: String, col: Color) -> void:
 
 
 func shake_offset() -> Vector2:
-	return Vector2(randf_range(-shake, shake), randf_range(-shake, shake)) if shake > 0.2 else Vector2.ZERO
+	return Vector2(randf_range(-shake, shake), randf_range(-shake, shake)) if shake > 0.2 and shake_on else Vector2.ZERO
 
 
 ## 피해 숫자: 같은 적이 짧은 사이에 또 맞으면 새 숫자를 띄우지 않고 그 숫자를 키운다 (겹겹이 쌓이지 않게)
@@ -1057,6 +1069,8 @@ const DMG_MERGE := 18            # 이 프레임 안에 또 맞으면 합친다
 const DMG_BIG := 25.0            # 이 이상이면 금빛 큰 숫자
 
 func damage_number(uid: int, pos: Vector2, amt: float, color: Color) -> void:
+	if not numbers_on:
+		return
 	for f in floats:
 		if f.get("uid", -1) == uid and f["life"] - f["t"] < DMG_MERGE:
 			f["amount"] += amt
@@ -1919,6 +1933,7 @@ func draw_battle() -> void:
 	# 위에서 아래 순서로 그려 앞뒤가 자연스럽게
 	var order: Array = battle.units.duplicate()
 	order.sort_custom(func(a, b): return a.pos.y < b.pos.y)
+	_draw_boss_warns()
 	for u in order:
 		if u.team == "ally":
 			_draw_ally_in_battle(u, base)
@@ -1936,6 +1951,20 @@ func draw_battle() -> void:
 	_draw_swooshes()
 	_draw_arrows()
 	draw_set_transform(Vector2.ZERO)
+
+
+## 최종 보스 스킬 예고: 붉은 원이 안에서부터 차오르고, 다 차면 터진다 (억울하지 않게 미리 보인다)
+func _draw_boss_warns() -> void:
+	if battle == null or not ("boss_casts" in battle):
+		return
+	for c in battle.boss_casts:
+		var k: float = 1.0 - float(c["t"]) / maxf(1.0, c["warn"])
+		var col: Color = Color(1.0, 0.85, 0.3) if c["id"] == "roar" else Color(1.0, 0.25, 0.18)
+		var r: float = c["radius"]
+		for p in c["pos"]:
+			draw_circle(p, r, Color(col.r, col.g, col.b, 0.10 + 0.08 * sin(t * 0.6)))
+			draw_circle(p, r * k, Color(col.r, col.g, col.b, 0.22))
+			draw_arc(p, r, 0.0, TAU, 40, Color(col.r, col.g, col.b, 0.85), 1.5)
 
 
 func _draw_house(i: int) -> void:
@@ -2161,7 +2190,8 @@ func draw_battle_hud(title: String) -> void:
 			text(Vector2(170, 368), u.name, C["danger"].lightened(0.3))
 			text(Vector2(170, 368), "%d / %d" % [ceili(u.hp), roundi(u.max_hp)], C["text"], 12, 300.0, HORIZONTAL_ALIGNMENT_RIGHT)
 			break
-	text(Vector2(0, 345), "아군은 알아서 싸웁니다 · Esc 처음으로", C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+	if not battle_paused_ui():
+		text(Vector2(0, 345), "아군은 알아서 싸웁니다 · Esc 처음으로", C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
 
 
 ## 합동 기술마다: 유약 색 원이 차오르고, 다 차면 발동. 남은 초를 함께 보여 준다

@@ -465,38 +465,64 @@ static func wave_plan(night := 1, big_army := false, chapter := 1) -> Array:
 	return plan
 
 
-## 최종 보스 밤 (챕터의 여섯째 밤): 호위 도깨비(다섯째 밤 세기) + 처음부터 나오는 챕터 최종 보스 (2026-11-28 사용자)
+## 최종 보스 밤 (챕터의 여섯째 밤): 처음부터 최종 보스 + 호위 도깨비 10명이 같이 나온다
+## (2026-11-28 "호위 도깨비 10명만 나오도록 하고 처음부터 같이 나오도록")
 static func boss_plan(chapter := 1) -> Array:
 	var ch: Dictionary = CHAPTERS[clampi(chapter, 1, CHAPTERS.size()) - 1]
-	var hp_mul: float = (1.0 + (KILN_NIGHTS - 2) * NIGHT_HP_GROWTH) * ch["hp"]
+	var hp_mul: float = (1.0 + (KILN_NIGHTS - 2) * NIGHT_HP_GROWTH) * ch["hp"] * BOSS_ESCORT_HP
 	var st := func(kind: String) -> Dictionary:
 		return {"hp": ENEMIES[kind]["hp"] * hp_mul, "atk": ENEMIES[kind]["atk"] * sqrt(ch["hp"])}
 	var plan: Array = []
-	var k := 0
-	for f in range(60, 1300, 48):
-		k += 1
-		var kind: String = ch["new"] if ch["new"] != "" and k % CHAPTER_NEW_EVERY == 0 else "goblin"
-		var o: Dictionary = st.call(kind).duplicate()
-		if k % SNEAK_EVERY == 3:
-			o["sneak"] = true
-		plan.append([f, kind, o])
-	for f2 in [240, 520, 800, 1080]:
-		plan.append([f2, "imp", st.call("imp")])
-	for f3 in [400, 900]:
-		plan.append([f3, "brute", st.call("brute")])
 	var boss: String = ch["boss"]
-	plan.append([300, boss, {"hp": ENEMIES[boss]["hp"] * ch["boss_hp"] * BOSS_STAGE_HP, "final": true}])
-	plan.sort_custom(func(a, b): return a[0] < b[0])
+	plan.append([BOSS_START, boss, {"hp": ENEMIES[boss]["hp"] * ch["boss_hp"] * BOSS_STAGE_HP, "final": true,
+		"boss_skills": boss_skills(chapter)}])
+	for i in BOSS_ESCORTS:
+		var kind: String = BOSS_ESCORT_KINDS[i % BOSS_ESCORT_KINDS.size()]
+		if kind == "new":
+			kind = ch["new"] if ch["new"] != "" else "goblin"
+		plan.append([BOSS_START + i * 2, kind, st.call(kind)])
 	return plan
 
+
+## 최종 보스 스킬: 난이도(챕터)에 따라 1~3개 (2026-11-28 "보스 스킬이 난이도에 따라서 1~3개")
+static func boss_skills(chapter: int) -> Array:
+	var n: int = BOSS_SKILL_COUNT[clampi(chapter, 1, BOSS_SKILL_COUNT.size()) - 1]
+	var order: Array = BOSS_SKILL_ORDER.get(CHAPTERS[clampi(chapter, 1, CHAPTERS.size()) - 1]["boss"], BOSS_SKILL_LIST)
+	return order.slice(0, n)
+
+
+# ---------- 데모 ----------
+const VERSION := "0.1.0"
+const DEMO := true                # 처음 화면에 DEMO 표시
 
 # ---------- 여러 밤 (가마의 병사 한 판) ----------
 const KILN_NIGHTS := 6            # 챕터마다 밤 6번, 여섯째 밤은 최종 보스 (2026-11-28 "각 챕터별로 6번째 밤 ... 최종 보스")
 const BOSS_STAGE_HP := 1.6        # 최종 보스는 예전 대장보다 체력 ×1.6
 const BOSS_REWARD_MUL := 1.5      # 최종 보스 밤 보상 = 보통 밤의 1.5배 (뽑기권·흙·진주)
+const BOSS_START := 60            # 보스·호위가 나오는 프레임
+const BOSS_ESCORTS := 10          # 호위 도깨비 수
+const BOSS_ESCORT_HP := 1.8       # 호위는 다섯째 밤 도깨비보다 단단하다
+const BOSS_ESCORT_KINDS := ["goblin", "new", "goblin", "imp", "new", "brute", "goblin", "new", "imp", "brute"]
+## 최종 보스 스킬. cd: 재사용(프레임) · first: 첫 사용 · 화면에 미리 표시(warn 프레임) 뒤에 터진다 (억울하지 않게)
+const BOSS_SKILLS := {
+	"slam": {"name": "땅 울리기", "desc": "보스 둘레 병사에게 공격력 ×2.0 피해 + 잠깐 기절", "cd": 330, "first": 150, "warn": 45, "radius": 64.0, "dmg": 2.0, "stun": 40},
+	"rain": {"name": "도깨비불 비", "desc": "병사 3명 자리에 불덩이 — 공격력 ×1.5 피해", "cd": 390, "first": 240, "warn": 60, "radius": 26.0, "dmg": 1.5, "count": 3},
+	"roar": {"name": "분노의 포효", "desc": "보호막(최대 체력 8%) + 공격력 +30% (5초)", "cd": 480, "first": 330, "warn": 30, "shield": 0.08, "buff": 0.3, "dur": 300},
+}
+const BOSS_SKILL_LIST := ["slam", "rain", "roar"]
+const BOSS_SKILL_COUNT := [1, 2, 2, 3, 3]   # 챕터 1~5
+const BOSS_SKILL_ORDER := {
+	"chief": ["slam", "roar", "rain"],
+	"gumiho": ["rain", "slam", "roar"],
+	"imugi": ["slam", "rain", "roar"],
+	"reaper": ["rain", "roar", "slam"],
+	"king": ["slam", "rain", "roar"],
+}
 ## 원군 (2026-11-28 "아군이 다 죽게 되면 ... 원군이 도와주는 돌발 ... 대기실 병사 3명 ... 챕터 3부터")
-const REINFORCE_FROM_CHAPTER := 3
+## 2026-11-28 "병사 1명당 흙 2개가 필요 ... 2챕터부터 가능하게"
+const REINFORCE_FROM_CHAPTER := 2
 const REINFORCE_COUNT := 3
+const REINFORCE_CLAY := 2         # 원군 병사 1명당 흙
 ## 전술 뽑기 (2026-11-28 "2챕터에서는 ... 전술 뽑기 ... 50명의 적군을 물리칠 때마다 ... 보스의 HP가 50% 이하가 될 때")
 const DRAFT_FROM_CHAPTER := 2
 const DRAFT_KILLS := 50
@@ -511,7 +537,7 @@ const TACTICS := {
 	"t_regen": {"name": "약초 주머니", "desc": "모든 병사 초당 체력 0.3% 회복", "key": "regen", "val": 0.003, "rare": "common", "icon": "gourd", "w": 8},
 	"t_skill": {"name": "비전 수련", "desc": "모든 병사 스킬 위력 +15%", "key": "skill", "val": 0.15, "rare": "rare", "icon": "scroll", "w": 6},
 	"t_cdr": {"name": "명상", "desc": "모든 병사 스킬 재사용 -8%", "key": "cdr", "val": 0.08, "rare": "rare", "icon": "bell", "w": 6},
-	"t_shield": {"name": "가마 수호막", "desc": "밤마다 시작 보호막 (최대 체력 8%)", "key": "shield", "val": 0.08, "rare": "rare", "icon": "armor", "w": 6},
+	"t_shield": {"name": "가마 수호막", "desc": "모든 병사에게 지금 보호막 (최대 체력 8%)", "key": "shield", "val": 0.08, "rare": "rare", "icon": "armor", "w": 6},
 	"t_boss": {"name": "대장 사냥꾼", "desc": "도깨비 대장에게 주는 피해 +15%", "key": "boss_dmg", "val": 0.15, "rare": "rare", "icon": "fire", "w": 5},
 	"t_wall": {"name": "목책", "desc": "도깨비가 마을에 주는 피해 -10%", "key": "village_guard", "val": 0.10, "rare": "rare", "icon": "armor", "w": 5},
 	"t_combo": {"name": "북소리 맞추기", "desc": "합동 기술 피해 +20%", "key": "combo_pow", "val": 0.20, "rare": "hero", "icon": "bell", "w": 3},

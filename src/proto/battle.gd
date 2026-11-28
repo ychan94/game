@@ -40,6 +40,8 @@ class U:
 	var summon_kind := ""    # 적 대장: 부하를 부른다
 	var summon_every := 0
 	var summon_t := 0
+	var bskills: Array = []       # 최종 보스 스킬 (D.BOSS_SKILLS 이름)
+	var bskill_t: Array = []
 	var grow := 1.0
 	var base_atk := 0.0
 	var base_hp := 0.0
@@ -95,6 +97,7 @@ var _next_id := 1
 var synergy_power: float = D.SYNERGY_POWER
 var waves: Array = []           # 지나가는 합동 기술 파도 [{element, x, power}]
 var village_guard := 0.0       # 전술 강화: 마을이 받는 피해 감소
+var boss_casts: Array = []      # 최종 보스 스킬 예고 [{id, unit, t, warn, pos: [Vector2..], radius}] — 화면이 경고 원을 그린다
 var _summons: Array = []        # 이번 프레임에 대장이 부른 부하 [[종류, 자리, 능력치]]
 
 
@@ -207,6 +210,9 @@ func add_enemy(kind: String, y: float, stat_override := {}) -> U:
 		u.name = "최종 보스 · " + u.name
 	if u.sneak:
 		u.speed *= D.SNEAK_SPEED
+	for sk in s.get("boss_skills", []):
+		u.bskills.append(sk)
+		u.bskill_t.append(D.BOSS_SKILLS[sk]["first"])
 	if s.has("summon"):
 		u.summon_kind = s["summon"][0]
 		u.summon_every = s["summon"][1]
@@ -226,6 +232,7 @@ func step() -> void:
 		add_enemy(e[1], rng.randf_range(30.0, FIELD.size.y - 30.0), e[2] if e.size() > 2 else {})
 	_synergy()
 	_move_waves()
+	_tick_boss_casts()
 	for u in units:
 		if u.alive:
 			_act(u)
@@ -281,6 +288,65 @@ func step() -> void:
 	frame += 1
 
 
+## 최종 보스 스킬: 재사용이 차면 예고(경고 원)를 띄우고, warn 프레임 뒤에 터진다
+func _tick_boss_skills(u: U) -> void:
+	for i in u.bskills.size():
+		u.bskill_t[i] -= 1
+		if u.bskill_t[i] > 0:
+			continue
+		var id: String = u.bskills[i]
+		var sk: Dictionary = D.BOSS_SKILLS[id]
+		u.bskill_t[i] = sk["cd"]
+		var spots: Array = []
+		match id:
+			"slam":
+				spots = [u.pos]
+			"rain":
+				var allies: Array = units.filter(func(o): return o.alive and o.team == "ally")
+				for k in mini(sk["count"], allies.size()):
+					spots.append(allies[rng.randi() % allies.size()].pos)
+				if spots.is_empty():
+					u.bskill_t[i] = 30
+					continue
+			"roar":
+				spots = [u.pos]
+		boss_casts.append({"id": id, "unit": u, "t": sk["warn"], "warn": sk["warn"], "pos": spots, "radius": sk.get("radius", 40.0)})
+		events.append({"kind": "boss_warn", "id": id, "name": sk["name"], "pos": u.pos, "unit": u.id})
+
+
+func _tick_boss_casts() -> void:
+	var keep: Array = []
+	for c in boss_casts:
+		var u: U = c["unit"]
+		if not u.alive:
+			continue
+		if c["id"] == "slam":
+			c["pos"] = [u.pos]   # 땅 울리기는 보스를 따라간다
+		c["t"] -= 1
+		if c["t"] > 0:
+			keep.append(c)
+			continue
+		var sk: Dictionary = D.BOSS_SKILLS[c["id"]]
+		var atk: float = u.atk * (1.0 + (u.buff_val if u.buff_t > 0 else 0.0))
+		match c["id"]:
+			"slam", "rain":
+				for o in units:
+					if not (o.alive and o.team == "ally"):
+						continue
+					for p in c["pos"]:
+						if o.pos.distance_to(p) <= c["radius"] + o.radius:
+							_hurt(o, atk * sk["dmg"], u, true)
+							if sk.has("stun"):
+								o.stun_t = maxi(o.stun_t, sk["stun"])
+							break
+			"roar":
+				u.shield_hp += u.max_hp * sk["shield"]
+				u.buff_t = sk["dur"]
+				u.buff_val = sk["buff"]
+		events.append({"kind": "boss_skill", "id": c["id"], "name": sk["name"], "pos": c["pos"], "radius": c["radius"], "unit": u.id})
+	boss_casts = keep
+
+
 ## 고르기가 끝나면 다시 돌린다
 func resume() -> void:
 	pending = ""
@@ -320,6 +386,8 @@ func _act(u: U) -> void:
 			var ms: Dictionary = D.ENEMIES[u.summon_kind]
 			var hk: float = u.max_hp / D.ENEMIES[u.kind]["hp"]   # 대장 체력 배율만큼 부하도
 			_summons.append([u.summon_kind, u.pos, {"hp": ms["hp"] * maxf(1.0, hk) * 1.5}])
+	if u.team == "enemy" and not u.bskills.is_empty():
+		_tick_boss_skills(u)
 	if u.team == "ally" and u.kind == "cheoyong":
 		for o in units:
 			if o.alive and o.team == "enemy" and o.pos.distance_to(u.pos) < D.CHEOYONG_AURA:
@@ -438,7 +506,7 @@ func _attack(u: U, t: U) -> void:
 	if u.cd > 0:
 		return
 	u.cd = roundi(u.cd_max * (0.7 if u.haste_t > 0 else 1.0))
-	var atk: float = u.atk * (_general_buff(u) * (1.0 + (u.buff_val if u.buff_t > 0 else 0.0)) if u.team == "ally" else 1.0)
+	var atk: float = u.atk * (_general_buff(u) * (1.0 + (u.buff_val if u.buff_t > 0 else 0.0)) if u.team == "ally" else (1.0 + (u.buff_val if u.buff_t > 0 else 0.0)))
 	if u.team == "ally" and u.kind == "dragon":
 		# 청룡: 앞쪽 한 줄을 모두 꿰뚫는다
 		events.append({"kind": "beam", "from": u.pos, "to": Vector2(FIELD.size.x, t.pos.y), "element": u.element, "unit": u.id, "team": u.team})
@@ -523,10 +591,10 @@ func _hurt(t: U, amount: float, src, show: bool) -> void:
 			a *= 1.0 - D.HYEONMU_REDUCE
 		if t.guard_t > 0:
 			a *= 0.6
-		if t.shield_hp > 0.0:
-			var ab: float = minf(t.shield_hp, a)
-			t.shield_hp -= ab
-			a -= ab
+	if t.shield_hp > 0.0:   # 보호막 (아군·최종 보스 포효)
+		var ab: float = minf(t.shield_hp, a)
+		t.shield_hp -= ab
+		a -= ab
 	t.hp -= a
 	if t.team == "enemy":
 		stats["damage"] += a

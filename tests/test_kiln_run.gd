@@ -49,7 +49,7 @@ func play(seed_value: int, heat: int, max_chapter := 1) -> Dictionary:
 				run.roll_draft()
 				run.pick_tactic(run.draft_offer[0], b)
 			elif b.pending == "reinforce":
-				run.reinforce(b, run.best_reserve(PD.REINFORCE_COUNT))
+				run.reinforce(b, run.best_reserve(run.reinforce_max()))
 		run.end_night(b)
 		hp_log.append(roundi(run.village_hp))
 	var st: String = "cleared" if run.state == "prep" or run.state == "won" else run.state
@@ -1062,6 +1062,11 @@ func test_final_boss_night() -> bool:
 		check(not p5.any(func(e): return e[1] == boss), "챕터 %d 다섯째 밤에는 보스가 없다" % ch)
 		var bs: Array = p6.filter(func(e): return e[1] == boss)
 		check(bs.size() == 1 and bs[0][2].get("final", false) and bs[0][0] <= 400, "챕터 %d 여섯째 밤: 최종 보스가 일찍 나온다" % ch)
+		var esc: Array = p6.filter(func(e): return e[1] != boss)
+		check(esc.size() == PD.BOSS_ESCORTS and esc.all(func(e): return absi(e[0] - bs[0][0]) <= 30), "챕터 %d: 호위 %d명이 보스와 함께 처음부터" % [ch, PD.BOSS_ESCORTS])
+		var nsk: int = bs[0][2].get("boss_skills", []).size()
+		check(nsk >= 1 and nsk <= 3 and nsk == PD.BOSS_SKILL_COUNT[ch - 1], "챕터 %d 보스 스킬 %d개" % [ch, nsk])
+	check(PD.boss_skills(1).size() == 1 and PD.boss_skills(5).size() == 3, "보스 스킬은 난이도에 따라 1~3개")
 	# 보상 1.5배: 같은 밤을 보통 밤 / 보스 밤으로 넘긴다
 	var got := []
 	for nt in [3, PD.KILN_NIGHTS]:
@@ -1082,7 +1087,50 @@ func test_final_boss_night() -> bool:
 	return true
 
 
-## 전술 뽑기: 챕터 2부터, 처치 50마다 멈추고 카드 3장, 고르면 지금 병사에게 바로 + 다음 밤에도
+## 최종 보스 스킬: 예고(경고 원)가 먼저 뜨고, 그 뒤에 원 안의 병사만 맞는다
+func test_boss_skills() -> bool:
+	var b = Battle.new(7, [])
+	b.spawn_queue = []
+	var boss = b.add_enemy("king", 120.0, {"boss_skills": ["slam", "rain", "roar"], "final": true})
+	boss.pos = Vector2(400, 120)
+	boss.speed = 0.0
+	var near = b.add_ally("spear", "fire", "normal", "가까이", 1.0)
+	var far = b.add_ally("archer", "water", "normal", "멀리", 1.0)
+	near.pos = Vector2(420, 120)
+	near.home = near.pos
+	near.fixed_home = true
+	near.max_hp = 1e6
+	near.hp = 1e6
+	near.speed = 0.0
+	far.fixed_home = true
+	far.pos = Vector2(150, 30)
+	far.home = far.pos
+	far.max_hp = 1e6
+	far.hp = 1e6
+	far.speed = 0.0
+	boss.bskill_t = [5, 9999, 9999]
+	var warned := false
+	var fired := false
+	var hp_far0: float = far.hp
+	for i in 80:
+		b.step()
+		for e in b.events:
+			if e["kind"] == "boss_warn" and e["id"] == "slam":
+				warned = true
+				check(not fired, "예고가 먼저")
+			if e["kind"] == "boss_skill" and e["id"] == "slam" and not fired:
+				fired = true
+				check(near.stun_t > 0, "가까운 병사는 맞고 기절한다")
+	check(warned and fired, "땅 울리기: 예고 → 발동")
+	check(far.hp == hp_far0, "원 밖 병사는 안 맞는다")
+	boss.bskill_t = [9999, 9999, 1]
+	for i in 40:
+		b.step()
+	check(boss.shield_hp > 0.0 and boss.buff_t > 0, "분노의 포효: 보호막 + 공격력")
+	return true
+
+
+## 전술 뽑기: 챕터 2부터, 처치 50마다 멈추고 카드 3장, 고르면 지금 병사에게 바로 (그 밤에만)
 func test_tactic_draft() -> bool:
 	var r1 = KilnRun.new(52)
 	r1.draw("archer", "fire")
@@ -1111,7 +1159,9 @@ func test_tactic_draft() -> bool:
 	run.pick_tactic("t_atk", b)
 	check(b.pending == "" and absf(u.atk - atk0 * 1.08) < 0.01, "고르면 지금 병사 공격력 +8%")
 	var s: Dictionary = run.army[0]
-	check(run.soldier_mods(s).get("atk", 0.0) >= 0.08, "다음 밤에도 남는다")
+	check(run.soldier_mods(s).get("atk", 0.0) >= 0.08, "그 밤 동안은 남는다")
+	run.end_night(b)
+	check(run.tactics.is_empty() and run.soldier_mods(s).get("atk", 0.0) < 0.08, "밤이 끝나면 전술 카드는 사라진다 (그 밤에만)")
 	# 보스 밤: 보스 체력 50% 에서 한 번
 	run.night = PD.KILN_NIGHTS
 	var bb = run.start_night()
@@ -1126,16 +1176,17 @@ func test_tactic_draft() -> bool:
 	return true
 
 
-## 원군: 챕터 3부터, 아군이 다 쓰러지면 멈추고 대기실 병사 3명을 불러 이어 싸운다 (한 밤에 한 번)
+## 원군: 챕터 2부터, 아군이 다 쓰러지면 멈추고 대기실 병사(최대 3명, 1명당 흙 2)를 불러 이어 싸운다 (한 밤에 한 번)
 func test_reinforcements() -> bool:
 	var run = KilnRun.new(54)
-	run.chapter = 3
+	run.chapter = 2
 	run.draw("spear", "fire")
 	run.fire()
 	for i in 5:
 		run._add_soldier("archer", "water", "normal", 1, true)
+	run.clay = 10
 	var b = run.start_night()
-	check(b.reinforce_ok, "챕터 3 + 대기실 병사 → 원군 가능")
+	check(b.reinforce_ok, "챕터 2 + 대기실 병사 + 흙 → 원군 가능")
 	b.spawn_queue = []
 	var e = b.add_enemy("goblin", 100.0)
 	e.hp = 1e6
@@ -1148,15 +1199,28 @@ func test_reinforcements() -> bool:
 	var ids: Array = run.best_reserve(PD.REINFORCE_COUNT)
 	var got: Array = run.reinforce(b, ids)
 	check(got.size() == 3 and b._count("ally") == 3 and b.pending == "", "대기실 병사 3명이 나와 이어 싸운다")
+	check(run.clay == 10 - 3 * PD.REINFORCE_CLAY, "원군 1명당 흙 %d" % PD.REINFORCE_CLAY)
 	for u in b.units:
 		if u.team == "ally":
 			u.alive = false
 	b.step()
 	check(b.done and b.result == "hold", "두 번째 전멸이면 (한 밤에 한 번) 약탈하고 물러간다")
+	# 흙이 모자라면 부를 수 있는 만큼만, 흙 1명 값도 없으면 원군 없음
+	var r3 = KilnRun.new(56)
+	r3.chapter = 2
+	r3.draw("spear", "fire")
+	r3.fire()
+	for i in 5:
+		r3._add_soldier("archer", "water", "normal", 1, true)
+	r3.clay = 3
+	check(r3.reinforce_max() == 1, "흙 3 → 원군 1명만")
+	r3.clay = 1
+	check(not r3.start_night().reinforce_ok, "흙이 모자라면 원군 없음")
 	var r2 = KilnRun.new(55)
-	r2.chapter = 2
+	r2.chapter = 1
 	r2._add_soldier("archer", "water", "normal", 1, true)
 	r2.draw("spear", "fire")
 	r2.fire()
-	check(not r2.start_night().reinforce_ok, "챕터 2 에는 원군 없음")
+	r2.clay = 10
+	check(not r2.start_night().reinforce_ok, "챕터 1 에는 원군 없음")
 	return true

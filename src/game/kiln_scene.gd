@@ -210,7 +210,7 @@ const META_POS := {
 	"fire": Vector2(196, 324), "shard": Vector2(320, 324), "favor": Vector2(444, 324),
 }
 const META_ICON := {"core": "clay", "wall": "armor", "command": "ticket", "clay": "clay", "ticket": "ticket", "bounty": "ticket",
-	"purse": "pearl", "haggle": "pearl", "train": "blade", "tough": "armor", "focus": "scroll", "fire": "charm", "shard": "charm", "favor": "bell"}
+	"purse": "pearl", "haggle": "pearl", "train": "blade", "tough": "armor", "focus": "scroll", "fire": "fire", "shard": "shard", "favor": "bell"}
 
 
 func _meta_input() -> void:
@@ -634,7 +634,7 @@ func _draw() -> void:
 func _draw_title() -> void:
 	text(Vector2(0, 110), "가마의 병사", C["accent"], 36, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
 	text(Vector2(0, 136), "챕터 5개 · 아침 5번과 밤 5번 · 마을을 지켜라", C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
-	draw_icon("charm", Vector2(286, 160), 1.0)
+	draw_icon("ember", Vector2(286, 160), 1.0)
 	text(Vector2(304, 171), "불씨 %d" % meta.embers, C["accent"])
 	button(Rect2(220, 200, 200, 32), "새 판 시작  (Enter)", "start", C["accent"])
 	button(Rect2(220, 242, 200, 28), "전술 강화", "to_meta", C["text"])
@@ -649,7 +649,7 @@ func _draw_meta() -> void:
 	text(Vector2(214, 31), fit("왼쪽에서 오른쪽으로 · 다음 판부터 적용", 306.0), UI["muted"])
 	var er := Rect2(530, 13, 96, 22)
 	chip(er, "불씨 %d" % meta.embers, UI["gold"])
-	draw_icon("charm", er.position + Vector2(4, 4), 1.0)
+	draw_icon("ember", er.position + Vector2(4, 4), 1.0)
 	# 줄기: 가마터 → 세로 줄 → 가지마다 오른쪽으로
 	var gold_dim := Color(0.66, 0.53, 0.2)
 	draw_rect(Rect2(98, 203, 22, 2), gold_dim)
@@ -759,7 +759,7 @@ func _draw_topbar(title := "", back := false) -> void:
 			warn += " · " + PD.ENEMIES[ci["boss"]]["name"]
 		text(Vector2(160, 38), fit(warn, 196.0), C["danger"] if boss_night else Color("ff9a7a"))
 	var chips := [["ticket", "%d" % run.tickets, UI["gold"]], ["clay", "%d" % run.clay, C["clay"].lightened(0.35)],
-		["pearl", "%d" % run.pearls, Color("e8eef5")], ["charm", "%d/%d" % [kiln.shards, kiln.shard_need], UI["muted"]]]
+		["pearl", "%d" % run.pearls, Color("e8eef5")], ["shard", "%d/%d" % [kiln.shards, kiln.shard_need], UI["muted"]]]
 	for i in chips.size():
 		var r := Rect2(364 + i * 58, 15, 54, 22)
 		chip(r, chips[i][1], chips[i][2])
@@ -785,11 +785,14 @@ func _draw_army_grid(origin: Vector2, title: String) -> void:
 		buttons.append({"rect": r, "id": "card%d" % s["id"]})
 		var rc: Color = GRADE_COL[PD.ROLE_GRADE[s["role"]]]
 		var hov: bool = r.has_point(get_local_mouse_position())
-		rrect(r, Color("221b29").lightened(0.06 if hov else 0.0))
-		draw_rect(Rect2(x + 2, y + ch - 20, cw - 4, 18), Color(0, 0, 0, 0.25))
+		var framed: bool = nine("card_9", r, 6, Color.WHITE.lerp(rc, 0.6).lightened(0.08 if hov else 0.0))
+		if not framed:
+			rrect(r, Color("221b29").lightened(0.06 if hov else 0.0))
+			draw_rect(Rect2(x + 2, y + ch - 20, cw - 4, 18), Color(0, 0, 0, 0.25))
 		if s["tier"] == "legend":
 			glow(self, Vector2(x + cw / 2.0, y + 30), 30.0, Color(1.0, 0.95, 0.8, 0.14))
-		rline(r, rc if selected != s["id"] else UI["gold"])
+		if not framed or selected == s["id"]:
+			rline(r, rc if selected != s["id"] else UI["gold"])
 		if selected == s["id"]:
 			rline(r.grow(1), UI["gold"])
 		var stx := tex(soldier_sprite(s["role"], s["element"]))
@@ -946,7 +949,11 @@ func _draw_shop() -> void:
 		text(Vector2(16, 328), fit("받을 병사: %s ★%d   %s" % [sel["name"], sel["star"], ", ".join(up) if not up.is_empty() else "강화 없음"], 384.0), GRADE_COL[PD.ROLE_GRADE[sel["role"]]])
 	# 상인 + 말풍선
 	panel(Rect2(416, 58, 218, 76))
-	draw_sprite(soldier_sprite("healer", "earth"), Vector2(444, 98), 1.6)
+	var mtx := tex("ui/merchant")
+	if mtx != null:
+		draw_texture_rect(mtx, Rect2(Vector2(420, 66), Vector2(48, 64)), false)
+	else:
+		draw_sprite(soldier_sprite("healer", "earth"), Vector2(444, 98), 1.6)
 	text(Vector2(472, 78), "어서 오시오.", C["text"])
 	text(Vector2(472, 94), fit("병사를 고르고 사면", 156.0), UI["muted"])
 	text(Vector2(472, 110), fit("그 병사가 강해지오.", 156.0), UI["muted"])
@@ -1148,9 +1155,18 @@ func _equip_effect(it: Dictionary) -> String:
 
 
 ## 작은 도트 아이콘: 뽑기권·흙·장비 4종. pos = 왼쪽 위, k = 배율 (1 = 12px 안팎)
+## 아이콘: Codex 그림 assets/sprites/ui/icon_<이름>.png (16×16) 이 있으면 그것을, 없으면 코드 도형
 func draw_icon(kind: String, pos: Vector2, k: float) -> void:
+	var itx := tex("ui/icon_" + kind)
+	if itx != null:
+		draw_texture_rect(itx, Rect2(pos - Vector2(2, 2) * k, Vector2(16, 16) * k), false)
+		return
 	var o := Color("282322")
 	match kind:
+		"shard", "ember", "fire":
+			var cc: Color = {"shard": Color("c9a0d8"), "ember": Color("ff9a3c"), "fire": Color("ff6a3c")}[kind]
+			draw_colored_polygon(PackedVector2Array([pos + Vector2(6, 0) * k, pos + Vector2(11, 7) * k, pos + Vector2(6, 13) * k, pos + Vector2(1, 7) * k]), o)
+			draw_colored_polygon(PackedVector2Array([pos + Vector2(6, 2) * k, pos + Vector2(9, 7) * k, pos + Vector2(6, 11) * k, pos + Vector2(3, 7) * k]), cc)
 		"ticket":
 			draw_rect(Rect2(pos + Vector2(0, 1) * k, Vector2(13, 9) * k), o)
 			draw_rect(Rect2(pos + Vector2(1, 2) * k, Vector2(11, 7) * k), Color("e8c35a"))

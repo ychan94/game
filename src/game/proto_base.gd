@@ -816,6 +816,28 @@ const UI := {"ground": Color("120e16"), "lacquer": Color("1c1622"), "inner": Col
 	"gold": Color("e8c35a"), "gold_dk": Color("a8862e"), "bronze": Color("5a4630"), "line": Color("3a2e22"), "muted": Color("a89cb0")}
 
 
+## UI 그림 (Codex, assets/sprites/ui/*.png) 이 있으면 9조각 늘이기로 그린다. 없으면 false → 코드로 그린다
+var _nine_cache := {}
+
+
+func nine(name: String, r: Rect2, margin: int, mod: Color = Color.WHITE, ci: CanvasItem = null) -> bool:
+	var tx := tex("ui/" + name)
+	if tx == null:
+		return false
+	if not _nine_cache.has(name):
+		var sb := StyleBoxTexture.new()
+		sb.texture = tx
+		sb.texture_margin_left = margin
+		sb.texture_margin_right = margin
+		sb.texture_margin_top = margin
+		sb.texture_margin_bottom = margin
+		_nine_cache[name] = sb
+	var box: StyleBoxTexture = _nine_cache[name]
+	box.modulate_color = mod
+	(ci if ci != null else self).draw_style_box(box, r)
+	return true
+
+
 ## 모서리를 1~2px 깎은 사각형 (픽셀 둥근 모서리)
 func rrect(r: Rect2, col: Color, ci: CanvasItem = null) -> void:
 	var c: CanvasItem = ci if ci != null else self
@@ -860,9 +882,13 @@ func button(rect: Rect2, label: String, id: String, color: Color = C["accent"], 
 		fill = fill.lightened(0.12)
 	if not down:
 		rrect(Rect2(r.position + Vector2(0, 2), r.size), Color(0, 0, 0, 0.45))
-	rrect(r, fill)
-	draw_rect(Rect2(r.position + Vector2(2, 1), Vector2(r.size.x - 4, 1)), Color(1, 1, 1, 0.08 if not primary else 0.25))
-	rline(r, edge)
+	var tint: Color = (Color.WHITE if primary else Color.WHITE.lerp(edge, 0.45)) if enabled else Color(0.5, 0.48, 0.55)
+	if hover:
+		tint = tint.lightened(0.15)
+	if not nine("button_primary_9" if primary else "button_9", r, 6, tint):
+		rrect(r, fill)
+		draw_rect(Rect2(r.position + Vector2(2, 1), Vector2(r.size.x - 4, 1)), Color(1, 1, 1, 0.08 if not primary else 0.25))
+		rline(r, edge)
 	var tc: Color = (UI["lacquer"] if primary else edge) if enabled else Color("6b6478")
 	var lab := fit(label, r.size.x - 8.0)
 	var w: float = font.get_string_size(lab, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
@@ -873,28 +899,42 @@ func button(rect: Rect2, label: String, id: String, color: Color = C["accent"], 
 func panel(rect: Rect2, title := "", tone: Color = Color(0, 0, 0, 0)) -> void:
 	var edge: Color = UI["bronze"] if tone.a == 0.0 else tone
 	rrect(Rect2(rect.position + Vector2(0, 3), rect.size), Color(0, 0, 0, 0.35))
-	rrect(rect, UI["lacquer"])
-	rline(rect, edge)
-	draw_rect(Rect2(rect.position + Vector2(3, 3), rect.size - Vector2(6, 6)), UI["line"], false, 1.0)
 	var g: Color = UI["gold"] if tone.a == 0.0 else tone
-	for cx in [rect.position.x + 1, rect.end.x - 7]:
-		for cy in [rect.position.y + 1, rect.end.y - 7]:
-			var hx: float = cx if cx < rect.get_center().x else cx + 5
-			var vy: float = cy if cy < rect.get_center().y else cy + 5
-			draw_rect(Rect2(cx, vy, 6, 1), g)
-			draw_rect(Rect2(hx, cy, 1, 6), g)
+	if not nine("panel_9", rect, 8, Color.WHITE if tone.a == 0.0 else Color.WHITE.lerp(tone, 0.5)):
+		rrect(rect, UI["lacquer"])
+		rline(rect, edge)
+		draw_rect(Rect2(rect.position + Vector2(3, 3), rect.size - Vector2(6, 6)), UI["line"], false, 1.0)
+	var corner := tex("ui/panel_corner")
+	if corner != null:
+		# 왼쪽 위 장식 한 장을 뒤집어 네 모서리에
+		var cs: Vector2 = corner.get_size()
+		for fx2 in [1.0, -1.0]:
+			for fy2 in [1.0, -1.0]:
+				var at := Vector2(rect.position.x if fx2 > 0 else rect.end.x, rect.position.y if fy2 > 0 else rect.end.y)
+				draw_set_transform(at, 0.0, Vector2(fx2, fy2))
+				draw_texture_rect(corner, Rect2(Vector2(-2, -2), cs), false, Color.WHITE if tone.a == 0.0 else Color.WHITE.lerp(tone, 0.5))
+		draw_set_transform(Vector2.ZERO)
+	else:
+		for cx in [rect.position.x + 1, rect.end.x - 7]:
+			for cy in [rect.position.y + 1, rect.end.y - 7]:
+				var hx: float = cx if cx < rect.get_center().x else cx + 5
+				var vy: float = cy if cy < rect.get_center().y else cy + 5
+				draw_rect(Rect2(cx, vy, 6, 1), g)
+				draw_rect(Rect2(hx, cy, 1, 6), g)
 	if title != "":
 		var tw: float = font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 16.0
 		var tr := Rect2(rect.position + Vector2(10, -7), Vector2(tw, 14))
-		rrect(tr, UI["lacquer"])
-		rline(tr, g)
+		if not nine("title_plate_9", tr, 5, Color.WHITE if tone.a == 0.0 else Color.WHITE.lerp(tone, 0.5)):
+			rrect(tr, UI["lacquer"])
+			rline(tr, g)
 		draw_string(font, (tr.position + Vector2(8, 11)).round(), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, g)
 
 
 ## 자원 알약: 아이콘 + 값 (icon_fn 이 그리는 아이콘 자리는 왼쪽 12px)
 func chip(r: Rect2, value: String, col: Color) -> void:
-	rrect(r, UI["deep"])
-	rline(r, UI["bronze"])
+	if not nine("chip_9", r, 6):
+		rrect(r, UI["deep"])
+		rline(r, UI["bronze"])
 	draw_string(font_bold, (r.position + Vector2(18, r.size.y / 2.0 + 5.0)).round(), fit(value, r.size.x - 20.0), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, col)
 
 

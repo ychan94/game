@@ -1174,6 +1174,226 @@
       "max_colors": 32,
       "group": "스킬 이펙트",
       "what": "거북 등딱지: 육각 무늬 보호막이 둥글게 덮임. 8장면 (64×64 정사각형을 가로 한 줄, 전체 512×64). 투명 배경, 빛나는 부분은 밝게 (게임이 빛을 더하는 방식으로 겹쳐 그림). 오른쪽을 향함. 병사 발밑 가운데 기준"
+    },
+    {
+      "path": "assets/sprites/ui/icon_ticket.png",
+      "size": [
+        16,
+        16
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "아이콘 16×16 · 뽑기권 — 붉은 띠를 두른 누런 한지 표, 귀퉁이 접힘. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경"
+    },
+    {
+      "path": "assets/sprites/ui/icon_clay.png",
+      "size": [
+        16,
+        16
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "아이콘 16×16 · 흙 — 손으로 뭉친 붉은 흙덩이, 손자국 한두 개. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경"
+    },
+    {
+      "path": "assets/sprites/ui/icon_pearl.png",
+      "size": [
+        16,
+        16
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "아이콘 16×16 · 진주 — 흰 진주 한 알, 왼쪽 위 반사광 1px, 아래 연한 그림자. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경"
+    },
+    {
+      "path": "assets/sprites/ui/icon_shard.png",
+      "size": [
+        16,
+        16
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "아이콘 16×16 · 요변 파편 — 유약 빛이 도는 깨진 도자기 조각 (보라·금 반사). 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경"
+    },
+    {
+      "path": "assets/sprites/ui/icon_ember.png",
+      "size": [
+        16,
+        16
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "아이콘 16×16 · 불씨 — 숯 위의 작은 불씨, 주황 심지. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경"
+    },
+    {
+      "path": "assets/sprites/ui/icon_fire.png",
+      "size": [
+        16,
+        16
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "아이콘 16×16 · 불 다스리기 — 아궁이 불꽃 세 갈래. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경"
+    },
+    {
+      "path": "assets/sprites/ui/icon_blade.png",
+      "size": [
+        16,
+        16
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "아이콘 16×16 · 강철 칼날 — 비스듬한 짧은 환도 날, 금빛 코등이. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경"
+    },
+    {
+      "path": "assets/sprites/ui/icon_armor.png",
+      "size": [
+        16,
+        16
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "아이콘 16×16 · 두석린갑 — 쇠 비늘 갑옷 앞판 (비늘 3줄). 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경"
+    },
+    {
+      "path": "assets/sprites/ui/icon_charm.png",
+      "size": [
+        16,
+        16
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "아이콘 16×16 · 신속 부적 — 노란 한지에 붉은 경면주사 글씨 (글자 대신 획 모양만). 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경"
+    },
+    {
+      "path": "assets/sprites/ui/icon_gourd.png",
+      "size": [
+        16,
+        16
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "아이콘 16×16 · 약 호리병 — 붉은 끈 맨 호리병. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경"
+    },
+    {
+      "path": "assets/sprites/ui/icon_whetstone.png",
+      "size": [
+        16,
+        16
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "아이콘 16×16 · 숫돌 — 회색 숫돌 위 물기 한 줄. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경"
+    },
+    {
+      "path": "assets/sprites/ui/icon_scale.png",
+      "size": [
+        16,
+        16
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "아이콘 16×16 · 쇠비늘 — 겹친 쇠 비늘 세 장. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경"
+    },
+    {
+      "path": "assets/sprites/ui/icon_scroll.png",
+      "size": [
+        16,
+        16
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "아이콘 16×16 · 비급서 — 실로 묶은 낡은 책 (표지 끈). 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경"
+    },
+    {
+      "path": "assets/sprites/ui/icon_bell.png",
+      "size": [
+        16,
+        16
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "아이콘 16×16 · 신령 방울 — 무당 방울 셋이 달린 손잡이. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경"
+    },
+    {
+      "path": "assets/sprites/ui/panel_9.png",
+      "size": [
+        48,
+        48
+      ],
+      "group": "UI",
+      "max_colors": 16,
+      "what": "창(패널) 9조각 그림 — 모서리 8px 은 그대로, 가운데·변은 게임이 늘린다. 옻칠한 검붉은 나무판(#1c1622 계열) + 바깥 청동 테두리 2px + 안쪽 가는 선 1px. 가운데(늘어나는 부분)는 단색 또는 아주 약한 결 하나만 (늘여도 이상하지 않게). 모서리 1~2px 깎기"
+    },
+    {
+      "path": "assets/sprites/ui/panel_corner.png",
+      "size": [
+        14,
+        14
+      ],
+      "group": "UI",
+      "max_colors": 10,
+      "what": "창 모서리 장식 (왼쪽 위 한 장, 게임이 뒤집어 네 모서리에) — 반닫이 장석 같은 금박 쇠 장식, ㄱ자 모양에 작은 구름무늬 하나. 투명 배경"
+    },
+    {
+      "path": "assets/sprites/ui/button_9.png",
+      "size": [
+        24,
+        24
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "버튼 9조각 (모서리 6px). **밝은 무채색 청동** (게임이 버튼마다 색을 입힌다). 위쪽 1px 하이라이트, 아래 2px 두께감, 모서리 깎기. 가운데는 단색"
+    },
+    {
+      "path": "assets/sprites/ui/button_primary_9.png",
+      "size": [
+        24,
+        24
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "주 버튼 9조각 (모서리 6px) — 금박 칠 (#e8c35a 계열), 위 하이라이트·아래 두께감. 가운데는 단색 (글자가 그 위에 먹색으로 올라간다)"
+    },
+    {
+      "path": "assets/sprites/ui/card_9.png",
+      "size": [
+        24,
+        24
+      ],
+      "group": "UI",
+      "max_colors": 12,
+      "what": "병사 카드 틀 9조각 (모서리 6px) — **밝은 무채색** (게임이 등급 색을 입힌다), 안쪽은 어두운 바탕, 아래쪽 이름 띠 자리가 살짝 더 어둡게. 가운데 단색"
+    },
+    {
+      "path": "assets/sprites/ui/title_plate_9.png",
+      "size": [
+        20,
+        14
+      ],
+      "group": "UI",
+      "max_colors": 8,
+      "what": "창 제목 판 9조각 (모서리 5px) — 작은 현판 모양, 밝은 무채색 테두리 (게임이 색을 입힌다), 안은 어두운 옻칠"
+    },
+    {
+      "path": "assets/sprites/ui/chip_9.png",
+      "size": [
+        16,
+        16
+      ],
+      "group": "UI",
+      "max_colors": 8,
+      "what": "자원 알약 9조각 (모서리 6px) — 안으로 파인 어두운 홈, 청동 테두리 1px"
+    },
+    {
+      "path": "assets/sprites/ui/merchant.png",
+      "size": [
+        48,
+        64
+      ],
+      "group": "UI",
+      "max_colors": 24,
+      "what": "진주 상점 상인 (가슴 위 정도, 오른쪽을 봄) — 지게에 보따리를 진 보부상 도자기 인형, 패랭이 모자에 목화 송이, 손에 진주 한 알, 부드럽게 웃는 얼굴. 병사 도자기 인형과 같은 그림체 (얼굴 회색, 흰 광택), 옷은 흙빛·쪽빛. 투명 배경"
     }
   ],
   "정한 그림체 (2026-11-27, 사용자 승인)": [

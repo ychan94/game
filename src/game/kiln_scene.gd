@@ -1018,7 +1018,10 @@ func _draw_prep() -> void:
 func _draw_gacha() -> void:
 	_draw_topbar("가마 뽑기", true)
 	panel(Rect2(6, 56, 330, 284))
-	_draw_kiln_body(Vector2(-10, 36), 0.0)
+	# 가마 그림(300)이 패널(284)보다 커서 줄여 그린다 — 굴뚝이 테두리를 넘지 않게
+	draw_set_transform(Vector2(22, 66), 0.0, Vector2(0.88, 0.88))
+	_draw_kiln_body(Vector2.ZERO, 0.0)
+	draw_set_transform(Vector2.ZERO)
 	text(Vector2(14, 358), fit("희귀 이상이 나오면 가마를 두드려 꺼냅니다", 322.0), UI["gold"])
 	# 등급 확률
 	panel(Rect2(344, 56, 290, 120), "등급 확률")

@@ -311,6 +311,136 @@ def music_boss():
     return finish(loop_wrap(buf, L), 0.85)
 
 
+# ---------------- 챕터별 음악 (2026-12-01 "챕터마다 노래가 달라야 해") ----------------
+def make_phrase(seed, scale_len, lo, hi, beats=16, step_choices=(0.5, 0.5, 1, 1, 1, 1.5, 2)):
+    """정해진 씨앗으로 4마디 가락: 순차 진행 위주, 마지막은 긴 음으로 쉼"""
+    r = np.random.default_rng(seed)
+    out = []
+    b = 0.0
+    s = (lo + hi) // 2
+    while b < beats - 2:
+        d = float(r.choice(step_choices))
+        if b + d > beats - 2:
+            d = beats - 2 - b
+        out.append((b, s, d))
+        mv = int(r.choice([-2, -1, -1, 1, 1, 2, 0, 3, -3]))
+        s = int(np.clip(s + mv, lo, hi))
+        b += d
+    out.append((beats - 2, lo + 2 if seed % 2 else lo, 2.0))
+    return out
+
+
+def vary(phrase, seed, lo, hi):
+    """같은 가락을 끝만 바꿔 대답처럼 (A')"""
+    r = np.random.default_rng(seed + 99)
+    out = list(phrase[:-3])
+    for (b, s, d) in phrase[-3:-1]:
+        out.append((b, int(np.clip(s + int(r.choice([-1, 1, 2])), lo, hi)), d))
+    out.append((phrase[-1][0], lo, phrase[-1][2]))
+    return out
+
+
+CHAPTER_MUSIC = {
+    1: dict(bpm=116, scale=PYEONG, base=293.66, lead="pluck", seed=11, bright=1.1, drums="janggu", chimes=0.0, drone=0.0, low=0.6, bars=16),
+    2: dict(bpm=120, scale=GYEMYEON, base=329.63, lead="flute", seed=23, bright=0.9, drums="light", chimes=0.5, drone=0.15, low=0.4, bars=16),
+    3: dict(bpm=104, scale=GYEMYEON, base=246.94, lead="flute", seed=37, bright=0.6, drums="buk", chimes=0.0, drone=0.35, low=0.8, bars=16),
+    4: dict(bpm=132, scale=PYEONG, base=392.0, lead="pluck_high", seed=41, bright=1.5, drums="crisp", chimes=0.6, drone=0.0, low=0.3, bars=16),
+    5: dict(bpm=144, scale=GYEMYEON, base=329.63, lead="both", seed=53, bright=1.2, drums="heavy", chimes=0.0, drone=0.1, low=0.9, bars=20),
+}
+
+
+def chapter_track(ch, boss=False):
+    c = dict(CHAPTER_MUSIC[ch])
+    bpm = c["bpm"] + (8 if boss else 0)
+    beat = 60 / bpm
+    bars = c["bars"]
+    L = bars * 4 * beat
+    buf = np.zeros(int((L + 4) * SR))
+    sc = c["scale"]
+    base = c["base"] * (0.5 if boss and ch != 4 else 1.0)
+    seed = c["seed"] + (500 if boss else 0)
+    lo, hi = 2, 9
+    A = make_phrase(seed, len(sc), lo, hi)
+    B = make_phrase(seed + 7, len(sc), lo + 2, hi + 1)
+    phrases = [A, vary(A, seed, lo, hi), B, vary(A, seed + 3, lo, hi)]
+    if bars == 20:
+        phrases.append(vary(B, seed + 5, lo, hi))
+    # 화음 뿌리 (마디마다)
+    rr = np.random.default_rng(seed + 1)
+    roots = [0, 0, int(rr.choice([2, 3])), int(rr.choice([-1, 1, 3]))] * (bars // 4 + 1)
+    # 가락
+    for p, ph in enumerate(phrases):
+        for (b, s, d) in ph:
+            at = (p * 16 + b) * beat
+            f = note(s, base, sc)
+            dur = d * beat
+            if c["lead"] in ("pluck", "both"):
+                place(buf, pluck(f, dur + 0.5, 0.8, c["bright"], 0.015 if d >= 2 else 0), at)
+            if c["lead"] == "pluck_high":
+                place(buf, pluck(f * 2, dur * 0.6 + 0.4, 0.55, c["bright"]), at)
+                if d >= 1:
+                    place(buf, chime(f * 2, 0.9, 0.25), at)
+            if c["lead"] == "flute" or (c["lead"] == "both" and p >= 2):
+                place(buf, flute(f, dur * 0.95, 0.55 if c["lead"] == "flute" else 0.35, 0.09), at)
+    # 반주·타악
+    for bar in range(bars):
+        b0 = bar * 4 * beat
+        r = roots[bar]
+        # 저음 뜯기
+        for i in range(8):
+            if c["drums"] == "crisp" and i % 2 == 1:
+                continue
+            s = r - 10 if i % 4 != 2 else r - 7
+            place(buf, pluck(note(s, base, sc), beat * 0.45, 0.6 * c["low"], 0.55), b0 + i * 0.5 * beat)
+        if c["drone"] > 0 and bar % 2 == 0:
+            place(buf, flute(note(r - 10, base, sc), beat * 8, c["drone"], 0.05), b0)
+        if c["chimes"] > 0 and bar % 2 == 1:
+            for i in range(3):
+                place(buf, chime(note(r + 5 + i * 2, base, sc) * 2, 1.2, c["chimes"] * 0.5), b0 + (1 + i * 0.5) * beat)
+        d = c["drums"]
+        if boss:
+            for i in range(4):
+                place(buf, buk(0.95 if i == 0 else 0.7), b0 + i * beat)
+            for bt in [0.5, 1.5, 2.5, 3.5]:
+                place(buf, janggu("deok", 0.4), b0 + bt * beat)
+            if bar % 4 == 0:
+                place(buf, gong(82.4 if ch != 4 else 110, 4.0, 0.8), b0)
+            continue
+        if d == "janggu":
+            for (bt, k) in [(0, "deong"), (1, "deok"), (1.5, "deok"), (2, "kung"), (3, "giduk")]:
+                place(buf, janggu(k, 0.55), b0 + bt * beat)
+            place(buf, buk(0.5), b0)
+        elif d == "light":
+            for (bt, k) in [(0, "kung"), (1.5, "deok"), (2.5, "deok"), (3, "kung")]:
+                place(buf, janggu(k, 0.4), b0 + bt * beat)
+        elif d == "buk":
+            place(buf, buk(0.9), b0)
+            place(buf, buk(0.6), b0 + 1.5 * beat)
+            place(buf, buk(0.7), b0 + 2 * beat)
+            place(buf, janggu("deok", 0.3), b0 + 3 * beat)
+        elif d == "crisp":
+            for bt in [0, 0.75, 1.5, 2, 2.75, 3.5]:
+                place(buf, janggu("deok", 0.45), b0 + bt * beat)
+            place(buf, janggu("kung", 0.5), b0)
+        elif d == "heavy":
+            for (bt, k) in [(0, "deong"), (0.5, "deok"), (0.75, "deok"), (1, "kung"), (1.5, "deok"), (2, "deong"), (2.5, "giduk"), (3, "kung"), (3.5, "deok"), (3.75, "deok")]:
+                place(buf, janggu(k, 0.55), b0 + bt * beat)
+            place(buf, buk(0.85), b0)
+            place(buf, buk(0.6), b0 + 2 * beat)
+            if bar % 8 == 0:
+                place(buf, gong(98, 3.5, 0.5), b0)
+    if not boss and ch in (1, 2, 4):
+        place(buf, gong(98 if ch != 4 else 130.8, 3.0, 0.3), 0)
+    buf = reverb(buf, 1.4 if ch != 3 else 2.4, 0.2 if ch != 3 else 0.32, 5000 if ch != 3 else 2500)
+    if ch == 3:
+        buf = fft_filter(buf, 30, 5000)   # 안개 늪: 탁하게
+    x = finish(loop_wrap(buf, L), 0.82 if not boss else 0.84)
+    k = 320   # 이음매: 끝 10ms 를 첫 샘플로 이어 붙인다
+    w = np.linspace(0, 1, k)
+    x[-k:] = x[-k:] * (1 - w) + x[0] * w
+    return x
+
+
 # ---------------- 효과음 ----------------
 def mix(*parts):
     n = max(len(p) for p in parts)
@@ -377,6 +507,48 @@ def sfx_all():
     return s
 
 
+def sfx_round2():
+    """2026-12-01: 공격 종류별 맞는 소리 · 스킬 적중 · 합동 궁극기 8종 · 흙 갈라짐 · 두둥"""
+    D4 = 293.66
+    s = {}
+    s["hit_blade"] = mix(whoosh(0.12, 3000, 6000, 0.7, 0.4), chime(2400, 0.18, 0.35, [(1.0, 1.0, 0.06), (2.3, 0.6, 0.04), (3.7, 0.4, 0.03)]), drum(220, 120, 0.15, 0.03, 0.4, 400, 3000, 0.6))
+    s["hit_arrow"] = mix(drum(380, 200, 0.12, 0.02, 0.6, 600, 4000, 0.7), fft_filter(noise(0.05), 2000, 7000) * np.exp(-tt(0.05) / 0.01) * 0.4)
+    s["hit_blunt"] = mix(drum(130, 60, 0.25, 0.06, 0.5, 80, 900, 1.0))
+    s["hit_fire"] = mix(fft_filter(noise(0.3), 300, 3500) * np.exp(-tt(0.3) / 0.07), crackle(0.3, 90, 0.6), drum(160, 80, 0.2, 0.05, 0.2, 100, 1500, 0.5))
+    sp = fft_filter(noise(0.3), 500, 5000) * np.exp(-tt(0.3) / 0.06)
+    s["hit_water"] = mix(sp, chime(1500, 0.25, 0.25), drum(200, 120, 0.15, 0.04, 0.1, 200, 1500, 0.4))
+    s["hit_earth"] = mix(drum(110, 55, 0.3, 0.07, 0.8, 100, 1800, 0.9), crackle(0.25, 70, 0.7))
+    s["skill_hit_fire"] = reverb(mix(whoosh(0.6, 200, 2500, 0.8, 0.6), crackle(0.6, 120, 0.7), drum(120, 50, 0.6, 0.15, 0.6, 80, 2000, 1.0)), 0.9, 0.2)
+    s["skill_hit_water"] = reverb(mix(whoosh(0.6, 2500, 300, 0.8, 0.5), fft_filter(noise(0.6), 400, 6000) * np.exp(-tt(0.6) / 0.15) * 0.7, chime(1174.7, 0.7, 0.4)), 1.0, 0.25)
+    s["skill_hit_earth"] = reverb(mix(buk(1.0), drum(60, 30, 0.8, 0.25, 0.8, 40, 800, 1.0), crackle(0.5, 90, 0.6)), 0.9, 0.2)
+    s["skill_hit_star5"] = reverb(seq([(0, whoosh(0.5, 800, 6000, 0.5))] + [(0.05 + i * 0.05, chime(note(i + 7, D4, PYEONG), 1.0, 0.5)) for i in range(6)] + [(0, gong(196, 1.2, 0.4))]), 1.2, 0.3)
+    s["combo_tide"] = reverb(seq([(0, whoosh(1.2, 150, 1200, 1.0, 0.7)), (0.9, fft_filter(noise(1.4), 150, 6000) * np.exp(-tt(1.4) / 0.4)), (0.9, buk(1.0)), (1.0, drum(60, 35, 1.0, 0.4, 0.3, 50, 800, 0.9))]), 1.8, 0.3)
+    s["combo_blaze"] = reverb(seq([(0, whoosh(2.0, 120, 2500, 1.0, 0.8)), (0, crackle(2.2, 140, 0.8)), (0.3, drum(90, 40, 1.4, 0.5, 0.5, 60, 1500, 0.9)), (0.8, buk(0.9))]), 1.5, 0.25)
+    s["combo_quake"] = reverb(seq([(0, drum(50, 28, 1.8, 0.8, 0.6, 30, 600, 1.0))] + [(0.25 + i * 0.22, mix(drum(140, 60, 0.4, 0.1, 0.8, 100, 2500, 0.8), crackle(0.3, 100, 0.5))) for i in range(6)]), 1.6, 0.25)
+    horn = lambda f, d: flute(f, d, 1.0, 0.14) + 0.5 * flute(f * 1.5, d, 0.6, 0.1)
+    s["combo_march"] = reverb(seq([(0, horn(220, 0.6)), (0.55, horn(293.66, 1.2)), (0, janggu("deong", 1.0))] + [(0.55 + i * 0.18, buk(0.9 if i % 2 == 0 else 0.6)) for i in range(8)]), 1.5, 0.3)
+    s["combo_fortress"] = reverb(seq([(0, whoosh(1.0, 80, 600, 0.8, 0.6)), (0, drum(60, 40, 1.2, 0.5, 0.4, 40, 600, 0.8)), (0.9, gong(98, 2.5, 1.0)), (0.9, buk(1.0))]), 1.8, 0.3)
+    bells = [(i * 0.09, chime(note(i + 5, D4, PYEONG) * 2, 0.6, 0.45, [(1.0, 1.0, 0.3), (2.0, 0.6, 0.2), (3.0, 0.3, 0.1)])) for i in range(12)]
+    s["combo_rite"] = reverb(seq(bells + [(0.2, flute(440, 1.4, 0.6, 0.1)), (0.6, gong(146.8, 2.0, 0.5))] + [(1.1 + i * 0.07, chime(note(i + 8, D4, PYEONG), 1.2, 0.5)) for i in range(6)]), 1.8, 0.35)
+    arrows = [(i * 0.035, whoosh(0.18, 2500, 5500, 0.5, 0.4)) for i in range(20)]
+    thunks = [(0.55 + float(rng.uniform(0, 0.9)), drum(380, 200, 0.12, 0.02, 0.6, 600, 4000, 0.5)) for _ in range(24)]
+    s["combo_volley"] = reverb(seq(arrows + thunks), 1.0, 0.2)
+    roar = fft_filter(noise(1.0), 70, 900) * np.sin(np.pi * np.clip(tt(1.0) / 1.0, 0, 1)) * 0.9
+    s["combo_guardians"] = reverb(seq([(0, roar), (0.4, gong(73.4, 3.0, 1.0)), (0.4, buk(1.0)), (0.5, whoosh(1.5, 300, 6000, 0.6))] + [(0.6 + i * 0.06, chime(note(i + 6, D4, PYEONG), 1.6, 0.6)) for i in range(10)]), 2.0, 0.35)
+    def clay_crack(n):
+        parts = [(0, drum(170 - n * 25, 80 - n * 10, 0.25 + 0.1 * n, 0.05 + 0.03 * n, 0.9, 100, 2500, 0.7 + 0.15 * n))]
+        for i in range(3 + n * 4):
+            g = fft_filter(noise(0.04), 200, 2500) * np.exp(-tt(0.04) / 0.01)
+            parts.append((float(rng.uniform(0.0, 0.08 + 0.08 * n)), g * float(rng.uniform(0.3, 0.8))))
+        parts.append((0.03, fft_filter(noise(0.2 + 0.1 * n), 150, 1500) * np.exp(-tt(0.2 + 0.1 * n) / (0.05 + 0.03 * n)) * 0.5))
+        return seq(parts)
+    s["clay_crack_1"] = clay_crack(1)
+    s["clay_crack_2"] = clay_crack(2)
+    s["clay_crack_3"] = mix(clay_crack(3), fft_filter(noise(0.8), 80, 1200) * np.exp(-tt(0.8) / 0.25) * 0.5)
+    s["reveal_boom"] = reverb(seq([(0, buk(1.0)), (0, drum(55, 30, 1.2, 0.45, 0.3, 40, 500, 1.0)), (0.32, buk(1.0)), (0.32, drum(50, 28, 1.4, 0.5, 0.3, 40, 500, 1.0)), (0.5, whoosh(1.0, 500, 5000, 0.4))] + [(0.55 + i * 0.06, chime(note(i + 6, D4, PYEONG), 1.2, 0.45)) for i in range(7)]), 1.6, 0.3)
+    return s
+
+
 # ---------------- 쓰기 ----------------
 def write_ogg(path, x, q=4):
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -406,6 +578,19 @@ def main():
             x = finish(x, 0.85) if np.max(np.abs(x)) > 0 else x
             write_ogg(os.path.join(OUT, "sfx", name + ".ogg"), fade(x, 0.0005, 0.02), 4)
         print("sfx", len(sounds))
+    if not only or "chapters" in only:
+        for ch in range(1, 6):
+            for boss in (False, True):
+                x = chapter_track(ch, boss)
+                nm = ("boss_%d" if boss else "battle_%d") % ch
+                write_ogg(os.path.join(OUT, "music", nm + ".ogg"), x, 4)
+                print("music", nm, "%.1fs" % (len(x) / SR))
+    if not only or "sfx2" in only:
+        sounds2 = sfx_round2()
+        for name, x in sounds2.items():
+            x = finish(x, 0.85) if np.max(np.abs(x)) > 0 else x
+            write_ogg(os.path.join(OUT, "sfx", name + ".ogg"), fade(x, 0.0005, 0.02), 4)
+        print("sfx2", len(sounds2))
     return 0
 
 

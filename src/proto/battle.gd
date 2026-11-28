@@ -98,6 +98,8 @@ var synergy_power: float = D.SYNERGY_POWER
 var waves: Array = []           # 지나가는 합동 기술 파도 [{element, x, power}]
 var village_guard := 0.0       # 전술 강화: 마을이 받는 피해 감소
 var boss_casts: Array = []      # 최종 보스 스킬 예고 [{id, unit, t, warn, pos: [Vector2..], radius}] — 화면이 경고 원을 그린다
+var _hit_tag := ""               # 화면용: 지금 피해가 스킬("skill")·합동 기술("combo")에서 왔나
+var _hit_elem := ""
 var _summons: Array = []        # 이번 프레임에 대장이 부른 부하 [[종류, 자리, 능력치]]
 
 
@@ -601,7 +603,8 @@ func _hurt(t: U, amount: float, src, show: bool) -> void:
 	if show:
 		t.hit_flash = 5
 		events.append({"kind": "hit", "pos": t.pos, "amount": a, "team": t.team, "unit": t.id, "from": src.pos if src != null else t.pos,
-			"element": src.element if src != null else ""})
+			"element": src.element if src != null else _hit_elem, "src_kind": src.kind if src != null else "", "tag": _hit_tag,
+			"star": src.star if src != null else 1, "kill": t.hp - a <= 0.0})
 	if t.hp <= 0.0:
 		t.alive = false
 		events.append({"kind": "death", "pos": t.pos, "team": t.team, "big": t.kind in ["brute", "giant"] or t.kind in D.BOSSES or t.tier == "legend", "unit": t.id, "who": t.kind, "element": t.element})
@@ -649,7 +652,7 @@ func _synergy() -> void:
 			atk_sum += u.atk
 	var dmg: float = atk_sum * c["pct"] * combo_pow_mul
 	events.append({"kind": "synergy", "element": c["element"], "count": n, "name": c["name"], "combo": combo_id, "dmg": dmg, "atk_sum": atk_sum})
-	waves.append({"element": c["element"], "x": VILLAGE_X, "power": dmg, "bonus": c["bonus"], "combo": true})
+	waves.append({"element": c["element"], "x": VILLAGE_X, "power": dmg, "bonus": c["bonus"], "combo": true, "id": combo_id})
 	if combo_heal > 0.0:
 		for u2 in _allies():
 			u2.hp = minf(u2.max_hp, u2.hp + u2.max_hp * combo_heal)
@@ -666,7 +669,15 @@ func _synergy() -> void:
 
 ## 합동 기술 파도: 마을 쪽에서 오른쪽으로 휩쓸며, 지나가는 자리의 적이 맞는다
 func _move_waves() -> void:
+	_hit_tag = "combo"
+	_move_waves_inner()
+	_hit_tag = ""
+	_hit_elem = ""
+
+
+func _move_waves_inner() -> void:
 	for w in waves:
+		_hit_elem = w.get("element", "")
 		var x0: float = w["x"]
 		w["x"] = x0 + D.SYNERGY_WAVE_SPEED
 		var hit: Array = w.get("hit", [])
@@ -770,6 +781,12 @@ func _nearest_enemies(p: Vector2, n: int, max_d := INF) -> Array:
 
 ## 스킬 한 번. lv: ★3 = 1, ★4 = 2, ★5 = 3. 위력 = 1 + 0.5 × lv (비급서는 따로 곱한다)
 func _skill(u: U, role: String) -> void:
+	_hit_tag = "skill"
+	_skill_inner(u, role)
+	_hit_tag = ""
+
+
+func _skill_inner(u: U, role: String) -> void:
 	var lv: int = u.skill_lv
 	var pw: float = (1.0 + 0.5 * lv) * u.skill_pow
 	if u.element == "fire":
@@ -932,7 +949,7 @@ func _skill(u: U, role: String) -> void:
 			for o in helped:
 				o.shield_hp += o.max_hp * D.SKILL_SUP_SHIELD
 	stats["skills"] = stats.get("skills", 0) + 1
-	events.append({"kind": "skill", "role": role, "unit": u.id, "pos": u.pos, "lv": lv, "element": u.element,
+	events.append({"kind": "skill", "role": role, "unit": u.id, "pos": u.pos, "lv": lv, "element": u.element, "star": u.star,
 		"name": D.skill_name(role, u.element), "targets": hits.map(func(o): return o.pos)})
 
 

@@ -1272,3 +1272,22 @@ func test_run_save() -> bool:
 	KilnRun.clear_save(path)
 	check(not KilnRun.has_save(path), "판이 끝나면 지운다")
 	return true
+
+
+## 군주 이름·단계 (2026-12-01 "닉네임 ... 군주 같은 개념")
+func test_lord_profile() -> bool:
+	var MetaS = load("res://src/proto/meta.gd")
+	check(MetaS.clean_name("  가마왕 ") == "가마왕", "이름 앞뒤 빈칸은 뺀다")
+	check(MetaS.clean_name("가") == "" and MetaS.clean_name("가나다라마바사아자") == "", "이름은 2~8자")
+	var m = MetaS.new("user://test_meta_lord.cfg")
+	m.lord_name = "흙도공"
+	check(m.lord_title() == "마을 촌장" and m.lord_level() == 0, "처음은 마을 촌장")
+	m.lord_exp = 20
+	check(m.lord_level() == 2 and m.lord_title() == "성주", "넘긴 밤이 쌓이면 칭호가 오른다")
+	check(m.add_record(1, 100.0) == 1 and m.records["1"][0]["name"] == "흙도공", "랭킹 기록에 군주 이름")
+	m.save()
+	var m2 = MetaS.new("user://test_meta_lord.cfg")
+	m2.load_saved()
+	check(m2.lord_name == "흙도공" and m2.lord_exp == 20, "군주 이름·경험이 저장된다")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_meta_lord.cfg"))
+	return true

@@ -30,7 +30,7 @@ var tip_t := 0
 var unit_sid := {}       # 전투 유닛 id → 병사 id
 var gfx := {}            # 희귀 이상 등장 연출 {i, grade, need, taps, phase(tap/burst/show), t}
 var gfx_done := {}       # 연출을 마친 결과 칸
-const GFX_TAPS := {"rare": 1, "hero": 2, "legendary": 3, "mythic": 3}
+const GFX_TAPS := {"rare": 3, "hero": 3, "legendary": 3, "mythic": 3}   # 2026-12-01 "희귀 이상은 전부다 3번 클릭"
 var army_page := 0       # 부대 칸 쪽 (18칸 넘으면 여러 쪽)
 var meta_from := "title" # 전술 강화를 어디서 열었나 (처음 화면 / 로비)
 var res_page := 0        # 대기실 쪽
@@ -65,7 +65,9 @@ var new_best := false
 var paused := false      # 일시정지 창
 var pause_ask := ""      # "title": 처음 화면으로 갈지 묻는 중
 var pause_settings := false
-var start_ask := false   # 처음 화면: 저장된 판이 있을 때 이어하기 / 새로 시작
+var start_ask := false
+var name_edit: LineEdit = null   # 군주 이름 입력칸
+var naming_from := "title"   # 처음 화면: 저장된 판이 있을 때 이어하기 / 새로 시작
 var draft_shown_t := 0   # 전술 카드가 나온 때 (솟아오르는 연출)
 # 환경설정 (판과 무관, 이 컴퓨터에 저장)
 const OPT_FILE := "user://kiln_settings.cfg"
@@ -145,6 +147,116 @@ func _pause_input() -> void:
 		pause_settings = true
 	elif clicked("pz_title"):
 		pause_ask = "title"
+
+
+
+# ---------------- 군주 이름 · 프로필 (2026-12-01) ----------------
+const NAME_PARTS_A := ["가마", "흙", "불꽃", "청자", "진사", "달빛", "솔", "바람", "구름", "백자"]
+const NAME_PARTS_B := ["군주", "도공", "성주", "장군", "지기", "왕", "대감", "나리"]
+
+
+func _open_naming(from: String) -> void:
+	naming_from = from
+	state = "naming"
+	if name_edit == null:
+		name_edit = LineEdit.new()
+		name_edit.max_length = Meta.NAME_MAX
+		name_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		name_edit.placeholder_text = "이름 (2~8자)"
+		name_edit.add_theme_font_override("font", font_bold)
+		name_edit.add_theme_font_size_override("font_size", 16)
+		name_edit.position = Vector2(220, 170)
+		name_edit.size = Vector2(200, 30)
+		name_edit.text_submitted.connect(func(_tx): _confirm_name())
+		add_child(name_edit)
+	name_edit.text = meta.lord_name
+	name_edit.visible = true
+	name_edit.grab_focus()
+
+
+func _close_naming() -> void:
+	if name_edit != null:
+		name_edit.visible = false
+		name_edit.release_focus()
+	state = naming_from
+
+
+func _confirm_name() -> void:
+	var n := Meta.clean_name(name_edit.text if name_edit != null else "")
+	if n == "":
+		show_banner("이름은 %d~%d자로 지어 주세요" % [Meta.NAME_MIN, Meta.NAME_MAX], "", C["danger"], 70)
+		sfx("deny")
+		return
+	var first: bool = meta.lord_name == ""
+	meta.lord_name = n
+	meta.save()
+	sfx("confirm")
+	_close_naming()
+	if first and naming_from == "title":
+		show_banner("%s 군주, 마을을 부탁합니다" % n, "", UI["gold"], 90)
+		_new_run()
+		_save_run()
+
+
+func _naming_input() -> void:
+	if clicked("nm_ok"):
+		_confirm_name()
+	elif clicked("nm_dice"):
+		name_edit.text = NAME_PARTS_A[randi() % NAME_PARTS_A.size()] + NAME_PARTS_B[randi() % NAME_PARTS_B.size()]
+		sfx("click")
+	elif (clicked("nm_back") or pressed(KEY_ESCAPE)) and meta.lord_name != "":
+		_close_naming()
+
+
+func _draw_naming() -> void:
+	_draw_title_bg_only()
+	draw_rect(Rect2(Vector2.ZERO, VIEW), Color(0, 0, 0, 0.6))
+	var pr := Rect2(170, 80, 300, 220)
+	panel(pr)
+	text(Vector2(pr.position.x, pr.position.y + 34), "군주의 이름", UI["gold"], 24, pr.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	text(Vector2(pr.position.x, pr.position.y + 56), "마을을 다스릴 당신의 이름을 정하세요 · 랭킹에 남습니다", UI["muted"], 12, pr.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	var preview: String = Meta.clean_name(name_edit.text) if name_edit != null else ""
+	_draw_lord_seal(Vector2(pr.get_center().x - 16, pr.position.y + 132), 32.0, preview)
+	button(Rect2(pr.position.x + 30, pr.position.y + 178, 110, 28), "주사위 이름", "nm_dice", C["dim"])
+	button(Rect2(pr.position.x + 160, pr.position.y + 178, 110, 28), "정하기  (Enter)", "nm_ok", UI["gold"], true, true)
+	if meta.lord_name != "":
+		button(Rect2(pr.position.x + 10, pr.position.y + 10, 60, 22), "‹ 뒤로", "nm_back", UI["gold"])
+
+
+## 군주 도장: 붉은 네모 낙관에 이름 첫 글자 (단계가 오를수록 테두리가 금빛)
+func _draw_lord_seal(pos: Vector2, sz: float, name_override := "") -> void:
+	var nm: String = name_override if name_override != "" else meta.lord_name
+	var lv: int = meta.lord_level()
+	var r := Rect2(pos, Vector2(sz, sz))
+	rrect(Rect2(r.position + Vector2(0, 2), r.size), Color(0, 0, 0, 0.45))
+	rrect(r, Color("9e2b25"))
+	draw_rect(r.grow(-2.0), Color("f4e6c8"), false, 1.0)
+	if lv >= 2:
+		draw_rect(r.grow(1.0), UI["gold"] if lv >= 3 else Color("c0c8d0"), false, 1.0 + (1.0 if lv >= 4 else 0.0))
+	var ch: String = nm.substr(0, 1) if nm != "" else "?"
+	var f: Font = font_head
+	var fs: int = int(sz * 0.62)
+	var w: float = f.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	draw_string(f, Vector2(r.get_center().x - w / 2.0, r.get_center().y + fs * 0.36).round(), ch, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("f4e6c8"))
+
+
+## 처음 화면 왼쪽 위 군주 프로필: 도장 · 이름 · 칭호 · 다음 칭호까지
+func _draw_lord_badge(r: Rect2, clickable: bool) -> void:
+	panel(r)
+	_draw_lord_seal(r.position + Vector2(6, 6), r.size.y - 12)
+	var x: float = r.position.x + r.size.y
+	if meta.lord_name == "":
+		text(Vector2(x, r.position.y + 20), "이름 없는 군주", UI["gold"])
+		text(Vector2(x, r.position.y + 37), "게임 시작에서 이름 짓기", UI["muted"])
+	else:
+		text(Vector2(x, r.position.y + 20), fit(meta.lord_name, r.end.x - x - 6), UI["gold"])
+		text(Vector2(x, r.position.y + 35), meta.lord_title(), C["text"])
+		var pg: Vector2i = meta.lord_progress()
+		var bw: float = r.end.x - x - 8
+		draw_rect(Rect2(x, r.position.y + 39, bw, 2), Color("3a2e22"))
+		draw_rect(Rect2(x, r.position.y + 39, bw * float(pg.x) / maxf(1.0, pg.y), 2), UI["gold"])
+	if clickable:
+		buttons.append({"rect": r, "id": "lord_badge"})
 
 
 func _draw_start_ask() -> void:
@@ -244,6 +356,9 @@ func _settings_input() -> void:
 				_save_opts()
 				if row[0] == "sound":
 					sfx("confirm")
+	if clicked("opt_rename") and not pause_settings:
+		_open_naming("settings")
+		return
 	if clicked("opt_tut_reset"):
 		tut_seen.clear()
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(TUT_FILE))
@@ -270,7 +385,9 @@ func _draw_settings_panel() -> void:
 		var w: float = (260.0 - (n - 1) * 6.0) / n
 		for i in n:
 			button(Rect2(pr.position.x + 104 + i * (w + 6.0), y, w, 24), row[2][i], "opt_%s_%d" % [row[0], i], UI["gold"] if i == cur else C["dim"], true, i == cur)
-	button(Rect2(pr.position.x + 104, pr.position.y + 310, 260, 22), "처음 안내 다시 보기", "opt_tut_reset", C["dim"])
+	button(Rect2(pr.position.x + 104, pr.position.y + 310, 126, 22), "처음 안내 다시 보기", "opt_tut_reset", C["dim"])
+	if not pause_settings:
+		button(Rect2(pr.position.x + 238, pr.position.y + 310, 126, 22), "군주 이름 바꾸기", "opt_rename", C["dim"])
 
 
 ## 처음 화면 배경만 (제목·버튼 없이) — 환경설정·랭킹 뒤에
@@ -331,7 +448,12 @@ const PAUSE_STATES := ["prep", "deploy", "battle", "battle_end", "night_end", "f
 ## 화면마다 배경 음악: 낮(로비·가마·상점) = lobby, 밤 = battle, 최종 보스 밤 = boss. 밤 결과 창은 짧은 가락만
 func _pick_music() -> void:
 	if state in ["deploy", "battle"]:
-		music("boss" if battle != null and battle.boss_stage else "battle")
+		# 챕터마다 다른 노래 (2026-12-01 "챕터마다 노래가 달라야 해")
+		var ch: int = run.chapter if run != null else 1
+		var nm: String = ("boss_%d" if battle != null and battle.boss_stage else "battle_%d") % ch
+		if not ResourceLoader.exists("res://assets/audio/music/%s.ogg" % nm):
+			nm = "boss" if battle != null and battle.boss_stage else "battle"
+		music(nm)
 	elif state in ["battle_end", "night_end"]:
 		pass
 	else:
@@ -367,6 +489,10 @@ func _physics_process(_d: float) -> void:
 					_save_run()
 				elif clicked("ask_close") or pressed(KEY_ESCAPE):
 					start_ask = false
+			elif (clicked("start") or pressed(KEY_ENTER) or pressed(KEY_KP_ENTER)) and meta.lord_name == "":
+				_open_naming("title")
+			elif clicked("lord_badge"):
+				_open_naming("title")
 			elif clicked("start") or pressed(KEY_ENTER) or pressed(KEY_KP_ENTER):
 				if KilnRun.has_save():
 					start_ask = true
@@ -379,6 +505,8 @@ func _physics_process(_d: float) -> void:
 				state = "settings"
 		"settings":
 			_settings_input()
+		"naming":
+			_naming_input()
 		"meta":
 			_meta_input()
 		"barracks":
@@ -482,7 +610,7 @@ func _physics_process(_d: float) -> void:
 						break
 					var gg: String = PD.ROLE_GRADE.get(rr["role"], "common")
 					if not rr.get("refire", false) and GFX_TAPS.has(gg) and not gfx_done.has(reveal_shown):
-						gfx = {"i": reveal_shown, "grade": gg, "need": GFX_TAPS[gg], "taps": 0, "phase": "tap", "t": 0}
+						gfx = {"i": reveal_shown, "grade": gg, "need": GFX_TAPS[gg], "taps": 0, "phase": "tap", "t": 0, "rays": _crack_rays(reveal_shown * 37 + t)}
 						banner = {}
 						floats.clear()
 						break
@@ -526,6 +654,7 @@ func _physics_process(_d: float) -> void:
 					last_rank = meta.add_record(fought.x, run.last_chapter_time, "%d명" % run.army.size())
 				if run.state in ["lost", "won"]:
 					KilnRun.clear_save()
+					meta.lord_exp += run.nights_cleared   # 군주 단계: 넘긴 밤만큼
 					new_best = meta.note_run(fought.x, fought.y, run.total_kills, run.state == "won")
 				meta.save()
 		"battle_end":
@@ -898,16 +1027,24 @@ func _gfx_tick() -> void:
 			if tap and gfx["t"] > 8:
 				gfx["taps"] += 1
 				gfx["t"] = 0
-				sfx("crack", 0.5 + gfx["taps"] * 0.15, 0.1)
+				sfx("clay_crack_%d" % mini(3, gfx["taps"]), 1.0, 0.04)
 				shake = maxf(shake, 3.0 + gfx["taps"] * 2.5)
-				burst(c + Vector2(randf_range(-18, 18), randf_range(-30, 10)), CLAY_TONES[2], 8 + gfx["taps"] * 5, 3.0, 2.5)
+				# 금이 간 자리에서 흙 부스러기가 떨어진다
+				var rays: Array = gfx["rays"]
+				for ri in _rays_shown(gfx["taps"]):
+					var ray: Array = rays[ri]
+					for j in range(1, ray.size()):
+						fx.append({"pos": ray[j], "vel": Vector2(randf_range(-1.0, 1.0), randf_range(-1.5, 0.5)), "t": 30, "life": 30, "color": CLAY_TONES[randi() % 3], "size": randf_range(2.0, 4.0)})
 				if gfx["taps"] >= gfx["need"]:
 					gfx["phase"] = "burst"
 					gfx["t"] = 0
+					gfx["shards"] = _make_shards(gfx["rays"])
+					sfx("reveal_boom")
 					do_flash(NEUTRAL, 22)
-					shake = maxf(shake, 12.0)
-					burst(c, CLAY_TONES[2], 46, 5.5, 3.0)
-					burst(c, CLAY_TONES[1], 30, 4.0, 3.5)
+					shake = maxf(shake, 14.0)
+					hitstop = 0
+					burst(c, CLAY_TONES[2], 40, 5.5, 3.0)
+					burst(c, CLAY_TONES[1], 24, 4.0, 3.5)
 		"burst":
 			if gfx["t"] == 14:
 				sfx("reveal_" + {"hero": "hero", "legendary": "legend", "mythic": "mythic"}.get(gfx["grade"], "rare"))
@@ -926,6 +1063,8 @@ func _gfx_tick() -> void:
 
 
 const GFX_C := Vector2(320, 176)
+const CLAY_C := Vector2(320, 186)    # 큰 흙덩이(×5) 가운데
+const CLAY_R := Vector2(40, 52)      # 흙덩이 둘레 (타원 반지름)
 
 
 ## 희귀 이상 등장: 흙 인형의 겉흙에 금이 가고(등급 색 없이 흰빛), 다 깨지면 그제야 등급 빛과 함께 병사가 드러난다
@@ -942,12 +1081,23 @@ func _draw_gfx() -> void:
 			glow(self, c + Vector2(0, 20), 80.0 + 50.0 * k, Color(NEUTRAL.r, NEUTRAL.g, NEUTRAL.b, 0.08 + 0.18 * k))
 			glow(self, c + Vector2(0, 66), 50.0, Color(0, 0, 0, 0.5), 0.25)
 			draw_clay(c + Vector2(0, 2) + jit, r["role"], 5.0)
-			# 금: 두드릴 때마다 새 금이 가고, 금 사이로 흰빛이 샌다
-			for i in gfx["taps"]:
-				var pts := _crack_pts(gfx["i"] * 37 + i * 11, c + jit)
-				for j in pts.size() - 1:
-					draw_line(pts[j], pts[j + 1], Color(NEUTRAL.r, NEUTRAL.g, NEUTRAL.b, 0.95), 2.0)
-				glow(self, pts[pts.size() / 2], 18.0 + 6.0 * i, Color(NEUTRAL.r, NEUTRAL.g, NEUTRAL.b, 0.35))
+			# 금 (2026-12-01 "진짜 흙이 갈라지듯"): 가운데서 갈라져 나가는 틈. 틈은 안쪽이 어둡고, 한쪽 턱은 밝게 깨진 단면,
+			# 두드릴수록 틈이 벌어지고 그 사이로 빛이 샌다
+			var shown: Array = _rays_shown(gfx["taps"])
+			var open_k: float = float(gfx["taps"]) / gfx["need"]
+			for ri in shown:
+				var ray: Array = gfx["rays"][ri]
+				for j in ray.size() - 1:
+					var a0: Vector2 = ray[j] + jit
+					var a1: Vector2 = ray[j + 1] + jit
+					var wd: float = lerpf(6.0, 1.5, float(j) / (ray.size() - 1)) * (0.7 + 0.6 * open_k)
+					var nrm: Vector2 = (a1 - a0).normalized().orthogonal()
+					draw_line(a0 + nrm * wd * 0.6, a1 + nrm * wd * 0.6, CLAY_TONES[3].lightened(0.15), maxf(1.0, wd * 0.5))   # 깨진 턱 (밝은 단면)
+					draw_line(a0, a1, Color("1a0f08"), wd)                                                                  # 틈 (어둠)
+					draw_line(a0, a1, Color(NEUTRAL.r, NEUTRAL.g, NEUTRAL.b, 0.25 + 0.6 * open_k), maxf(1.0, wd * 0.35))   # 새는 빛
+				glow(self, ray[1] + jit, 14.0 + 16.0 * open_k, Color(NEUTRAL.r, NEUTRAL.g, NEUTRAL.b, 0.18 + 0.25 * open_k))
+			if not shown.is_empty():
+				glow(self, gfx["rays"][0][0] + jit, 20.0 + 30.0 * open_k, Color(NEUTRAL.r, NEUTRAL.g, NEUTRAL.b, 0.3 + 0.3 * open_k))
 			var msg := "두드려서 겉흙을 깨세요"
 			text(Vector2(0, 318), msg, NEUTRAL, 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
 			for i in gfx["need"]:
@@ -959,7 +1109,10 @@ func _draw_gfx() -> void:
 				draw_rect(Rect2(Vector2.ZERO, VIEW), Color(1.0, 0.95, 0.86, 0.9 * (1.0 - gt / 8.0)))
 			_draw_rays(c, gc, 0.16 * k2)
 			glow(self, c, 60.0 + 110.0 * k2, Color(gc.r, gc.g, gc.b, 0.45 * k2))
-			draw_ally_shape(c + Vector2(0, 4), r["role"], r["element"], r["tier"], 4.0, gt < 18)
+			# 두둥: 병사가 살짝 커졌다 자리 잡는다
+			var pop: float = 1.0 + 0.25 * maxf(0.0, 1.0 - gt / 10.0)
+			draw_ally_shape(c + Vector2(0, 4), r["role"], r["element"], r["tier"], 4.0 * pop, gt < 18)
+			_draw_shards(gfx.get("shards", []), gt)
 		"show":
 			var k3: float = clampf(gt / 16.0, 0.0, 1.0)
 			_draw_rays(c, gc, 0.11)
@@ -988,6 +1141,82 @@ func _draw_rays(c: Vector2, col: Color, a: float) -> void:
 		var ang: float = i * TAU / 14.0 + t * 0.006
 		var w: float = 0.05 + 0.03 * sin(i * 2.3)
 		draw_colored_polygon(PackedVector2Array([c, c + Vector2.from_angle(ang - w) * 460.0, c + Vector2.from_angle(ang + w) * 460.0]), Color(col.r, col.g, col.b, a))
+
+
+## 흙 껍질이 갈라지는 길: 가운데 한 점에서 8갈래로 꺾이며 뻗는다. 이 갈래들이 그대로 조각의 경계가 된다
+func _crack_rays(seed_n: int) -> Array:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_n
+	var cc := GFX_C + Vector2(rng.randf_range(-6, 6), rng.randf_range(-14, 6))
+	var rays: Array = []
+	var n := 8
+	for i in n:
+		var ang: float = i * TAU / n + rng.randf_range(-0.25, 0.25)
+		var p := cc
+		var pts := [cc]
+		for j in 6:
+			ang += rng.randf_range(-0.35, 0.35)
+			p += Vector2.from_angle(ang) * rng.randf_range(9, 13)
+			# 흙덩이 둘레(타원) 밖으로는 나가지 않는다 — 마지막 점은 둘레에 붙인다
+			var q: Vector2 = (p - CLAY_C) / CLAY_R
+			if q.length() > 0.97:
+				p = CLAY_C + q.normalized() * 0.97 * CLAY_R
+				pts.append(p)
+				break
+			pts.append(p)
+		while pts.size() < 3:
+			pts.append(pts[pts.size() - 1] + Vector2.from_angle(ang) * 2.0)
+		rays.append(pts)
+	return rays
+
+
+## 두드린 횟수만큼 보이는 갈래 (1번: 3갈래 · 2번: 6갈래 · 3번: 전부)
+func _rays_shown(taps: int) -> Array:
+	var order := [0, 3, 6, 1, 4, 7, 2, 5]
+	return order.slice(0, mini(8, [0, 3, 6, 8][clampi(taps, 0, 3)]))
+
+
+## 조각: 이웃한 두 갈래 사이 = 흙 그림 한 조각 (그림 그대로 잘라 날린다)
+func _make_shards(rays: Array) -> Array:
+	var out: Array = []
+	for i in rays.size():
+		var a: Array = rays[i]
+		var b: Array = rays[(i + 1) % rays.size()]
+		var poly: Array = [a[0]]
+		for j in range(1, a.size()):
+			poly.append(a[j])
+		var ae: Vector2 = a[a.size() - 1]
+		var be: Vector2 = b[b.size() - 1]
+		poly.append(ae + (ae - a[0]).normalized() * 40.0)
+		poly.append((ae + be) / 2.0 + ((ae + be) / 2.0 - a[0]).normalized() * 50.0)
+		poly.append(be + (be - b[0]).normalized() * 40.0)
+		for j in range(b.size() - 1, 0, -1):
+			poly.append(b[j])
+		var mid: Vector2 = (a[2] + b[2]) / 2.0
+		var dir: Vector2 = (mid - a[0]).normalized()
+		out.append({"poly": poly, "pivot": mid, "vel": dir * randf_range(4.0, 7.0) + Vector2(0, -2.5), "spin": randf_range(-0.12, 0.12)})
+	return out
+
+
+func _draw_shards(shards: Array, gt: int) -> void:
+	var tx := clay_tex("")
+	if tx == null or shards.is_empty() or gt > 40:
+		return
+	var sz: Vector2 = tx.get_size() * 5.0
+	var rect := Rect2(GFX_C + Vector2(0, 2) + Vector2(-sz.x / 2.0, 12.8 * 5.0 - sz.y), sz)
+	var a: float = clampf(1.0 - (gt - 24) / 16.0, 0.0, 1.0)
+	for sh in shards:
+		var off: Vector2 = sh["vel"] * gt + Vector2(0, 0.35 * gt * gt)
+		var rot: float = sh["spin"] * gt
+		var pts := PackedVector2Array()
+		var uvs := PackedVector2Array()
+		for q in sh["poly"]:
+			uvs.append((q - rect.position) / rect.size)
+			pts.append(sh["pivot"] + (q - sh["pivot"]).rotated(rot) + off)
+		var cols := PackedColorArray()
+		for q2 in pts:
+			cols.append(Color(1, 1, 1, a))
+		draw_polygon(pts, cols, uvs, tx)
 
 
 ## 금 한 줄: 몸통 가운데 근처에서 시작해 꺾이며 뻗는다 (같은 번호면 같은 모양)
@@ -1111,6 +1340,8 @@ func _draw() -> void:
 			_draw_records()
 		"settings":
 			_draw_settings()
+		"naming":
+			_draw_naming()
 		"prep":
 			_draw_prep()
 		"barracks":
@@ -1282,6 +1513,7 @@ func _draw_title_front(marchers := true) -> void:
 	var sub := "도자기 병사로 마을을 지키는 로그라이트 디펜스"
 	text(Vector2(320 - font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x / 2.0, 124), sub, Color("e8dcc0"))
 	# 버튼
+	_draw_lord_badge(Rect2(8, 8, 170, 44), true)
 	button(Rect2(240, 142, 160, 30), "게임 시작  (Enter)", "start", UI["gold"], true, true)
 	button(Rect2(240, 177, 160, 24), "랭킹", "to_records", UI["gold"])
 	button(Rect2(240, 205, 160, 24), "환경설정", "to_settings", UI["gold"])
@@ -1381,6 +1613,7 @@ func _draw_records() -> void:
 	draw_rect(Rect2(Vector2.ZERO, VIEW), Color(0, 0, 0, 0.6))
 	button(Rect2(10, 10, 70, 22), "‹ 뒤로", "back", UI["gold"])
 	text(Vector2(0, 34), "랭킹", UI["gold"], 24, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+	_draw_lord_badge(Rect2(470, 6, 164, 40), false)
 	# 가장 멀리 간 판
 	var br := Rect2(150, 46, 340, 34)
 	panel(br)
@@ -1424,8 +1657,10 @@ func _draw_topbar(title := "", back := false) -> void:
 		button(Rect2(14, 14, 62, 24), "‹ 로비", "lobby", UI["gold"])
 		text(Vector2(86, 36), title, UI["gold"], 24)
 	else:
-		text(Vector2(16, 19), fit("챕터 %d · %s" % [run.chapter, ci["name"]], 140.0), UI["muted"])
-		text(Vector2(16, 42), "아침 %d / %d" % [run.night, PD.KILN_NIGHTS], UI["gold"], 24)
+		# 왼쪽 위: 군주 도장 + 이름, 그 아래 챕터·아침
+		_draw_lord_seal(Vector2(12, 9), 30.0)
+		text(Vector2(48, 20), fit(meta.lord_name if meta.lord_name != "" else "이름 없는 군주", 104.0), UI["gold"])
+		text(Vector2(48, 40), fit("챕터 %d · 아침 %d/%d" % [run.chapter, run.night, PD.KILN_NIGHTS], 106.0), C["text"])
 		text(Vector2(160, 19), "마을", UI["muted"])
 		draw_rect(Rect2(190, 11, 110, 8), Color("3a2430"))
 		draw_rect(Rect2(190, 11, 110 * clampf(run.village_hp / PD.VILLAGE_HP, 0.0, 1.0), 8), C["good"])

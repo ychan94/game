@@ -2,6 +2,7 @@ extends SceneTree
 ## 1분 시험판 장면별 스크린샷 (화면 확인용).
 ##   godot --path . --rendering-driver opengl3 --script res://tests/screens_proto.gd -- <저장 폴더>
 
+const PD = preload("res://src/proto/data.gd")
 var out_dir := ""
 
 
@@ -9,7 +10,7 @@ func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
 	out_dir = args[0] if args.size() > 0 else OS.get_user_data_dir()
 	DirAccess.make_dir_recursive_absolute(out_dir)
-	create_timer(240.0).timeout.connect(func(): print("시간 초과"); quit(1))
+	create_timer(420.0).timeout.connect(func(): print("시간 초과"); quit(1))
 	_all.call_deferred()
 
 
@@ -43,6 +44,15 @@ func _all() -> void:
 	if k.get_script() == null:
 		print("kiln 불러오기 실패"); quit(1); return
 	k.save_enabled = false   # 찍는 동안 판 저장 안 함
+	k.meta.lord_name = ""
+	k._open_naming("title")
+	k.name_edit.text = "가마군주"
+	await _frames(2)
+	await _snap("p00g_naming")
+	k.name_edit.visible = false
+	k.state = "title"
+	k.meta.lord_name = "가마군주"
+	k.meta.lord_exp = 8
 	await _snap("p00b_kiln_title")
 	k.start_ask = true
 	await _snap("p00f_title_continue")
@@ -105,7 +115,14 @@ func _all() -> void:
 		k.gfx["need"] = 3
 		await _frames(2)
 		await _snap("p03a_kiln_gacha_tap")
+		k.gfx["taps"] = 2
+		await _frames(2)
+		await _snap("p03a1_kiln_gacha_tap2")
 		k.gfx["phase"] = "burst"
+		k.gfx["shards"] = k._make_shards(k.gfx["rays"])
+		k.gfx["t"] = 6
+		await _frames(1)
+		await _snap("p03a15_kiln_gacha_shatter")
 		k.gfx["t"] = 24
 		await _frames(1)
 		await _snap("p03a2_kiln_gacha_burst")
@@ -322,6 +339,20 @@ func _all() -> void:
 		guard += 1
 	k.cutin = {}
 	await _snap("p07g_boss_skill_warn")
+	# 합동 궁극기 (조합마다 다른 연출)
+	for cid in ["volley", "quake", "rite", "guardians"]:
+		k.battle.waves.clear()
+		k.ult_parts.clear()
+		k.ult_marks.clear()
+		k.cutin = {}
+		k.start_ult(cid, PD.COMBOS[cid]["element"])
+		k.battle.waves.append({"element": PD.COMBOS[cid]["element"], "x": 120.0, "power": 1.0, "bonus": "", "combo": true, "id": cid})
+		for f in 22:
+			await physics_frame
+			_auto_pending(k, run)
+		k.cutin = {}
+		await _snap("p06g_ult_" + cid)
+	k.battle.waves.clear()
 	# 원군 고르기 (챕터 3, 대기실 병사)
 	run.clay = 10
 	run.chapter = 3

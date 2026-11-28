@@ -54,6 +54,8 @@ const RECORDS_KEEP := 5          # 챕터마다 남기는 기록 수
 
 var embers := 0                  # 불씨
 var levels := {}                 # 칸 → 단계
+var lord_name := ""              # 군주 이름 (2026-12-01 "닉네임 ... 군주 같은 개념으로 왼쪽 위에 프로필")
+var lord_exp := 0                # 넘긴 밤 수의 합 (판이 끝날 때 더한다) → 군주 단계
 var best := {}                   # 가장 멀리 간 판 {chapter, night, kills, date}
 var records := {}                # "1".."5" → [{time, date, army}] (빠른 순)
 var path := SAVE
@@ -108,7 +110,7 @@ static func embers_for(_chapters_cleared: int, _nights_cleared: int, _kills: int
 func add_record(chapter: int, seconds: float, army_note := "") -> int:
 	var key := str(chapter)
 	var list: Array = records.get(key, [])
-	var rec := {"time": snappedf(seconds, 0.1), "date": Time.get_date_string_from_system(), "army": army_note}
+	var rec := {"time": snappedf(seconds, 0.1), "date": Time.get_date_string_from_system(), "army": army_note, "name": lord_name}
 	list.append(rec)
 	list.sort_custom(func(a, b): return a["time"] < b["time"])
 	var rank: int = list.find(rec) + 1
@@ -121,7 +123,7 @@ func note_run(chapter: int, night: int, kills: int, cleared_all := false) -> boo
 	var reach: int = chapter * 10 + night + (100 if cleared_all else 0)
 	var old: int = best.get("reach", -1)
 	if reach > old or (reach == old and kills > best.get("kills", 0)):
-		best = {"reach": reach, "chapter": chapter, "night": night, "kills": kills, "all": cleared_all, "date": Time.get_date_string_from_system()}
+		best = {"reach": reach, "chapter": chapter, "night": night, "kills": kills, "all": cleared_all, "date": Time.get_date_string_from_system(), "name": lord_name}
 		return true
 	return false
 
@@ -129,6 +131,8 @@ func note_run(chapter: int, night: int, kills: int, cleared_all := false) -> boo
 func save() -> void:
 	var cf := ConfigFile.new()
 	cf.set_value("meta", "best", best)
+	cf.set_value("meta", "lord_name", lord_name)
+	cf.set_value("meta", "lord_exp", lord_exp)
 	cf.set_value("meta", "embers", embers)
 	cf.set_value("meta", "levels", levels)
 	cf.set_value("meta", "records", records)
@@ -143,3 +147,41 @@ func load_saved() -> void:
 	levels = cf.get_value("meta", "levels", {"core": 1})
 	records = cf.get_value("meta", "records", {})
 	best = cf.get_value("meta", "best", {})
+	lord_name = cf.get_value("meta", "lord_name", "")
+	lord_exp = cf.get_value("meta", "lord_exp", 0)
+
+
+# ---------------- 군주 (닉네임·단계) ----------------
+const LORD_TITLES := [[0, "마을 촌장"], [6, "고을 수령"], [18, "성주"], [36, "영주"], [60, "대군주"]]
+const NAME_MIN := 2
+const NAME_MAX := 8
+
+
+## 이름 다듬기: 앞뒤 빈칸 빼고 길이 확인. 못 쓰면 ""
+static func clean_name(s: String) -> String:
+	var n := s.strip_edges().replace("\n", "")
+	if n.length() < NAME_MIN or n.length() > NAME_MAX:
+		return ""
+	return n
+
+
+func lord_level() -> int:
+	var lv := 0
+	for i in LORD_TITLES.size():
+		if lord_exp >= LORD_TITLES[i][0]:
+			lv = i
+	return lv
+
+
+func lord_title() -> String:
+	return LORD_TITLES[lord_level()][1]
+
+
+## 다음 단계까지 [지금, 필요] (마지막 단계면 [1, 1])
+func lord_progress() -> Vector2i:
+	var lv := lord_level()
+	if lv >= LORD_TITLES.size() - 1:
+		return Vector2i(1, 1)
+	var a: int = LORD_TITLES[lv][0]
+	var b: int = LORD_TITLES[lv + 1][0]
+	return Vector2i(lord_exp - a, b - a)

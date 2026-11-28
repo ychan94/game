@@ -134,8 +134,8 @@ static func default_line() -> Dictionary:
 		"healer": "rear", "cannon": "rear", "dragon": "rear", "jujak": "rear"}
 
 
-## 병사를 둘 수 있는 곳 (마을 담장 앞 ~ 전장 가운데)
-const DEPLOY := Rect2(VILLAGE_X + 12.0, 16.0, 250.0, 228.0)
+## 병사를 둘 수 있는 곳: 마을 담장 앞부터 전장 끝까지 어디든 (사용자: "모든 맵에 자유롭게")
+const DEPLOY := Rect2(VILLAGE_X + 12.0, 12.0, FIELD.size.x - VILLAGE_X - 32.0, FIELD.size.y - 24.0)
 
 
 ## 아군 대열: 방패 앞, 창 가운데, 궁수 뒤 (직접 배치한 병사는 그대로)

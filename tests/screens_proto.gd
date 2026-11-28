@@ -37,10 +37,6 @@ func _open(path: String) -> Node:
 
 
 func _all() -> void:
-	var l = await _open("res://src/game/launcher.tscn")
-	if l.get_script() == null:
-		print("launcher 불러오기 실패"); quit(1); return
-	await _snap("p00_launcher")
 
 	# ---- B 가마의 병사 (밤 5번) ----
 	var k = await _open("res://src/game/kiln_scene.tscn")
@@ -232,31 +228,4 @@ func _all() -> void:
 	await _frames(5)
 	await _snap("p07f_kiln_loot")
 
-	# ---- A 알을 품는 성 ----
-	var n = await _open("res://src/game/nest_scene.tscn")
-	n.nest.feed("fire")
-	for i in 4:
-		n.nest.eggs[0]["warmth"] += 1
-	await _snap("p08_nest_egg")
-	n.nest.eggs[0]["warmth"] = 6
-	var c: Dictionary = n.nest.hatch()
-	n.last = {"kind": "hatch", "creature": c}
-	n.show_banner("전설!", c["name"], n.C["accent"], 80)
-	n._start_hatch()
-	await _frames(40)
-	await _snap("p09_nest_hatch")
-	n.nest.hatch()
-	n.nest.eggs[2]["warmth"] = 9
-	while n.nest.warm() != "burst":
-		pass
-	n.last = {"kind": "burst", "creature": n.nest.hostiles[-1]}
-	n._start_hatch()
-	await _frames(40)
-	await _snap("p10_nest_burst")
-	n.state = "night"
-	await _snap("p11_nest_night")
-	n.battle = n.nest.make_battle(3)
-	n.state = "battle"
-	await _frames(500)
-	await _snap("p12_nest_battle")
 	quit(0)

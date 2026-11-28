@@ -359,7 +359,16 @@ func _house_state(i: int) -> int:
 ## 화면 배경색: 전장이 보일 때는 바닥층이 그리므로 기본층은 칠하지 않는다
 func draw_screen_bg() -> void:
 	if battle == null:
-		draw_rect(Rect2(Vector2.ZERO, VIEW), C["bg"])
+		# 옻칠 방: 위아래 명암 + 아주 옅은 문살 격자 + 가장자리 어둡게
+		for i in 8:
+			draw_rect(Rect2(0, i * 50, 640, 50), Color("120e16").lerp(Color("1a1420"), sin(i / 7.0 * PI) * 0.8))
+		var lat := Color(0.85, 0.7, 0.45, 0.025)
+		for x in range(0, 641, 40):
+			draw_rect(Rect2(x, 0, 1, 400), lat)
+		for y in range(0, 401, 40):
+			draw_rect(Rect2(0, y, 640, 1), lat)
+		if vignette_tex != null:
+			draw_texture_rect(vignette_tex, Rect2(-40, -30, 720, 460), false, Color(1, 1, 1, 0.9))
 
 
 ## 바닥층: 화면 배경색 + 전장 한 장 + 마을 돌담
@@ -669,7 +678,7 @@ func step_battle() -> void:
 				for y in range(16, 260, 40):
 					play_fx(wall, Vector2(w["x"], y), 1.0, el != "earth")
 			continue
-		for i in (14 if el == "fire" else 10):
+		for i in (5 if el == "fire" else 4):
 			var y := randf_range(0.0, 260.0)
 			match el:
 				"fire":
@@ -1340,48 +1349,64 @@ const ATK_DUR := {"spear": 14, "axe": 18, "twin": 16, "general": 18, "cavalry": 
 func _draw_cutin(ci: CanvasItem) -> void:
 	if cutin.is_empty():
 		return
-	var k: float = float(cutin["t"]) / cutin["life"]
 	var col: Color = C.get(cutin["element"], C["accent"])
 	var inn: float = clampf(cutin["t"] / 10.0, 0.0, 1.0)
 	var out: float = clampf((cutin["life"] - cutin["t"]) / 10.0, 0.0, 1.0)
 	var a: float = minf(inn, out)
-	ci.draw_rect(Rect2(Vector2.ZERO, VIEW), Color(0, 0, 0, 0.62 * a))
-	# 사선 띠
-	var slide: float = (1.0 - pow(1.0 - inn, 3.0)) * 760.0 - 760.0
-	var band := PackedVector2Array([Vector2(slide - 40, 250), Vector2(slide + 700, 110), Vector2(slide + 700, 230), Vector2(slide - 40, 370)])
-	ci.draw_colored_polygon(band, Color(col.r * 0.35, col.g * 0.35, col.b * 0.35, 0.95 * a))
-	ci.draw_polyline(PackedVector2Array([band[0], band[1]]), Color(col.lightened(0.5).r, col.lightened(0.5).g, col.lightened(0.5).b, a), 3.0)
-	ci.draw_polyline(PackedVector2Array([band[3], band[2]]), Color(col.lightened(0.5).r, col.lightened(0.5).g, col.lightened(0.5).b, a), 3.0)
-	# 집중선
-	for i in 18:
-		var yy: float = 120.0 + fmod(i * 37.0 + cutin["t"] * 11.0, 240.0)
-		var xx: float = fmod(i * 97.0 - cutin["t"] * 34.0, 760.0) + 640.0 - 760.0
-		ci.draw_line(Vector2(xx, yy - (xx - 320.0) * 0.19), Vector2(xx + 90, yy - (xx + 90 - 320.0) * 0.19), Color(1, 1, 1, 0.35 * a), 2.0)
-	# 병사들: 오른쪽에서 줄지어 달려와 띠 위에 선다
-	var who: Array = cutin["who"]
-	for i in who.size():
-		var tx := tex(who[i])
-		if tx == null:
-			continue
-		var arrive: float = clampf((cutin["t"] - 6 - i * 5) / 14.0, 0.0, 1.0)
-		var e2: float = 1.0 - pow(1.0 - arrive, 3.0)
-		var x: float = lerpf(720.0, 120.0 + i * 92.0, e2)
-		var y: float = 250.0 - (x - 40.0) * 0.19 + sin(cutin["t"] * 0.5 + i) * 2.0
-		var sz: Vector2 = tx.get_size() * 3.0
-		ci.draw_texture_rect(tx, Rect2(Vector2(x - sz.x / 2.0, y - sz.y + 20.0), sz), false, Color(1.25, 1.25, 1.25, a))
+	ci.draw_rect(Rect2(Vector2.ZERO, VIEW), Color(0, 0, 0, 0.7 * a))
+	# 집중선 (화면 가운데로)
+	for i in 28:
+		var ang: float = i * TAU / 28.0 + cutin["t"] * 0.01
+		var r0: float = 150.0 + fmod(i * 37.0 + cutin["t"] * 9.0, 120.0)
+		ci.draw_line(Vector2(320, 196) + Vector2.from_angle(ang) * r0, Vector2(320, 196) + Vector2.from_angle(ang) * (r0 + 160.0), Color(1, 1, 1, 0.12 * a), 2.0)
+	var art := tex("fx/cutin_" + cutin["element"])
+	if art != null:
+		# Codex 일러스트: 기울어진 넓은 칸에 천천히 다가가며 (켄 번스)
+		var slide: float = (1.0 - pow(1.0 - inn, 3.0))
+		var zoom: float = 1.0 + 0.06 * cutin["t"] / cutin["life"]
+		ci.draw_set_transform(Vector2(320 + (1.0 - slide) * 700.0, 196), -0.08, Vector2(zoom, zoom))
+		var sz: Vector2 = Vector2(560, 220)
+		ci.draw_rect(Rect2(-sz / 2.0 - Vector2(4, 4), sz + Vector2(8, 8)), Color(1, 0.95, 0.8, a))
+		ci.draw_texture_rect(art, Rect2(-sz / 2.0, sz), false, Color(1, 1, 1, a))
+		ci.draw_set_transform(Vector2.ZERO)
+	else:
+		# 그림이 오기 전: 만화 컷처럼 기울어진 칸 셋에 병사 상반신 클로즈업
+		var who: Array = cutin["who"]
+		var n: int = mini(3, who.size())
+		for i in n:
+			var tx := tex(who[i])
+			if tx == null:
+				continue
+			var arrive: float = clampf((cutin["t"] - 4 - i * 6) / 12.0, 0.0, 1.0)
+			var e2: float = 1.0 - pow(1.0 - arrive, 3.0)
+			var cx: float = lerpf(820.0, 128.0 + i * 192.0, e2)
+			var cy: float = 196.0 + (i - 1) * 10.0
+			ci.draw_set_transform(Vector2(cx, cy), -0.12, Vector2.ONE)
+			var pr := Rect2(-88, -120, 176, 220)
+			ci.draw_rect(pr.grow(4), Color(1.0, 0.95, 0.8, a))
+			ci.draw_rect(pr, Color(col.r * 0.25, col.g * 0.25, col.b * 0.25, a))
+			for k in 6:
+				ci.draw_rect(Rect2(pr.position.x + k * 34 - fmod(cutin["t"] * 3.0, 34.0), pr.position.y, 14, pr.size.y), Color(col.r, col.g, col.b, 0.18 * a))
+			# 상반신만 크게 (그림 위쪽 22px 를 6배로)
+			var tsz: Vector2 = tx.get_size()
+			var crop := Rect2(0, maxf(0.0, tsz.y - 32.0), tsz.x, 22)
+			ci.draw_texture_rect_region(tx, Rect2(Vector2(-tsz.x * 3.0, -110), Vector2(tsz.x * 6.0, 22 * 6.0)), crop, Color(1.15, 1.15, 1.15, a))
+			ci.draw_rect(Rect2(pr.position.x, pr.end.y - 40, pr.size.x, 40), Color(0, 0, 0, 0.55 * a))
+			ci.draw_set_transform(Vector2.ZERO)
 	# 이름
-	if cutin["t"] > 22:
-		var pop: float = clampf((cutin["t"] - 22) / 6.0, 0.0, 1.0)
+	if cutin["t"] > 20:
+		var pop: float = clampf((cutin["t"] - 20) / 6.0, 0.0, 1.0)
 		var title: String = cutin["name"] + "!"
-		var sz2 := 36
-		var w: float = font_bold.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, sz2).x
-		var tp := Vector2(320.0 - w / 2.0 + (1.0 - pop) * 60.0, 112.0).round()
+		var w: float = font_bold.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36).x
+		var tp := Vector2(320.0 - w / 2.0 + (1.0 - pop) * 80.0, 352.0).round()
+		ci.draw_rect(Rect2(0, 322, 640, 46), Color(0, 0, 0, 0.7 * a * pop))
+		ci.draw_rect(Rect2(0, 322, 640, 2), Color(col.lightened(0.5).r, col.lightened(0.5).g, col.lightened(0.5).b, a * pop))
 		for oo in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 2), Vector2(2, 3)]:
-			ci.draw_string(font_bold, tp + oo, title, HORIZONTAL_ALIGNMENT_LEFT, -1, sz2, Color(0, 0, 0, a))
-		ci.draw_string(font_bold, tp, title, HORIZONTAL_ALIGNMENT_LEFT, -1, sz2, Color(col.lightened(0.6).r, col.lightened(0.6).g, col.lightened(0.6).b, a * pop))
-		var sub := "%s %d명 합동 기술" % [(PD.GLAZE_NAME if view_style == "kiln" else PD.ELEMENT_NAME)[cutin["element"]], cutin["count"]]
+			ci.draw_string(font_bold, tp + oo, title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36, Color(0, 0, 0, a))
+		ci.draw_string(font_bold, tp, title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36, Color(col.lightened(0.6).r, col.lightened(0.6).g, col.lightened(0.6).b, a * pop))
+		var sub := "%s %d명 합동 기술" % [PD.GLAZE_NAME[cutin["element"]], cutin["count"]]
 		var w2: float = font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-		ci.draw_string(font, Vector2(320.0 - w2 / 2.0, 132.0).round(), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1, 1, 1, a * pop))
+		ci.draw_string(font, Vector2(320.0 - w2 / 2.0, 366.0).round(), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1, 1, 1, a * pop))
 
 
 ## 스킬 연출: 이름이 떠오르고, 역할마다 다른 빛·입자
@@ -1817,23 +1842,80 @@ func _draw_ally_in_battle(u, base: Vector2) -> void:
 
 
 ## 합동 기술 파도의 형태 (빛·입자는 빛층): 물은 하얀 물마루, 땅은 갈라진 줄과 돌조각
+## 합동 기술 파도: 전장을 가로지르는 '입체 벽'. 바닥에 그림자, 벽은 높이가 있고 앞·뒤 면 명암,
+## 위에서 아래(먼 쪽 → 가까운 쪽) 순서로 그려 겹침이 자연스럽게
 func _draw_waves() -> void:
 	for w in battle.waves:
-		var x: float = w["x"]
-		match w["element"]:
-			"water":
-				for y in range(0, 260, 16):
-					draw_arc(Vector2(x - 3, y + 8), 8.0, -PI / 2.0, PI / 2.0, 8, Color(0.92, 0.98, 1.0, 0.75), 2.0)
-			"earth":
-				var pts := PackedVector2Array()
-				for y in range(0, 270, 10):
-					pts.append(Vector2(x - 8 + (5.0 if (y / 10) % 2 == 0 else -5.0), y))
-				draw_polyline(pts, Color(0.12, 0.08, 0.06), 3.0)
-				draw_polyline(pts, Color(0.9, 0.6, 0.3, 0.6), 1.0)
+		_draw_wave_wall(w)
 	for wp in wave_parts:
 		if wp["element"] == "earth" and wp["size"] > 10.0:
 			var a: float = 1.0 - float(wp["t"]) / wp["life"]
 			draw_rect(Rect2(wp["pos"] - Vector2(2, 2), Vector2(4, 4)), Color(0.35, 0.28, 0.22, a))
+
+
+func _draw_wave_wall(w: Dictionary) -> void:
+	var x: float = w["x"]
+	var el: String = w["element"]
+	var step := 8.0
+	var n := int(260.0 / step) + 1
+	var base_pts: Array = []
+	var top_pts: Array = []
+	for j in n:
+		var y: float = j * step
+		var bx: float = x + sin(y * 0.045 + t * 0.18) * 10.0
+		var h := 0.0
+		match el:
+			"water":
+				h = 46.0 + sin(y * 0.09 + t * 0.25) * 8.0
+			"fire":
+				h = 40.0 + sin(y * 0.31 + t * 0.55) * 12.0 + sin(y * 0.13 - t * 0.3) * 8.0
+			"earth":
+				h = 10.0 + maxf(0.0, sin(y * 0.22 + float(int(x / 30.0)))) * 34.0
+		base_pts.append(Vector2(bx, y))
+		top_pts.append(Vector2(bx + (10.0 if el == "water" else 3.0), y - h))
+	# 지나간 자리 흔적 + 바닥 그림자
+	var trail := PackedVector2Array([Vector2(x - 120, 0), Vector2(x, 0), Vector2(x, 260), Vector2(x - 120, 260)])
+	var tc: Color = {"water": Color(0.2, 0.45, 0.5, 0.18), "fire": Color(0.35, 0.12, 0.05, 0.22), "earth": Color(0.15, 0.1, 0.06, 0.3)}[el]
+	draw_colored_polygon(trail, tc)
+	for j in n - 1:
+		var a0: Vector2 = base_pts[j]
+		var a1: Vector2 = base_pts[j + 1]
+		draw_colored_polygon(PackedVector2Array([a0, a1, a1 + Vector2(22, 8), a0 + Vector2(22, 8)]), Color(0, 0, 0, 0.28))
+	# 벽 (먼 쪽부터)
+	for j in n - 1:
+		var b0: Vector2 = base_pts[j]
+		var b1: Vector2 = base_pts[j + 1]
+		var t0: Vector2 = top_pts[j]
+		var t1: Vector2 = top_pts[j + 1]
+		var shade: float = clampf(0.5 + (t1.x - t0.x) * 0.06, 0.2, 1.0)
+		match el:
+			"water":
+				var back := Color("1f5a5c").lerp(Color("2f7d78"), shade)
+				var face := Color("3f9a90").lerp(Color("8fd6c8"), shade)
+				draw_colored_polygon(PackedVector2Array([b0 - Vector2(16, 0), b1 - Vector2(16, 0), t1 - Vector2(10, -6), t0 - Vector2(10, -6)]), back)
+				draw_colored_polygon(PackedVector2Array([b0, b1, t1, t0]), face)
+				draw_line(t0, t1, Color(0.95, 1.0, 1.0, 0.95), 3.0)
+				if j % 2 == 0:
+					draw_arc(t0 + Vector2(6, 2), 5.0, -PI * 0.9, PI * 0.2, 8, Color(1, 1, 1, 0.9), 2.0)
+					draw_circle(t0 + Vector2(12 + sin(t * 0.4 + j) * 3.0, -4 - fmod(t * 0.7 + j * 5.0, 12.0)), 1.6, Color(1, 1, 1, 0.8))
+			"fire":
+				var mid0: Vector2 = b0.lerp(t0, 0.55)
+				var mid1: Vector2 = b1.lerp(t1, 0.55)
+				draw_colored_polygon(PackedVector2Array([b0, b1, mid1, mid0]), Color("b8341c").lerp(Color("e0532a"), shade))
+				draw_colored_polygon(PackedVector2Array([mid0, mid1, t1, t0]), Color("f08a2a").lerp(Color("ffc24a"), shade))
+				var tip: Vector2 = (t0 + t1) / 2.0 + Vector2(sin(t * 0.6 + j) * 3.0, -10.0 - absf(sin(t * 0.4 + j * 1.7)) * 10.0)
+				draw_colored_polygon(PackedVector2Array([t0, t1, tip]), Color(1.0, 0.9, 0.5, 0.9))
+			"earth":
+				var light := Color("8a7660").lerp(Color("b49a7a"), shade)
+				var dark := Color("4a3a2e")
+				var peak: Vector2 = (t0 + t1) / 2.0
+				draw_colored_polygon(PackedVector2Array([b0, peak, (b0 + b1) / 2.0]), light)
+				draw_colored_polygon(PackedVector2Array([(b0 + b1) / 2.0, peak, b1]), dark)
+				draw_line(b0, b1, Color(1.0, 0.55, 0.2, 0.8), 2.0)
+	if el == "earth":
+		for j in range(0, n, 3):
+			var dp: Vector2 = base_pts[j] + Vector2(8, -6 - fmod(t * 0.5 + j * 7.0, 18.0))
+			draw_circle(dp, 4.0, Color(0.45, 0.38, 0.3, 0.5))
 
 
 func _draw_corpses(base: Vector2) -> void:

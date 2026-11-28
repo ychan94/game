@@ -32,6 +32,7 @@ var gfx := {}            # 희귀 이상 등장 연출 {i, grade, need, taps, ph
 var gfx_done := {}       # 연출을 마친 결과 칸
 const GFX_TAPS := {"rare": 1, "hero": 2, "legendary": 3, "mythic": 3}
 var end_t := 0           # 밤 결과 창 연출 시간
+var shop_pick := -1      # 상점: 병사를 고르는 중인 진열 칸
 var end_wait := 0        # 마지막 적이 쓰러진 뒤 여운
 # 튜토리얼 (처음 한 번씩만): draw 뽑기 → fire 가마 → star 별 올리기 → full 자리 꽉 참
 const TUT_FILE := "user://kiln_tutorial.cfg"
@@ -251,15 +252,35 @@ func _prep_input() -> void:
 	if clicked("lobby") or (state != "prep" and pressed(KEY_ESCAPE)):
 		state = "prep"
 		return
+	if state == "shop" and shop_pick >= 0:
+		# 누구에게 줄지 고르는 창
+		if clicked("pick_cancel") or pressed(KEY_ESCAPE):
+			shop_pick = -1
+			return
+		for sd in run.army:
+			if clicked("card%d" % sd["id"]):
+				var key: String = run.shop[shop_pick]
+				if run.buy(shop_pick, sd["id"]):
+					float_text(Vector2(250, 120), "%s → %s" % [PD.SHOP_ITEMS[key]["name"], sd["name"]], C["accent"])
+					burst(Vector2(320, 200), UI["gold"], 18, 2.5, 2.0)
+					shake = 2.0
+				else:
+					float_text(Vector2(250, 120), "진주 부족" if run.pearls < run.price(key) else "더 못 올림", C["danger"])
+				shop_pick = -1
+				return
+		return
 	if state == "shop":
 		if clicked("reroll"):
 			run.reroll_shop()
 		for i in run.shop.size():
 			if clicked("shop%d" % i) and run.shop[i] != "":
 				var it: Dictionary = PD.SHOP_ITEMS[run.shop[i]]
-				if it["stat"] != "ticket" and selected < 0:
-					float_text(Vector2(440, 150), "병사를 먼저 고르세요", C["danger"])
-				elif run.buy(i, selected):
+				if it["stat"] != "ticket":
+					if run.pearls < run.price(run.shop[i]):
+						float_text(Vector2(360, 120), "진주 부족", C["danger"])
+					else:
+						shop_pick = i
+				elif run.buy(i, -1):
 					float_text(Vector2(440, 150), "%s!" % it["name"], C["accent"])
 					burst(Vector2(470, 180), UI["gold"], 16, 2.5, 2.0)
 					shake = 2.0
@@ -631,15 +652,114 @@ func _draw() -> void:
 	draw_fx()
 
 
+## 시작 화면: 살짝 움직이는 소개 배경 (밤 · 마을 · 가마 · 행군하는 병사 · 다가오는 도깨비) + 소개 문장
+const INTRO := [
+	"밤마다 도깨비 떼가 마을을 덮친다.",
+	"가마에서 빚어 구운 도자기 병사가 마을을 지킨다.",
+	"불을 세게 올리면 요변이 — 운이 좋으면 신화가 나온다.",
+	"같은 병사 셋을 합쳐 별을 올리고, 진영을 맞춰라.",
+	"다섯 밤을 버티면 다음 챕터로.",
+]
+
+
 func _draw_title() -> void:
-	text(Vector2(0, 110), "가마의 병사", C["accent"], 36, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
-	text(Vector2(0, 136), "챕터 5개 · 아침 5번과 밤 5번 · 마을을 지켜라", C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
-	draw_icon("ember", Vector2(286, 160), 1.0)
-	text(Vector2(304, 171), "불씨 %d" % meta.embers, C["accent"])
-	button(Rect2(220, 200, 200, 32), "새 판 시작  (Enter)", "start", C["accent"])
-	button(Rect2(220, 242, 200, 28), "전술 강화", "to_meta", C["text"])
-	button(Rect2(220, 278, 200, 28), "기록 (시간 순위)", "to_records", C["text"])
-	text(Vector2(0, 380), "강화는 다음 판부터 들어갑니다 · Esc 처음 화면으로", C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+	# 하늘 (Codex 그림 ui/title_bg.png 가 있으면 그 위에 움직이는 것만 더한다)
+	var tbg := tex("ui/title_bg")
+	if tbg != null:
+		draw_texture_rect(tbg, Rect2(Vector2.ZERO, VIEW), false)
+	for i in (0 if tbg != null else 10):
+		draw_rect(Rect2(0, i * 30, 640, 30), Color("0b0a14").lerp(Color("2a1a30"), i / 10.0))
+	if tbg != null:
+		_draw_title_front()
+		return
+	var moon := Vector2(470, 64)
+	glow(self, moon, 90.0, Color(0.9, 0.85, 0.7, 0.10))
+	draw_circle(moon, 18.0, Color("efe6c8"))
+	draw_circle(moon + Vector2(6, -4), 16.0, Color("e2d6b4"))
+	for i in 30:
+		var sp := Vector2(fmod(i * 97.0, 640.0), fmod(i * 53.0, 170.0))
+		draw_rect(Rect2(sp, Vector2(1, 1)), Color(1, 1, 1, 0.3 + 0.3 * sin(t * 0.05 + i)))
+	# 먼 산 (천천히 흐름)
+	for layer in 2:
+		var pts := PackedVector2Array()
+		var off: float = fmod(t * (0.05 + layer * 0.08), 640.0)
+		for k in 34:
+			var x: float = k * 20.0 - off
+			pts.append(Vector2(x, 220 - layer * 10 - absf(sin(x * 0.012 + layer)) * (50 - layer * 16) - sin(x * 0.04) * 6))
+		pts.append(Vector2(700, 400))
+		pts.append(Vector2(-20, 400))
+		draw_colored_polygon(pts, Color("15121e") if layer == 0 else Color("1c1622"))
+	# 땅
+	draw_rect(Rect2(0, 262, 640, 138), Color("16130f"))
+	draw_rect(Rect2(0, 262, 640, 2), Color("2a2418"))
+	# 왼쪽 마을 (창문 불빛)
+	for i in 4:
+		var hp := Vector2(26 + i * 42, 248 - (i % 2) * 8)
+		if not draw_sprite("field/house", hp, 1.4, Color(0.45, 0.4, 0.45)):
+			draw_rect(Rect2(hp - Vector2(16, 12), Vector2(32, 22)), Color("221c24"))
+		glow(self, hp + Vector2(4, 2), 14.0, Color(1.0, 0.65, 0.3, 0.35 + 0.1 * sin(t * 0.2 + i)))
+	# 오른쪽 언덕 위 가마 (불길·연기)
+	var kp := Vector2(560, 236)
+	draw_colored_polygon(PackedVector2Array([Vector2(480, 262), Vector2(520, 222), Vector2(600, 214), Vector2(640, 240), Vector2(640, 262)]), Color("1a1510"))
+	var kt := tex("kiln/kiln_body")
+	if kt != null:
+		draw_texture_rect(kt, Rect2(kp - Vector2(36, 62), Vector2(72, 72)), false, Color(0.75, 0.68, 0.62))
+	else:
+		draw_circle(kp - Vector2(0, 20), 26.0, Color("4a3c30"))
+	glow(self, kp + Vector2(0, -12), 34.0 + 6.0 * sin(t * 0.3), Color(1.0, 0.5, 0.15, 0.5))
+	for i in 5:
+		var ph: float = fmod(t * 0.006 + i * 0.2, 1.0)
+		glow(self, kp + Vector2(-6 + ph * 30.0, -70 - ph * 110.0), 12.0 + ph * 26.0, Color(0.5, 0.45, 0.5, 0.25 * (1.0 - ph)))
+	_draw_title_front()
+
+
+## 시작 화면 앞쪽: 행군하는 병사 · 도깨비 눈빛 · 반딧불 · 제목 · 버튼 · 소개 문장
+func _draw_title_front() -> void:
+	# 행군하는 도자기 병사들
+	var roles := ["shield", "spear", "spear", "archer", "axe", "general", "cavalry", "healer", "dragon"]
+	var els := ["earth", "fire", "water", "water", "fire", "fire", "earth", "water", "water"]
+	for i in roles.size():
+		var x: float = fmod(t * 0.45 + i * 34.0, 760.0) - 60.0
+		var bob: float = absf(sin(t * 0.18 + i)) * 2.0
+		var nm := soldier_sprite(roles[i], els[i])
+		if not draw_sprite(nm, Vector2(x, 296 - bob), 1.5, Color(0.85, 0.85, 0.9)):
+			draw_ally_shape(Vector2(x, 296 - bob), roles[i], els[i], "normal", 1.5)
+	# 멀리서 다가오는 도깨비 눈빛
+	for i in 6:
+		var gx: float = 640.0 - fmod(t * 0.12 + i * 40.0, 200.0)
+		var gy: float = 240.0 + (i % 3) * 6.0
+		var blink: float = 1.0 if fmod(t * 0.02 + i, 3.0) > 0.15 else 0.0
+		draw_rect(Rect2(gx, gy, 2, 1), Color(1.0, 0.85, 0.2, 0.8 * blink))
+		draw_rect(Rect2(gx + 5, gy, 2, 1), Color(1.0, 0.85, 0.2, 0.8 * blink))
+	# 반딧불·불티
+	for i in 16:
+		var fp := Vector2(fmod(i * 61.0 + t * 0.2 * (1 + i % 3), 640.0), 180.0 + fmod(i * 23.0 - t * 0.15, 160.0))
+		var fa: float = maxf(0.0, sin(t * 0.07 + i))
+		glow(self, fp, 5.0, Color(1.0, 0.8, 0.4, 0.5 * fa))
+	# 제목
+	var title := "가마의 병사"
+	var w: float = font_bold.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36).x
+	glow(self, Vector2(320, 92), 120.0, Color(1.0, 0.75, 0.35, 0.12))
+	for oo in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 3)]:
+		draw_string(font_bold, Vector2(320 - w / 2.0, 104).round() + oo, title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36, Color("1a1208"))
+	draw_string(font_bold, Vector2(320 - w / 2.0, 104).round(), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36, UI["gold"])
+	var sub := "도자기 병사로 마을을 지키는 로그라이트 디펜스"
+	text(Vector2(320 - font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x / 2.0, 124), sub, Color("e8dcc0"))
+	# 버튼
+	button(Rect2(230, 146, 180, 30), "새 판 시작  (Enter)", "start", UI["gold"], true, true)
+	button(Rect2(230, 182, 88, 24), "전술 강화", "to_meta", UI["gold"])
+	button(Rect2(322, 182, 88, 24), "기록", "to_records", UI["gold"])
+	var ec := Rect2(270, 212, 100, 20)
+	chip(ec, "불씨 %d" % meta.embers, UI["gold"])
+	draw_icon("ember", ec.position + Vector2(4, 3), 1.0)
+	# 소개 문장 (4초마다 바뀌며 스며듦)
+	var idx: int = (t / 240) % INTRO.size()
+	var ph2: float = fmod(t, 240.0) / 240.0
+	var al: float = minf(1.0, minf(ph2 * 6.0, (1.0 - ph2) * 6.0))
+	var line: String = INTRO[idx]
+	var lw: float = font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+	draw_rect(Rect2(0, 352, 640, 30), Color(0, 0, 0, 0.45))
+	text(Vector2(320 - lw / 2.0, 372), line, Color(0.95, 0.9, 0.8, al))
 
 
 func _draw_meta() -> void:
@@ -934,53 +1054,60 @@ func _draw_gacha() -> void:
 	text(Vector2(14, 374), fit("유약: 청자·진사·흑유 각 33%", 322.0), UI["muted"])
 
 
-## 진주 상점 화면 — 시안 3: 왼쪽에서 병사를 고르고 오른쪽에서 산다
+## 진주 상점 화면 — 상점만 따로: 왼쪽 상인, 오른쪽 진열대. 강화 아이템은 사면 '누구에게?' 창
 func _draw_shop() -> void:
 	_draw_topbar("진주 상점", true)
-	_draw_army_grid(Vector2(6, 58), "강화할 병사 고르기")
-	var sel: Dictionary = run.soldier(selected) if selected >= 0 else {}
-	panel(Rect2(6, 306, 404, 34))
-	if sel.is_empty():
-		text(Vector2(16, 328), "받을 병사를 먼저 고르세요 (뽑기권은 그냥 삽니다)", UI["muted"])
-	else:
-		var up: Array = []
-		for k in sel.get("upg", {}):
-			up.append({"atk": "공격", "hp": "체력", "skill": "스킬", "cdr": "재사용"}.get(k, k) + " +%d%%" % roundi(sel["upg"][k] * 100.0))
-		text(Vector2(16, 328), fit("받을 병사: %s ★%d   %s" % [sel["name"], sel["star"], ", ".join(up) if not up.is_empty() else "강화 없음"], 384.0), GRADE_COL[PD.ROLE_GRADE[sel["role"]]])
-	# 상인 + 말풍선
-	panel(Rect2(416, 58, 218, 76))
+	# 상인
+	panel(Rect2(6, 58, 250, 282))
 	var mtx := tex("ui/merchant")
+	glow(self, Vector2(130, 170), 90.0, Color(1.0, 0.8, 0.5, 0.08))
 	if mtx != null:
-		draw_texture_rect(mtx, Rect2(Vector2(420, 66), Vector2(48, 64)), false)
+		draw_texture_rect(mtx, Rect2(Vector2(82, 76), Vector2(96, 128)), false)
 	else:
-		draw_sprite(soldier_sprite("healer", "earth"), Vector2(444, 98), 1.6)
-	text(Vector2(472, 78), "어서 오시오.", C["text"])
-	text(Vector2(472, 94), fit("병사를 고르고 사면", 156.0), UI["muted"])
-	text(Vector2(472, 110), fit("그 병사가 강해지오.", 156.0), UI["muted"])
-	text(Vector2(472, 126), fit("진주 %d 개" % run.pearls, 156.0), Color("e8eef5"))
+		draw_sprite(soldier_sprite("healer", "earth"), Vector2(130, 170), 3.0)
+	var bub := Rect2(18, 222, 226, 106)
+	rrect(bub, UI["deep"])
+	rline(bub, UI["bronze"])
+	draw_colored_polygon(PackedVector2Array([Vector2(118, 222), Vector2(130, 210), Vector2(142, 222)]), UI["bronze"])
+	var lines := ["\"어서 오시오, 장군.", "물건을 고르면", "누구에게 줄지 여쭙겠소.", "진열이 마음에 안 들면", "진주 하나에 다시 꺼내 드리지.\""]
+	for i in lines.size():
+		text(Vector2(30, 244 + i * 16), lines[i], C["text"] if i == 0 else Color("d8cfc0"))
+	# 진열대
+	panel(Rect2(264, 58, 370, 244), "오늘의 물건")
 	for i in run.shop.size():
-		var r := Rect2(416 + (i % 2) * 110, 142 + (i / 2) * 84, 106, 78)
+		var r := Rect2(276 + (i % 2) * 176, 74 + (i / 2) * 112, 170, 104)
 		var key: String = run.shop[i]
 		if key == "":
 			rrect(r, UI["deep"])
 			rline(r, UI["line"])
-			text(r.position + Vector2(38, 44), "팔림", UI["muted"])
+			text(r.position + Vector2(70, 58), "팔림", UI["muted"])
 			continue
 		var it: Dictionary = PD.SHOP_ITEMS[key]
 		buttons.append({"rect": r, "id": "shop%d" % i})
 		var hov: bool = r.has_point(get_local_mouse_position())
-		rrect(r, UI["lacquer"].lightened(0.06 if hov else 0.0))
-		rline(r, UI["gold"] if hov else UI["bronze"])
-		rrect(Rect2(r.position + Vector2(37, 6), Vector2(32, 32)), UI["deep"])
-		draw_icon(key, r.position + Vector2(40, 9), 2.0)
-		var nm: String = it["name"]
-		text(r.position + Vector2((r.size.x - font.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x) / 2.0, 52), nm, C["text"])
-		var ds: String = fit(it["desc"], 100.0)
-		text(r.position + Vector2((r.size.x - font.get_string_size(ds, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x) / 2.0, 68), ds, UI["muted"])
-		draw_icon("pearl", r.position + Vector2(78, 6), 1.0)
-		text(r.position + Vector2(92, 16), "%d" % run.price(key), Color("e8eef5") if run.pearls >= run.price(key) else C["danger"])
-	button(Rect2(416, 312, 218, 28), "다시 진열 · 진주 %d" % PD.SHOP_REROLL, "reroll", Color("dfe6ee"), run.pearls >= PD.SHOP_REROLL)
+		var afford: bool = run.pearls >= run.price(key)
+		rrect(Rect2(r.position + Vector2(0, 2), r.size), Color(0, 0, 0, 0.4))
+		rrect(r, UI["lacquer"].lightened(0.07 if hov else 0.0))
+		rline(r, UI["gold"] if hov and afford else UI["bronze"])
+		var ib := Rect2(r.position + Vector2(10, 12), Vector2(44, 44))
+		rrect(ib, UI["deep"])
+		rline(ib, UI["line"])
+		draw_icon(key, ib.position + Vector2(8, 8), 2.0)
+		draw_string(font_bold, (r.position + Vector2(64, 30)).round(), it["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UI["gold"])
+		text(r.position + Vector2(64, 48), fit(it["desc"], 100.0), C["text"])
+		var pr := Rect2(r.position + Vector2(10, 70), Vector2(150, 24))
+		rrect(pr, UI["deep"])
+		draw_icon("pearl", pr.position + Vector2(8, 6), 1.0)
+		text(pr.position + Vector2(24, 17), "진주 %d" % run.price(key), Color("e8eef5") if afford else C["danger"])
+		text(pr.position + Vector2(96, 17), "누구에게?" if it["stat"] != "ticket" else "바로 받기", UI["gold"] if afford else Color("6b6478"))
+	button(Rect2(264, 310, 180, 30), "다시 진열 · 진주 %d" % PD.SHOP_REROLL, "reroll", Color("dfe6ee"), run.pearls >= PD.SHOP_REROLL)
+	text(Vector2(454, 330), fit("진주: 처치 %d마리당 1 · 대장 %d" % [PD.PEARL_PER_KILLS, PD.PEARL_BOSS], 178.0), UI["muted"])
 	button(Rect2(6, 348, 628, 30), "다 샀어요 — 로비로", "lobby", UI["gold"], true, true)
+	if shop_pick >= 0:
+		draw_rect(Rect2(Vector2.ZERO, VIEW), Color(0, 0, 0, 0.6))
+		var key2: String = run.shop[shop_pick]
+		_draw_army_grid(Vector2(118, 70), "누구에게 줄까요 — %s (%s)" % [PD.SHOP_ITEMS[key2]["name"], PD.SHOP_ITEMS[key2]["desc"]])
+		button(Rect2(270, 322, 100, 26), "그만두기", "pick_cancel", UI["muted"])
 
 
 ## 장비 화면 (챕터 3부터)
@@ -1085,12 +1212,8 @@ func _draw_tip_for_unit() -> void:
 
 ## 배치 화면: 둘 수 있는 곳 · 진영 시너지 · 버튼
 func _draw_deploy() -> void:
-	var r: Rect2 = battle.DEPLOY
-	var dr := Rect2(r.position + FIELD_OFFSET, r.size)
-	draw_rect(dr, Color(0.6, 0.8, 1.0, 0.05))
-	draw_rect(dr, Color(0.6, 0.8, 1.0, 0.25 + 0.1 * sin(t * 0.1)), false, 1.0)
 	text(Vector2(10, 20), "병사 배치 — 끌어서 옮기고, 누르면 정보", C["accent"])
-	text(Vector2(10, 40), "챕터 %d · 밤 %d — 파란 칸 안 어디든 둘 수 있습니다" % [run.chapter, run.night], C["dim"])
+	text(Vector2(10, 40), "챕터 %d · 밤 %d — 전장 어디든 끌어다 둘 수 있습니다" % [run.chapter, run.night], C["dim"])
 	_draw_factions(Vector2(452, 74))
 	if tip_sid >= 0 and drag_id < 0:
 		_draw_tip_for_unit()

@@ -32,14 +32,14 @@
 
 ## 프로젝트 구조
 
-지금: **1분 시험판 두 개** — B 가마의 병사, A 알을 품는 성 (기획안 비교 `docs/기획안-비교.md`). 첫 화면 `src/game/launcher.tscn` 에서 고른다.
+지금: **가마의 병사** 하나 (2026-11-30 사용자: "게임은 가마 병사만 하고 알 관련 게임은 없이"). 시작하면 `src/game/kiln_scene` 첫 화면으로 바로 간다.
 지난 시험판 **AFTERSELF (가제)** 는 보류 (`docs/기획서.md`, `src/core/`). Godot 4.7, 위에서 내려다보는 2D 픽셀 아트(타일 32×32).
 
 | 위치 | 내용 |
 |---|---|
-| `src/proto/` | 1분 시험판 규칙 (화면과 무관). `data.gd` 수치 · `battle.gd` 공용 자동 전투 · `kiln.gd` 가마 · `nest.gd` 둥지 |
+| `src/proto/` | 가마의 병사 규칙 (화면과 무관). `data.gd` 수치 · `battle.gd` 전투 · `kiln.gd` 가마 · `kiln_run.gd` 한 판(챕터·뽑기·상점·전직) · `meta.gd` 전술 강화·기록 |
 | `src/core/` | (보류) AFTERSELF 규칙 (화면과 무관). `data.gd` 수치 · `world.gd` 방 하나의 전투 · `run.gd` 한 판 흐름 · `habits.gd` 습관 기록 · `echo.gd` 어제의 나 · `save.gd` 판 사이 저장 |
-| `src/game/` | 화면·입력. `launcher` 첫 화면 · `kiln_scene` · `nest_scene` · `proto_base` 공통 연출 · `main` (보류) AFTERSELF. 규칙을 읽어서 그리기만 한다 |
+| `src/game/` | 화면·입력. `kiln_scene` 모든 화면 · `proto_base` 공통 연출·UI 부품 · `pixel_art.gd` 임시 도트 · `launcher` 바로 kiln 으로 · `main` (보류) AFTERSELF. 규칙을 읽어서 그리기만 한다 |
 | `assets/` | 게임에 들어가는 그림·글꼴 (글꼴: 갈무리, OFL). 그림은 `assets/sprites/` — 목록 `art/sprite_list.json`, 설명 `docs/그림-목록.md`. 파일이 있으면 게임이 쓰고, 없으면 도형으로 그린다 |
 | `tests/` | Godot 테스트 (`test_p0.gd`, `test_p1.gd`, `test_boss.gd`), 봇, 성능 측정(`bench.gd`), 스크린샷(`screens.gd`) |
 | `art/` | 그림 루프용 기준 그림·기준표 (게임에 안 들어감) |
@@ -64,7 +64,7 @@
 | 단계 | 뜻 | 위치 |
 |---|---|---|
 | P0 | 깨지면 게임이 안 되는 것 (시작·이동·공격·죽음→메아리·같은 시드 같은 결과) | `tests/test_p0.gd` |
-| P1 | 게임 전반. 1분 시험판(가마 확률·파편 확정·알 터짐·먹이·합동 기술·균형) `tests/test_proto.gd` + AFTERSELF `tests/test_p1.gd` | `tests/test_proto.gd`, `tests/test_p1.gd` |
+| P1 | 게임 전반. 가마의 병사(가마 확률·파편·합동 기술·뽑기·챕터·스킬·진영·상점·균형) `tests/test_proto.gd` `tests/test_kiln_run.gd` + AFTERSELF `tests/test_p1.gd` | `tests/test_proto.gd`, `tests/test_kiln_run.gd`, `tests/test_p1.gd` |
 | boss | 어제의 나가 습관·빌드를 따라 하는지 + 분석표를 읽는 봇(`reader`)이 여러 어제의 나와 싸움 → 깼는지·걸린 시간·잃은 체력 | `tests/test_boss.gd` → `reports/boss/` |
 
 ```bash

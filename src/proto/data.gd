@@ -39,21 +39,21 @@ const ROLE_DESC := {
 const ROLE_NAME_NEST := {"spear": "공격형", "archer": "원거리형", "shield": "수비형"}
 const ROLE_STATS := {
 	"spear": {"hp": 60.0, "atk": 10.0, "range": 24.0, "cd": 40, "speed": 1.2},
-	"archer": {"hp": 35.0, "atk": 8.0, "range": 200.0, "cd": 50, "speed": 0.0},
+	"archer": {"hp": 35.0, "atk": 8.0, "range": 260.0, "cd": 50, "speed": 0.0},
 	"shield": {"hp": 140.0, "atk": 4.0, "range": 22.0, "cd": 50, "speed": 0.9},
 	"axe": {"hp": 85.0, "atk": 12.0, "range": 26.0, "cd": 56, "speed": 1.0},
 	"cavalry": {"hp": 75.0, "atk": 9.0, "range": 24.0, "cd": 32, "speed": 2.0},
-	"healer": {"hp": 40.0, "atk": 0.0, "range": 150.0, "cd": 75, "speed": 0.0},
-	"cannon": {"hp": 45.0, "atk": 16.0, "range": 280.0, "cd": 120, "speed": 0.0},
-	"slinger": {"hp": 45.0, "atk": 7.0, "range": 150.0, "cd": 38, "speed": 0.0},
+	"healer": {"hp": 40.0, "atk": 0.0, "range": 190.0, "cd": 75, "speed": 0.0},
+	"cannon": {"hp": 45.0, "atk": 16.0, "range": 340.0, "cd": 120, "speed": 0.0},
+	"slinger": {"hp": 45.0, "atk": 7.0, "range": 200.0, "cd": 38, "speed": 0.0},
 	"twin": {"hp": 90.0, "atk": 7.0, "range": 22.0, "cd": 18, "speed": 1.6},
 	"general": {"hp": 180.0, "atk": 15.0, "range": 26.0, "cd": 44, "speed": 1.0},
-	"sniper": {"hp": 50.0, "atk": 55.0, "range": 380.0, "cd": 110, "speed": 0.0},
+	"sniper": {"hp": 50.0, "atk": 55.0, "range": 460.0, "cd": 110, "speed": 0.0},
 	"haetae": {"hp": 520.0, "atk": 20.0, "range": 30.0, "cd": 50, "speed": 0.8},
 	"cheoyong": {"hp": 240.0, "atk": 14.0, "range": 26.0, "cd": 36, "speed": 1.0},
 	"dragon": {"hp": 380.0, "atk": 70.0, "range": 420.0, "cd": 96, "speed": 0.0},
 	"baekho": {"hp": 420.0, "atk": 34.0, "range": 26.0, "cd": 26, "speed": 2.0},
-	"jujak": {"hp": 280.0, "atk": 30.0, "range": 300.0, "cd": 48, "speed": 0.0},
+	"jujak": {"hp": 280.0, "atk": 30.0, "range": 360.0, "cd": 48, "speed": 0.0},
 	"hyeonmu": {"hp": 950.0, "atk": 16.0, "range": 30.0, "cd": 50, "speed": 0.6},
 }
 const SLING_PUSH := 8.0          # 투석병: 맞은 적을 조금 밀어낸다

@@ -180,7 +180,7 @@ const BET_ODDS := [
 	["pearls", "진주 비", 0.2, "진주 +4"],
 	["bust", "꽝", 0.3, "새 병사 하나가 깨진다 (파편 +1)"],
 ]
-const BET_PITY := 3
+const BET_PITY := 10               # 꽝 10번이면 다음은 대박 (2026-11-28 사용자: "꽝 10번당 1번 대박")
 
 const VILLAGE_LINE := 112.0     # 마을 담장 선 (왼쪽 마을 구역 끝). 도깨비가 여기 닿으면 마을이 맞는다
 const ALLY_AGGRO := 210.0       # 창병·방패병이 도깨비를 알아채고 마주 나가는 거리
@@ -344,13 +344,40 @@ const VILLAGE_REPAIR := 30.0      # 밤이 지나면 마을 체력 회복
 
 
 # ---------- 가마 (B) ----------
-const KILN_SLOTS := 8
+const KILN_SLOTS := 30              # 가마에 한 번에 넣는 수 (2026-11-28 사용자: "30개까지")
 const KILN_MAX_HEAT := 10
 const KILN_SAFE_HEAT := 4        # 여기까지는 절대 안 깨진다 (억울함 방지)
 const SHARDS_FOR_LEGEND := 3     # 파편 3개면 다음 굽기에서 요변 1개 확정
 
 
 ## 불 세기 → 병사 한 명의 확률 (화면에 그대로 보여 준다)
+## 실제로 나오는 몫: 깨짐 → 요변 → 상품 순서로 굴리므로 겹치는 몫을 빼고, 나머지는 보통. 넷을 더하면 1
+static func kiln_shares(o: Dictionary) -> Dictionary:
+	var crack: float = o["crack"]
+	var legend: float = (1.0 - crack) * o["legend"]
+	var fine: float = (1.0 - crack) * (1.0 - o["legend"]) * o["fine"]
+	return {"legend": legend, "fine": fine, "normal": maxf(0.0, 1.0 - crack - legend - fine), "crack": crack}
+
+
+## 몫을 정수 %로: 가장 큰 나머지부터 1씩 더해 합이 꼭 100
+static func percent_100(shares: Dictionary) -> Dictionary:
+	var out := {}
+	var rem := []
+	var total := 0
+	for k in shares:
+		var x: float = shares[k] * 100.0
+		out[k] = int(floor(x + 1e-6))
+		total += out[k]
+		rem.append([x - out[k], k])
+	rem.sort_custom(func(a, b): return a[0] > b[0])
+	var i := 0
+	while total < 100 and i < rem.size():
+		out[rem[i][1]] += 1
+		total += 1
+		i += 1
+	return out
+
+
 static func kiln_odds(heat: int) -> Dictionary:
 	return {
 		"crack": 0.0 if heat <= KILN_SAFE_HEAT else (heat - KILN_SAFE_HEAT) * 0.07,

@@ -100,7 +100,35 @@ static func soldier_name(role: String, element: String) -> String:
 
 # ---------------- 준비: 뽑기 · 다시 굽기 · 합치기 ----------------
 func can_draw() -> bool:
-	return state == "prep" and (tickets > 0 or clay >= D.CLAY_DRAW) and queue.size() < D.KILN_SLOTS and army.size() + queued_new() < cap()
+	return state == "prep" and (tickets > 0 or clay >= D.CLAY_DRAW) and queue.size() < D.KILN_SLOTS
+
+
+## 지금 더 뽑을 수 있는 수 (가마 자리·뽑기권·흙)
+func draws_left() -> int:
+	if state != "prep":
+		return 0
+	return mini(D.KILN_SLOTS - queue.size(), tickets + clay / D.CLAY_DRAW)
+
+
+## 가마는 30칸이라 부대 자리보다 많이 구울 수 있다. 넘치면 합치거나 돌려보내야 밤을 맞는다
+func over_cap() -> int:
+	return maxi(0, army.size() - cap())
+
+
+func can_start_night() -> bool:
+	return state == "prep" and queue.is_empty() and not army.is_empty() and over_cap() == 0
+
+
+## 병사 돌려보내기: 부대에서 빼고 흙 조금
+func release(id: int) -> bool:
+	var s := soldier(id)
+	if s.is_empty() or is_queued(id) or state != "prep":
+		return false
+	army = army.filter(func(x): return x["id"] != id)
+	if not s.get("equip", {}).is_empty():
+		inventory.append(s["equip"])   # 장비는 창고로
+	clay += D.CLAY_SMASH_BACK
+	return true
 
 
 static func grade_index(g: String) -> int:

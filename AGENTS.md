@@ -40,7 +40,7 @@
 | `src/proto/` | 가마의 병사 규칙 (화면과 무관). `data.gd` 수치 · `battle.gd` 전투 · `kiln.gd` 가마 · `kiln_run.gd` 한 판(챕터·뽑기·상점·전직) · `meta.gd` 전술 강화·기록 |
 | `src/core/` | (보류) AFTERSELF 규칙 (화면과 무관). `data.gd` 수치 · `world.gd` 방 하나의 전투 · `run.gd` 한 판 흐름 · `habits.gd` 습관 기록 · `echo.gd` 어제의 나 · `save.gd` 판 사이 저장 |
 | `src/game/` | 화면·입력. `kiln_scene` 모든 화면 · `proto_base` 공통 연출·UI 부품 · `pixel_art.gd` 임시 도트 · `launcher` 바로 kiln 으로 · `main` (보류) AFTERSELF. 규칙을 읽어서 그리기만 한다 |
-| `assets/` | 게임에 들어가는 그림·글꼴 (글꼴: 갈무리, OFL). 그림은 `assets/sprites/` — 목록 `art/sprite_list.json`, 설명 `docs/그림-목록.md`. 파일이 있으면 게임이 쓰고, 없으면 도형으로 그린다 |
+| `assets/` | 게임에 들어가는 그림·글꼴 (글꼴: 본문 Pretendard · 제목 도현, 모두 OFL. 갈무리는 예비). 그림은 `assets/sprites/` — 목록 `art/sprite_list.json`, 설명 `docs/그림-목록.md`. 파일이 있으면 게임이 쓰고, 없으면 도형으로 그린다 |
 | `tests/` | Godot 테스트 (`test_p0.gd`, `test_p1.gd`, `test_boss.gd`), 봇, 성능 측정(`bench.gd`), 스크린샷(`screens.gd`) |
 | `art/` | 그림 루프용 기준 그림·기준표 (게임에 안 들어감) |
 

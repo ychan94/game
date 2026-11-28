@@ -31,6 +31,8 @@ var unit_sid := {}       # 전투 유닛 id → 병사 id
 var gfx := {}            # 희귀 이상 등장 연출 {i, grade, need, taps, phase(tap/burst/show), t}
 var gfx_done := {}       # 연출을 마친 결과 칸
 const GFX_TAPS := {"rare": 1, "hero": 2, "legendary": 3, "mythic": 3}
+var army_page := 0       # 부대 칸 쪽 (18칸 넘으면 여러 쪽)
+var release_armed := -1  # 돌려보내기: 한 번 더 눌러야 확정
 var drawn_at := {}       # 작업대: 가마 줄 번호 → 흙 인형이 나타나는 프레임 (5번 뽑기는 차례로)
 var popped := {}         # 나타날 때 흙먼지를 이미 냈나
 var load_t := 0          # 흙 인형이 가마로 들어가는 연출 시간
@@ -192,7 +194,7 @@ func _physics_process(_d: float) -> void:
 				shake = maxf(shake, 10.0 if bk == "jackpot" else 4.0)
 				burst(Vector2(320, 200), C["accent"] if good else C["dim"], 40 if bk == "jackpot" else 16, 4.0, 3.0)
 			if reveal_shown >= kiln.results.size() and (pressed(KEY_ENTER) or pressed(KEY_KP_ENTER) or clicked("fight")):
-				state = "prep"
+				state = "gacha"   # 구운 뒤에도 가마 앞에 그대로 (2026-11-28 사용자 요청)
 				banner = {}
 		"deploy":
 			_deploy_input()
@@ -346,6 +348,7 @@ func _prep_input() -> void:
 				promo_pick = false
 				return
 			promo_pick = false
+			release_armed = -1
 			selected = s["id"] if selected != s["id"] else -1
 	if selected >= 0 and clicked("refire"):
 		run.refire(selected)
@@ -359,14 +362,29 @@ func _prep_input() -> void:
 				float_text(Vector2(150, 150), "합치기! %s %s" % [m["name"], "★".repeat(m["star"])], C["accent"], 24)
 				shake = 4.0
 			break
-	if state != "gacha" and (clicked("draw1") or clicked("draw5")):
-		pass
-	elif clicked("draw1"):
-		_do_draws(1)
-		_tut_done("draw")
-	if clicked("draw5"):
-		_do_draws(5)
-		_tut_done("draw")
+	if state == "gacha":
+		for d2 in [["draw1", 1], ["draw10", 10], ["drawall", 999]]:
+			if clicked(d2[0]):
+				_do_draws(mini(d2[1], run.draws_left()))
+				_tut_done("draw")
+	if clicked("pg_prev"):
+		army_page = maxi(0, army_page - 1)
+	if clicked("pg_next"):
+		army_page += 1
+	if selected >= 0 and clicked("release"):
+		if release_armed == selected:
+			var rs: Dictionary = run.soldier(selected)
+			if run.release(selected):
+				float_text(Vector2(150, 300), "%s 돌려보냄 · 흙 +%d" % [rs["name"], PD.CLAY_SMASH_BACK], UI["muted"])
+				selected = -1
+			release_armed = -1
+		else:
+			release_armed = selected
+		return
+	if clicked("uq_last") and not run.queue.is_empty():
+		run.unqueue(run.queue.size() - 1)
+		drawn_at.clear()
+		popped.clear()
 	for i in run.queue.size():
 		if clicked("uq%d" % i):
 			run.unqueue(i)
@@ -378,7 +396,7 @@ func _prep_input() -> void:
 		load_t = 0
 		banner = {}
 		_tut_done("fire")
-	elif state == "prep" and run.queue.is_empty() and not run.army.is_empty() and (clicked("night_go") or pressed(KEY_ENTER) or pressed(KEY_KP_ENTER)):
+	elif state == "prep" and run.can_start_night() and (clicked("night_go") or pressed(KEY_ENTER) or pressed(KEY_KP_ENTER)):
 		_tut_done("full")
 		_open_deploy()
 
@@ -632,7 +650,7 @@ func _do_draws(n: int) -> void:
 		var d: Dictionary = run.draw()
 		if d.is_empty():
 			break
-		drawn_at[run.queue.size() - 1] = t + made * 7
+		drawn_at[run.queue.size() - 1] = t + made * (7 if n <= 10 else 3)
 		made += 1
 	if made > 0:
 		draw_flash = 30
@@ -657,6 +675,13 @@ func _survivors() -> Array:
 
 ## 카드 자리: 4장까지 한 줄, 넘으면 두 줄
 func _card_pos(j: int, n: int) -> Vector2:
+	if n > 8:
+		# 9명 넘게: 작은 카드, 한 줄 10장까지 (최대 30명 → 3줄)
+		var rows: int = (n + 9) / 10
+		var per: int = (n + rows - 1) / rows
+		var row2: int = j / per
+		var in_row2: int = mini(per, n - row2 * per)
+		return Vector2(320 + (j % per - (in_row2 - 1) / 2.0) * 62.0, 94 + row2 * 88)
 	if n <= 4:
 		return Vector2(320 + (j - (n - 1) / 2.0) * 128.0, 176)
 	var row := j / 4
@@ -965,10 +990,20 @@ func _draw_army_grid(origin: Vector2, title: String) -> void:
 	panel(Rect2(origin, Vector2(404, 244)), title)
 	var cw := 62.0
 	var ch := 72.0
-	for i in mini(run.cap(), 18):
-		var x: float = origin.x + 8.0 + (i % 6) * (cw + 3.0)
-		var y: float = origin.y + 12.0 + (i / 6) * (ch + 4.0)
+	var cells: int = maxi(run.cap(), run.army.size())
+	var pages: int = (cells + 17) / 18
+	army_page = clampi(army_page, 0, pages - 1)
+	if pages > 1:
+		button(Rect2(origin.x + 318, origin.y - 8, 22, 16), "◀", "pg_prev", UI["gold"], army_page > 0)
+		text(Vector2(origin.x + 340, origin.y + 5), "%d/%d" % [army_page + 1, pages], UI["gold"], 12, 40.0, HORIZONTAL_ALIGNMENT_CENTER)
+		button(Rect2(origin.x + 380, origin.y - 8, 22, 16), "▶", "pg_next", UI["gold"], army_page < pages - 1)
+	for li in mini(18, cells - army_page * 18):
+		var i: int = army_page * 18 + li
+		var x: float = origin.x + 8.0 + (li % 6) * (cw + 3.0)
+		var y: float = origin.y + 12.0 + (li / 6) * (ch + 4.0)
 		var r := Rect2(x, y, cw, ch)
+		if i >= run.cap() and i < run.army.size():
+			rrect(r.grow(2), Color(C["danger"].r, C["danger"].g, C["danger"].b, 0.35))   # 자리 초과
 		if i >= run.army.size():
 			rrect(r, UI["deep"])
 			rline(r, UI["line"])
@@ -1023,21 +1058,22 @@ func _draw_prep() -> void:
 	panel(Rect2(6, 306, 404, 34))
 	var sel: Dictionary = run.soldier(selected) if selected >= 0 else {}
 	if sel.is_empty():
-		text(Vector2(16, 328), fit("병사를 누르면 정보 · 합치기 · 다시 굽기 · 전직", 380.0), UI["muted"])
+		text(Vector2(16, 328), fit("병사를 누르면 정보 · 합치기 · 다시 굽기 · 전직 · 보내기", 380.0), UI["muted"])
 	else:
 		var gcol: Color = GRADE_COL[PD.ROLE_GRADE[sel["role"]]]
-		text(Vector2(16, 320), fit("%s ★%d · %s" % [sel["name"], sel["star"], PD.TIER_NAME_KILN[sel["tier"]]], 196.0), gcol)
+		text(Vector2(16, 320), fit("%s ★%d · %s" % [sel["name"], sel["star"], PD.TIER_NAME_KILN[sel["tier"]]], 176.0), gcol)
 		var mp2: Vector2i = run.merge_progress(sel)
-		text(Vector2(16, 334), fit("같은 병사 ★%d %d/%d → ★%d" % [sel["star"], mini(mp2.x, mp2.y), mp2.y, sel["star"] + 1] if sel["star"] < PD.MAX_STAR else "별 최고 ★5", 196.0), UI["muted"])
-		var bx := 214.0
+		text(Vector2(16, 334), fit("같은 병사 ★%d %d/%d → ★%d" % [sel["star"], mini(mp2.x, mp2.y), mp2.y, sel["star"] + 1] if sel["star"] < PD.MAX_STAR else "별 최고 ★5", 176.0), UI["muted"])
+		var bx := 196.0
 		var why := "" if run.can_refire(selected) else "x"
-		button(Rect2(bx, 311, 66, 24), "다시 굽기", "refire", C["fire"].lightened(0.3), why == "")
+		button(Rect2(bx, 311, 58, 24), "다시 굽기", "refire", C["fire"].lightened(0.3), why == "")
+		button(Rect2(bx + 159, 311, 50, 24), "정말?" if release_armed == selected else "보내기", "release", C["danger"] if release_armed == selected else UI["muted"], not run.is_queued(selected))
 		var groups: Array = run.merge_groups()
 		var mine: Array = groups.filter(func(g2): return g2.has(selected))
 		var gi: int = groups.find(mine[0]) if not mine.is_empty() else (0 if not groups.is_empty() else -1)
-		button(Rect2(bx + 64, 311, 60, 24), "합치기", "merge%d" % max(0, gi), UI["gold"], gi >= 0)
+		button(Rect2(bx + 61, 311, 50, 24), "합치기", "merge%d" % max(0, gi), UI["gold"], gi >= 0)
 		var can_promo: bool = not run.promo_partners(selected).is_empty()
-		button(Rect2(bx + 128, 311, 54, 24), "고르기" if promo_pick else "전직", "promo", Color(1.0, 0.75, 0.35), can_promo)
+		button(Rect2(bx + 114, 311, 42, 24), "고르기" if promo_pick else "전직", "promo", Color(1.0, 0.75, 0.35), can_promo)
 	# 오른쪽: 들어가는 메뉴 판 — 가마 뽑기 · 진주 상점 · 장비
 	var tiles := [["go_gacha", "가마 뽑기", "뽑기권 %d · 확률·천장" % run.tickets, UI["gold"], "ticket", true],
 		["go_shop", "진주 상점", "진주 %d · 병사 강화" % run.pearls, Color("dfe6ee"), "pearl", true],
@@ -1063,20 +1099,23 @@ func _draw_prep() -> void:
 		text(Vector2(426, 262), "비어 있음 — 가마 뽑기에서", UI["muted"])
 		text(Vector2(426, 278), "병사를 뽑아 넣으세요", UI["muted"])
 	else:
-		text(Vector2(426, 256), "구워야 무엇이 될지 압니다", UI["muted"])
-	for i in run.queue.size():
-		var q: Dictionary = run.queue[i]
-		var qx: float = 428.0 + i * 25.0
-		var qp := Vector2(qx + 9, 298)
-		glow(self, qp + Vector2(0, 13), 11.0, Color(0, 0, 0, 0.5), 0.3)
-		if q["kind"] == "new":
-			draw_clay(qp, q["role"], 1.0)
-		else:
-			draw_ally_shape(qp, q["role"], q["element"], run.soldier(q["id"]).get("tier", "normal"), 1.0)
-		button(Rect2(qx, 316, 18, 16), "×", "uq%d" % i, UI["muted"])
+		for i in run.queue.size():
+			var q: Dictionary = run.queue[i]
+			var qp := Vector2(434 + (i % 10) * 20.0, 266 + (i / 10) * 18.0)
+			if q["kind"] == "new":
+				draw_clay(qp, q["role"], 0.75)
+			else:
+				draw_ally_shape(qp, q["role"], q["element"], run.soldier(q["id"]).get("tier", "normal"), 0.6)
+		button(Rect2(424, 318, 96, 16), "하나 빼기 · 흙+%d" % PD.CLAY_SMASH_BACK, "uq_last", UI["muted"])
+		text(Vector2(526, 331), "흙 인형 %d" % run.queue.size(), UI["muted"], 12, 100.0, HORIZONTAL_ALIGNMENT_RIGHT)
 	# 아래 큰 버튼
 	button(Rect2(6, 348, 310, 30), "가마에 불 지피기  (스페이스)", "fire_go", Color("ff9a6a"), not run.queue.is_empty())
-	button(Rect2(324, 348, 310, 30), "밤 맞이하기 → 배치  (Enter)" if run.queue.is_empty() else "가마를 먼저 여세요", "night_go", UI["gold"], run.queue.is_empty() and not run.army.is_empty(), true)
+	var night_lab := "밤 맞이하기 → 배치  (Enter)"
+	if not run.queue.is_empty():
+		night_lab = "가마를 먼저 여세요"
+	elif run.over_cap() > 0:
+		night_lab = "자리 초과 %d — 합치거나 돌려보내기" % run.over_cap()
+	button(Rect2(324, 348, 310, 30), night_lab, "night_go", UI["gold"], run.can_start_night(), true)
 	if show_help:
 		_draw_help()
 	elif tut_now != "":
@@ -1123,9 +1162,12 @@ func _draw_gacha() -> void:
 		draw_colored_polygon(PackedVector2Array([dp + Vector2(0, -4), dp + Vector2(4, 0), dp + Vector2(0, 4), dp + Vector2(-4, 0)]), GRADE_COL["mythic"] if i < run.myth_shards else Color("3a2a36"))
 	text(Vector2(484, yy + 2), "전설 %d번 → 신화" % PD.MYTH_SHARDS, UI["muted"])
 	# 뽑기 버튼
-	var dwhy := "" if run.can_draw() else ("흙·뽑기권 부족" if run.clay < PD.CLAY_DRAW and run.tickets == 0 else ("자리 없음 — 합치기" if run.army.size() + run.queued_new() >= run.cap() else "가마가 가득 참"))
-	button(Rect2(344, 288, 140, 34), ("1번 뽑기 · " + ("뽑기권" if run.tickets > 0 else "흙 %d" % PD.CLAY_DRAW)) if dwhy == "" else dwhy, "draw1", UI["gold"], dwhy == "")
-	button(Rect2(492, 288, 142, 34), "5번 뽑기", "draw5", UI["gold"], dwhy == "", true)
+	var dwhy := "" if run.can_draw() else ("흙·뽑기권 부족" if run.clay < PD.CLAY_DRAW and run.tickets == 0 else "가마가 가득 참 (%d칸)" % PD.KILN_SLOTS)
+	var left: int = run.draws_left()
+	button(Rect2(344, 288, 92, 30), "1번 뽑기", "draw1", UI["gold"], left >= 1)
+	button(Rect2(443, 288, 92, 30), "10번 뽑기", "draw10", UI["gold"], left >= 10)
+	button(Rect2(542, 288, 92, 30), "전부 %d번" % left if left > 0 else "전부", "drawall", UI["gold"], left >= 1, true)
+	text(Vector2(344, 336), fit(dwhy if dwhy != "" else "뽑기권 먼저, 없으면 흙 %d · 가마 %d/%d" % [PD.CLAY_DRAW, run.queue.size(), PD.KILN_SLOTS], 290.0), UI["muted"], 12, 290.0, HORIZONTAL_ALIGNMENT_CENTER)
 	button(Rect2(344, 348, 290, 30), "가마에 넣고 불 지피기 (%d)" % run.queue.size(), "fire_go", Color("ff9a6a"), not run.queue.is_empty())
 	text(Vector2(14, 374), fit("유약: 청자·진사·흑유 각 33%", 322.0), UI["muted"])
 
@@ -1427,7 +1469,7 @@ func _same_count(s: Dictionary) -> int:
 
 ## 튜토리얼: 화면을 어둡게 하고, 눌러야 할 곳을 밝게 둘러 화살표로 가리킨다
 const TUT := {
-	"draw": ["병사 뽑기", "'가마 뽑기'에 들어가 병사를 뽑습니다.\n등급은 6단계 — 일반부터 신화까지, 화면의 확률 그대로.\n천장이 있어서 운이 나빠도 정해진 횟수 안에 반드시 나옵니다.", Rect2(416, 58, 218, 50)],
+	"draw": ["병사 뽑기", "'가마 뽑기'에 들어가 흙 인형을 뽑습니다 (1번 · 10번 · 전부).\n등급은 6단계 — 일반부터 신화까지, 화면의 확률 그대로.\n천장이 있어서 운이 나빠도 정해진 횟수 안에 반드시 나옵니다.", Rect2(416, 58, 218, 50)],
 	"fire": ["가마에 굽기", "뽑은 흙 인형은 가마에서 구워야 병사가 됩니다 — 무엇이 될지는 구워 봐야 압니다.\n불을 세게 올릴수록 상품·요변(힘 ×1.5·×2.6)이 잘 나오고,\n불 4까지는 절대 깨지지 않습니다.", Rect2(6, 348, 310, 30)],
 	"star": ["별 올리기", "같은 병사·같은 별 3명을 합치면 별이 오릅니다 (확정).\n★1 → ★2 → … → ★5 까지, 단계마다 3명씩.\n유약은 달라도 되지만, 요변은 요변끼리만 합칩니다.", Rect2(218, 309, 188, 28)],
 	"full": ["자리가 꽉 찼습니다", "이제부터는 숫자보다 '키우기'입니다.\n· 같은 병사 3명 합치기 → 별 +1   · 다시 굽기 → 요변을 노림\n카드 오른쪽 위 2/3 표시가 합치기까지 모인 수입니다.", Rect2(6, 58, 404, 244)],
@@ -1807,14 +1849,18 @@ func _draw_fire() -> void:
 	text(Vector2(x, 72), zone, C["good"] if kiln.heat <= PD.KILN_SAFE_HEAT else C["accent"] if kiln.heat < 8 else C["danger"], 12)
 	var o: Dictionary = kiln.odds()
 	text(Vector2(x + 120, 72), "병사 한 명마다", C["dim"])
-	text(Vector2(x, 90), "요변 %d%%" % roundi(o["legend"] * 100.0), C["accent"])
-	text(Vector2(x + 70, 90), "귀한 빛깔 · 힘 2.6배 · 특수기", C["dim"])
-	text(Vector2(x, 104), "상품 %d%%" % roundi(o["fine"] * 100.0), C["text"])
-	text(Vector2(x + 70, 104), "잘 구워짐 · 힘 1.5배", C["dim"])
-	text(Vector2(x, 118), "깨짐 %d%%" % roundi(o["crack"] * 100.0), C["danger"] if o["crack"] > 0.0 else C["dim"])
-	text(Vector2(x + 70, 118), "파편 %d/%d — 다 모으면 요변 확정" % [kiln.shards, kiln.shard_need] if not kiln.guaranteed_legend() else "이번 가마: 요변 1개 확정!", C["dim"] if not kiln.guaranteed_legend() else C["accent"])
+	# 넷을 더하면 꼭 100% (깨짐 → 요변 → 상품 순서로 굴린 실제 몫)
+	var pc: Dictionary = PD.percent_100(PD.kiln_shares(o))
+	text(Vector2(x, 88), "요변 %d%%" % pc["legend"], C["accent"])
+	text(Vector2(x + 70, 88), "귀한 빛깔 · 힘 2.6배 · 특수기", C["dim"])
+	text(Vector2(x, 101), "상품 %d%%" % pc["fine"], C["text"])
+	text(Vector2(x + 70, 101), "잘 구워짐 · 힘 1.5배", C["dim"])
+	text(Vector2(x, 114), "보통 %d%%" % pc["normal"], UI["muted"])
+	text(Vector2(x + 70, 114), "그냥 구워짐", C["dim"])
+	text(Vector2(x, 127), "깨짐 %d%%" % pc["crack"], C["danger"] if pc["crack"] > 0 else C["dim"])
+	text(Vector2(x + 70, 127), fit("파편 %d/%d — 다 모으면 요변 확정" % [kiln.shards, kiln.shard_need] if not kiln.guaranteed_legend() else "이번 가마: 요변 1개 확정!", 180.0), C["dim"] if not kiln.guaranteed_legend() else C["accent"])
 	# 가마신과 내기
-	var br := Rect2(358, 130, 264, 160)
+	var br := Rect2(358, 136, 264, 156)
 	draw_rect(br, C["card"].darkened(0.2))
 	draw_rect(br, C["accent"] if bet_on else C["dim"].darkened(0.3), false, 1.0)
 	text(br.position + Vector2(8, 16), "가마신과 내기", C["accent"])
@@ -1841,7 +1887,10 @@ func _draw_reveal() -> void:
 	for j in surv.size():
 		var i: int = surv[j]
 		if i < reveal_shown and card_at.has(i):
-			_draw_card(kiln.results[i], _card_pos(j, surv.size()), t - card_at[i])
+			if surv.size() > 8:
+				_draw_card_small(kiln.results[i], _card_pos(j, surv.size()), t - card_at[i])
+			else:
+				_draw_card(kiln.results[i], _card_pos(j, surv.size()), t - card_at[i])
 	if reveal_shown >= kiln.results.size():
 		var counts := {}
 		for r2 in kiln.results:
@@ -1856,7 +1905,7 @@ func _draw_reveal() -> void:
 			parts.append("깨진 인형 %d · 파편 +%d" % [cracked, cracked])
 		parts.append(("합동 기술: " + ", ".join(syn)) if not syn.is_empty() else "합동 기술 없음")
 		text(Vector2(0, 338), "   ·   ".join(parts), C["accent"] if not syn.is_empty() else C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
-		button(Rect2(230, 348, 180, 30), "준비로  (Enter)", "fight", UI["gold"], true, true)
+		button(Rect2(230, 348, 180, 30), "가마로  (Enter)", "fight", UI["gold"], true, true)
 	if not gfx.is_empty():
 		_draw_gfx()
 
@@ -1895,6 +1944,33 @@ func _draw_card(r: Dictionary, p: Vector2, age: int) -> void:
 	draw_set_transform(Vector2.ZERO)
 
 
+## 작은 카드 (많이 구웠을 때): 등급 색 테두리 + 병사 + 이름(역할만) + 요변·상품 표시
+func _draw_card_small(r: Dictionary, p: Vector2, age: int) -> void:
+	var k := clampf(age / 10.0, 0.0, 1.0)
+	var sc: float = 0.8 + 0.2 * _ease_back(k)
+	var g: String = PD.ROLE_GRADE.get(r["role"], "common")
+	var gc: Color = GRADE_COL[g]
+	if GFX_TAPS.has(g):
+		glow(self, p, 44.0 * sc, Color(gc.r, gc.g, gc.b, 0.16))
+	draw_set_transform(p, 0.0, Vector2(sc, sc))
+	var rect := Rect2(-29, -42, 58, 84)
+	rrect(Rect2(rect.position + Vector2(0, 2), rect.size), Color(0, 0, 0, 0.45))
+	if not nine("card_9", rect, 6, Color.WHITE.lerp(gc, 0.55)):
+		rrect(rect, UI["lacquer"])
+		rline(rect, gc)
+	if r["tier"] != "normal":
+		text(Vector2(-27, -28), PD.TIER_NAME_KILN[r["tier"]], C["accent"] if r["tier"] == "legend" else C["text"], 12, 54.0, HORIZONTAL_ALIGNMENT_CENTER)
+	var ec: Color = C[r["element"]]
+	draw_set_transform(p + Vector2(0, 17) * sc, 0.0, Vector2(sc, sc * 0.3))
+	draw_circle(Vector2.ZERO, 18.0, ec.darkened(0.35))
+	draw_arc(Vector2.ZERO, 18.0, 0.0, TAU, 32, ec.lightened(0.25), 2.0)
+	draw_set_transform(Vector2.ZERO)
+	draw_ally_shape(p + Vector2(0, 2) * sc, r["role"], r["element"], r["tier"], 1.25 * sc)
+	draw_set_transform(p, 0.0, Vector2(sc, sc))
+	text(Vector2(-29, 36), fit(PD.ROLE_NAME_KILN[r["role"]], 56.0), gc, 12, 58.0, HORIZONTAL_ALIGNMENT_CENTER)
+	draw_set_transform(Vector2.ZERO)
+
+
 ## 가마 문이 열린다: 문틈의 빛이 커지고 연기가 오르다 번쩍 (등급 색 없이)
 func _draw_kiln_open() -> void:
 	var k := clampf(float(reveal_t) / OPEN_T, 0.0, 1.0)
@@ -1916,12 +1992,16 @@ func _draw_kiln_open() -> void:
 
 ## 작업대: 뽑은 흙 인형이 가마 앞에 줄지어 선다 (아직 굽지 않은 흙빛)
 func _bench_pos(i: int, n: int) -> Vector2:
-	return Vector2(171 + (i - (n - 1) / 2.0) * 36.0, 316)
+	var row: int = i / 10
+	var in_row: int = mini(10, n - row * 10)
+	return Vector2(171 + (i % 10 - (in_row - 1) / 2.0) * 30.0, 318 - row * 14)
 
 
 func _draw_bench() -> void:
 	var n: int = run.queue.size()
-	for i in n:
+	var order: Array = range(n)
+	order.reverse()   # 뒷줄부터
+	for i in order:
 		var q: Dictionary = run.queue[i]
 		var p := _bench_pos(i, n)
 		var age: int = t - drawn_at.get(i, -999)
@@ -1943,7 +2023,8 @@ const LOAD_FLY := 22
 
 
 func _load_start(i: int) -> int:
-	return 10 + maxi(0, i) * 9
+	var gap: int = clampi(90 / maxi(1, run.queue.size()), 3, 9)
+	return 10 + maxi(0, i) * gap
 
 
 func _draw_loading() -> void:
@@ -1951,7 +2032,9 @@ func _draw_loading() -> void:
 	var door := _door_screen_box(FIRE_O + _shake_now).get_center() + Vector2(0, 26)
 	for i in n:
 		var q: Dictionary = run.queue[i]
-		var p0 := Vector2(170 + (i - (n - 1) / 2.0) * 34.0, 372)
+		var row: int = i / 10
+		var in_row: int = mini(10, n - row * 10)
+		var p0 := Vector2(170 + (i % 10 - (in_row - 1) / 2.0) * 26.0, 360 + row * 12)
 		var k := clampf(float(load_t - _load_start(i)) / LOAD_FLY, 0.0, 1.0)
 		if k >= 1.0:
 			continue
@@ -1968,28 +2051,39 @@ func _draw_loading() -> void:
 var _clay_cache := {}
 
 
-func clay_tex(role: String) -> Texture2D:
-	if _clay_cache.has(role):
-		return _clay_cache[role]
-	var out: Texture2D = null
-	var src := tex(soldier_sprite(role, "water"))
-	if src != null:
-		var img: Image = src.get_image()
-		if img != null:
-			if img.is_compressed():
-				img.decompress()
-			img.convert(Image.FORMAT_RGBA8)
-			for y in img.get_height():
-				for x in img.get_width():
-					var c := img.get_pixel(x, y)
-					if c.a < 0.1:
-						continue
-					var l := c.get_luminance()
-					var nc: Color = CLAY_TONES[0] if l < 0.14 else CLAY_TONES[1] if l < 0.32 else CLAY_TONES[2] if l < 0.55 else CLAY_TONES[3]
-					nc.a = c.a
-					img.set_pixel(x, y, nc)
-			out = ImageTexture.create_from_image(img)
-	_clay_cache[role] = out
+func clay_tex(_role := "") -> Texture2D:
+	# 모든 흙 인형은 똑같은 흙덩이 (무엇이 될지 모양으로도 알 수 없게, 2026-11-28 사용자 요청)
+	if _clay_cache.has("lump"):
+		return _clay_cache["lump"]
+	var w := 20
+	var h := 24
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var inside := func(x: int, y: int) -> bool:
+		var bx: float = (x + 0.5 - 10.0) / 8.5
+		var by: float = (y + 0.5 - 16.5) / 7.5
+		var hx: float = (x + 0.5 - 10.0) / 4.8
+		var hy: float = (y + 0.5 - 6.5) / 4.6
+		return bx * bx + by * by <= 1.0 or hx * hx + hy * hy <= 1.0
+	for y in h:
+		for x in w:
+			if not inside.call(x, y):
+				continue
+			var edge: bool = not (inside.call(x - 1, y) and inside.call(x + 1, y) and inside.call(x, y - 1) and inside.call(x, y + 1))
+			# 왼쪽 위에서 빛: 왼쪽 위가 밝고 오른쪽 아래가 어둡다
+			var head: bool = y < 11
+			var cy: float = 6.5 if head else 16.5
+			var lit: float = -(x - 10.0) / 9.0 * 0.6 - (y - cy) / 8.0 * 0.8
+			var tone := 2
+			if lit > 0.45:
+				tone = 3
+			elif lit < -0.35:
+				tone = 1
+			img.set_pixel(x, y, CLAY_TONES[0] if edge else CLAY_TONES[tone])
+	# 목 자국과 손가락 자국 몇 점
+	for q in [Vector2i(8, 11), Vector2i(9, 11), Vector2i(10, 11), Vector2i(11, 11), Vector2i(7, 16), Vector2i(12, 19), Vector2i(13, 15)]:
+		img.set_pixelv(q, CLAY_TONES[1])
+	var out := ImageTexture.create_from_image(img)
+	_clay_cache["lump"] = out
 	return out
 
 

@@ -111,6 +111,24 @@ func _all() -> void:
 	k.gfx = {}
 	await _frames(260)
 	await _snap("p04_kiln_reveal_done")
+	# 많이 구웠을 때 (가마 30칸): 작은 카드 여러 줄
+	var keep: Array = k.kiln.results
+	var many: Array = []
+	for i in 24:
+		var r0: Dictionary = keep[i % keep.size()].duplicate()
+		r0["cracked"] = false
+		many.append(r0)
+	many[5]["cracked"] = true
+	k.kiln.results = many
+	k.reveal_shown = many.size()
+	for i in many.size():
+		k.card_at[i] = -100
+	await _frames(2)
+	await _snap("p04b_kiln_reveal_many")
+	k.kiln.results = keep
+	k.card_at = {}
+	for i in keep.size():
+		k.card_at[i] = -100
 	# 둘째 밤 준비: 병사가 남아 있고, 진사 창병 3명이면 합치기 버튼
 	run.night = 2
 	run.clay = 9

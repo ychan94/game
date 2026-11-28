@@ -22,7 +22,7 @@ func bot_merge(run) -> void:
 
 func bot_prep(run, heat: int) -> void:
 	bot_merge(run)
-	while run.can_draw():
+	while run.can_draw() and run.army.size() + run.queued_new() < run.cap():
 		run.draw()
 	for s in run.army.duplicate():
 		if s["tier"] == "normal" and run.can_refire(s["id"]):
@@ -75,11 +75,17 @@ func test_cap_and_clay_limit_drawing() -> bool:
 	var n := 0
 	while not run.draw().is_empty():
 		n += 1
-	check(n == mini(PD.KILN_SLOTS, run.cap()), "한 번에 가마 자리만큼만 넣는다: %d" % n)
+	check(n == PD.KILN_SLOTS and PD.KILN_SLOTS == 30, "한 번에 가마 자리(30)만큼 넣는다: %d" % n)
+	check(run.draws_left() == 0, "가마가 차면 더 못 뽑는다")
 	run.fire()
-	while not run.draw().is_empty():
-		pass
-	run.fire()
+	check(run.army.size() > run.cap() and not run.can_start_night(), "부대 자리를 넘으면 밤을 못 맞는다")
+	var clay0: int = run.clay
+	var sent := 0
+	while run.over_cap() > 0:
+		check(run.release(run.army[0]["id"]), "돌려보내기")
+		sent += 1
+	check(run.clay == clay0 + PD.CLAY_SMASH_BACK * sent, "돌려보내면 흙 %d씩" % PD.CLAY_SMASH_BACK)
+	check(run.can_start_night(), "자리를 맞추면 밤을 맞는다")
 	check(run.army.size() <= run.cap(), "병사 자리를 넘지 않는다")
 	var r2 = KilnRun.new(1)
 	r2.clay = PD.CLAY_DRAW - 1
@@ -641,4 +647,60 @@ func test_order_move_in_battle() -> bool:
 	check(ar.pos.distance_to(dest) < 4.0, "궁수가 명령한 곳까지 걸어갔다: %s" % [ar.pos])
 	check(ar.home == dest, "그 자리가 새 제자리")
 	check(not b.order_move(99999, dest), "없는 병사는 명령 못 받음")
+	return true
+
+
+## 가마 확률표: 요변·상품·보통·깨짐을 더하면 불 세기와 상관없이 꼭 100% (2026-11-28 사용자 요청)
+func test_kiln_percent_sums_to_100() -> bool:
+	for heat in PD.KILN_MAX_HEAT + 1:
+		var sh: Dictionary = PD.kiln_shares(PD.kiln_odds(heat))
+		var tot := 0.0
+		for k in sh:
+			tot += sh[k]
+		check(absf(tot - 1.0) < 1e-6, "불 %d: 몫의 합 1" % heat)
+		var pc: Dictionary = PD.percent_100(sh)
+		var ps := 0
+		for k in pc:
+			ps += pc[k]
+		check(ps == 100, "불 %d: 화면 %% 합 100 (%d)" % [heat, ps])
+	# 실제로 굴려 봐도 표와 비슷하다
+	var Kiln = load("res://src/proto/kiln.gd")
+	var kl = Kiln.new(5)
+	kl.heat = 8
+	var o: Dictionary = kl.odds()
+	var sh2: Dictionary = PD.kiln_shares(o)
+	var got := {"legend": 0, "fine": 0, "normal": 0, "crack": 0}
+	for i in 20000:
+		var r: Dictionary = kl.roll(o)
+		got["crack" if r["cracked"] else r["tier"]] += 1
+	for k in got:
+		check(absf(got[k] / 20000.0 - sh2[k]) < 0.02, "불 8 %s: 굴린 값 %.3f ≈ 표 %.3f" % [k, got[k] / 20000.0, sh2[k]])
+	return true
+
+
+## 화면 밖(아군이 못 닿는 곳)에서는 적이 공격하지 못한다. 멀리서 맞으면 아군이 그 적에게 간다
+func test_enemy_cannot_hit_from_off_field() -> bool:
+	var b = Battle.new(3)
+	b.spawn_queue = []
+	var a = b.add_ally("spear", "fire", "normal", "창병", 1.0, {}, Vector2(Battle.ALLY_MAX_X, 130))
+	var e = b.add_enemy("imp", 130.0)
+	e.range = 200.0
+	var hp0: float = a.hp
+	e.pos = Vector2(Battle.FIELD.size.x + 8.0, 130)
+	e.speed = 0.0
+	for i in 60:
+		b.step()
+	check(a.hp == hp0, "화면 밖의 적은 못 때린다")
+	# 안으로 들어와 멀리서 쏘면, 맞는 아군은 그 적에게 다가간다
+	var b2 = Battle.new(4)
+	b2.spawn_queue = []
+	var a2 = b2.add_ally("spear", "fire", "normal", "창병", 1.0, {}, Vector2(300, 130))
+	var e2 = b2.add_enemy("imp", 130.0)
+	e2.pos = Vector2(470, 130)
+	e2.range = 180.0
+	e2.speed = 0.0
+	var x0: float = a2.pos.x
+	for i in 90:
+		b2.step()
+	check(a2.pos.x > x0 + 20.0 or not e2.alive, "멀리서 쏘는 적에게 다가간다 (%.0f → %.0f)" % [x0, a2.pos.x])
 	return true

@@ -1,0 +1,1236 @@
+Reading additional input from stdin...
+OpenAI Codex v0.172.0
+--------
+workdir: C:\Users\pc\Documents\game
+model: gpt-6-astra
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: none
+session id: 01a220c6-9502-7c20-9e26-ad8e88fc0407
+--------
+user
+work/2026-11-28-표지/handoff-10.md 지시서를 처음부터 끝까지 읽고 그대로 작업해 줘. 지시서의 '먼저 읽을 것'을 모두 읽은 뒤 시작하고, '고쳐도 되는 범위' 밖의 파일은 절대 건드리지 마. 세 장은 한 장면을 세 층으로 나눈 것이라 같은 팔레트·같은 빛이어야 해. git commit·push 하지 말고, 저장소의 Python 스크립트도 돌리지 마. 끝나면 지시서 맨 아래 형식 그대로 보고해 줘 (첫 줄: 결과: 통과 / 실패 / 못 돌림).
+warning: Codex is ignoring 1 unrecognized configuration setting. Check for typos or deprecated settings.
+  user (C:\Users\pc\.codex\config.toml): `computer_use.windows.always_allowed_app_ids` is ignored.
+warning: Codex is ignoring 1 unrecognized configuration setting. Check for typos or deprecated settings.
+  user (C:\Users\pc\.codex\config.toml): `computer_use.windows.always_allowed_app_ids` is ignored.
+codex
+지시서 전체와 ‘먼저 읽을 것’을 모두 확인한 뒤, 허용된 파일만 작업하겠습니다. 세 층의 팔레트와 빛을 맞추고, 커밋·푸시와 저장소 Python 스크립트 실행은 하지 않겠습니다.
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw -Encoding UTF8 'work/2026-11-28-표지/handoff-10.md'" in C:\Users\pc\Documents\game
+ succeeded in 326ms:
+# Codex 작업 지시서 — 시작 화면 표지 그림 (세 겹)
+
+- 날짜: 2026-11-28
+- 작업 폴더: work/2026-11-28-표지/
+- 지시서 번호: 10
+
+## 먼저 읽을 것
+1. AGENTS.md
+2. art/references/ — 정한 그림체
+3. `assets/sprites/kiln/soldier_*.png` — 병사 도자기 인형 (표지 병사는 이것을 **크게, 일러스트로** 그린 것)
+4. `assets/sprites/ui/merchant.png` — 지금 그림 중 가장 '일러스트' 다운 것. 선·명암 수준을 이만큼 이상으로
+5. work/2026-11-30-UI그림/handoff-08.md 의 "AI 티 없애기" 10가지 — 여기서도 똑같이 지킨다
+6. work/2026-11-28-표지/ref_title_now.png — 지금 시작 화면 (코드로 그린 임시. 이것을 바꾸는 일)
+
+## 목표 (사용자 말 그대로)
+> "게임 시작할 때 배경이 너무 허접해. 기본 도트 병사를 그대로 보여줬는데, 퀄리티 있는 디자인으로 세련되게 새로 디자인해줘. codex에게 맡겨봐."
+
+해석(참고용): 게임을 켜면 처음 보는 '표지'다. 한 장으로 게임이 무엇인지 보여야 한다 — 밤, 지켜야 할 마을, 불 붙은 가마, 마을 앞을 지키는 도자기 병사들, 숲에서 다가오는 도깨비. 게임이 세 겹을 서로 다른 속도로 아주 천천히 좌우로 흔들고(시차), 그 위에 반딧불·가마 불빛 깜빡임·제목·버튼을 그린다.
+
+## 그림체 (반드시 따른다)
+- 픽셀 아트. 선명한 가장자리, 표의 최대 색 수 이하, 1px 진한 먹갈색 외곽선 (먼 산·하늘은 외곽선 없이 색 덩어리)
+- 밤: 차분한 먹·남색 바탕. 강한 색은 **가마 불빛·마을 창 불빛·유약 반사·도깨비 눈** 에만
+- 빛은 한 방향: 오른쪽 가마 불빛이 주된 빛 (병사 등·어깨 오른쪽에 주황 테두리 빛), 달빛은 약한 푸른 보조광
+- 병사는 '유약 바른 도자기 인형' — 매끈한 몸, 유약 반사(흰 광택 한두 점), 얼굴은 회색 도자기, 발밑 받침. 청자(비취)·진사(구리빛 붉은)·흑유(검은 갈색 + 기름 광택)가 섞인 무리. 창·활·방패·장수 깃발
+- 도깨비: 먹빛 남색·회청색 몸 + 노란 눈 (진사 빨강 금지). 표지에서는 숲 어둠 속 눈빛과 윤곽 정도만
+- **글자·로고 넣지 않기** (제목 "KILNBORN" 은 게임이 쓴다)
+- 구도: 가운데 위쪽(대략 x 200~440, y 40~230)은 제목·버튼 자리 → 어둡고 단순하게 비워 둔다
+- handoff-08 의 "AI 티 없애기" 10가지 (팔레트·덩어리·한 방향 빛·그라데이션 절제·형태 먼저·한 벌)
+
+## 그리는 방법 (사용자가 정한 것)
+- [x] 이미지 생성 후 코드로 다듬기 (크기 맞추기·색 줄이기) — 사용자가 handoff-01 에서 정함
+- 색을 표의 최대 색 수 이하로 줄이고, 외톨이 점·흐린 가장자리를 정리한다
+- 세 겹은 **한 장면을 세 층으로 나눈 것** — 따로 그린 것처럼 보이면 안 된다 (같은 팔레트, 같은 빛)
+
+정한 방법을 쓸 수 없으면 다른 방법으로 바꾸지 말고 `결과: 못 돌림` 으로 보고한다.
+
+## 만들 것 (3장, 모두 704×400 — 게임 화면 640×400 보다 좌우 32px 씩 넓다)
+
+| 파일 | 최대 색 | 바탕 | 내용 |
+|---|---|---|---|
+| `assets/sprites/ui/title_far.png` | 64 | 불투명 | 가장 뒤: 밤하늘(별 조금), 오른쪽 위 달, 가는 구름 띠, 먼 산 두 겹(남색 → 먹색). 아래 1/3 은 산 그림자로 어둡게 |
+| `assets/sprites/ui/title_mid.png` | 96 | 투명 | 가운데: 왼쪽 초가·기와 마을(창 불빛 몇 개, 돌담), 오른쪽 언덕 위 장작 가마(문에서 불길, 굴뚝 연기), 둘을 잇는 흙길. 땅선은 대략 y 250~280 |
+| `assets/sprites/ui/title_front.png` | 96 | 투명 | 앞: 화면 아래쪽에 도자기 병사 무리 5~7명(키 90~140px)이 등을 반쯤 보이며 마을 앞에 서서 오른쪽 숲을 본다. 오른쪽 아래 숲 어둠 속 노란 도깨비 눈빛 여러 쌍. 앞쪽 풀·돌. 위쪽 절반은 완전히 투명 |
+
+## 고쳐도 되는 범위
+- `assets/sprites/ui/title_far.png` (새 파일)
+- `assets/sprites/ui/title_mid.png` (새 파일)
+- `assets/sprites/ui/title_front.png` (새 파일)
+- `work/2026-11-28-표지/` 안의 작업 파일 (비교 시트·중간 그림)
+
+이 목록에 없는 파일은 만들거나 고치지 않는다. (게임 코드는 이미 연결해 두었다: 세 장이 있으면 쓰고, 없으면 예전 화면)
+
+## 보호 검사 결과 (Claude가 미리 확인함)
+- `python3 scripts/protected.py <위 3개 파일>` → 걸린 파일 없음 (모두 새 파일)
+
+## 하면 안 되는 일
+- 범위 밖 파일 수정·삭제, 게임 코드 수정, 저장소 Python 스크립트 실행, git commit / push, 못 했는데 했다고 보고하기
+- 글자·로고·서명 넣기
+
+## 끝나면 이 형식으로 보고
+```
+결과: 통과 | 실패 | 못 돌림
+바뀐 파일:
+- 경로 — 무엇을
+확인한 것:
+- 크기 704×400 · 투명 바탕(mid·front) · 색 수 (장마다 숫자)
+- 세 장을 겹친 미리보기: work/2026-11-28-표지/preview.png
+못 한 것 / 걱정되는 것:
+- …
+```
+
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw -Encoding UTF8 'AGENTS.md'
+Get-Content -Raw -Encoding UTF8 'work/2026-11-30-UI그림/handoff-08.md'
+Get-Content -Raw -Encoding UTF8 'C:/Users/pc/.codex/skills/.system/imagegen/SKILL.md'
+if (Test-Path 'PROTECTED.txt') { Get-Content -Raw -Encoding UTF8 'PROTECTED.txt' }
+git status --porcelain
+rg --files art/references assets/sprites/kiln work/2026-11-28-표지" in C:\Users\pc\Documents\game
+ succeeded in 371ms:
+# AGENTS.md
+
+모든 에이전트(Claude, Codex 등)의 규칙은 이 파일 한 곳에만 쓴다. CLAUDE.md 는 이 파일을 불러오기만 한다.
+
+## 가장 먼저 지킬 것
+
+1. **최신 지시가 이 파일보다 우선한다.** 사용자가 지금 대화에서 한 말이 이 파일과 다르면 사용자의 말을 따르고, 그 내용을 아래 "작업 메모" 규칙대로 적는다.
+2. **사용자가 직접 고친 파일은 덮어쓰지 않는다.** 고치기 전에 `python3 scripts/protected.py <파일...>` 로 확인한다. 걸리면 바꿀 내용을 제안만 하고 손대지 않는다. (`PROTECTED.txt`, 마지막 커밋을 사용자가 한 파일, 작업 시작 때 이미 커밋 안 된 변경이 있던 파일)
+   - **Codex는 이 검사를 직접 돌리지 않는다.** Claude가 지시서를 쓰기 전에 돌리고 결과를 지시서에 적는다. Codex는 지시서의 "고쳐도 되는 범위" 밖과 `PROTECTED.txt` 에 적힌 파일을 건드리지 않는 것으로 이 규칙을 지킨다.
+3. **자동 검사 통과는 재미·미술 승인이 아니다.** 테스트·봇·측정이 통과해도 "검사는 통과, 재미·미술 판단은 사용자 몫"이라고 말한다. 스스로 "재밌다", "예쁘다", "완성"이라고 결론 내지 않는다.
+
+## 작업 메모
+
+- 작업마다 폴더를 만든다: `work/<YYYY-MM-DD>-<작업이름>/` (그림 루프는 `work/art-<작업>/`)
+- 그 안의 `NOTES.md` 에 작업 중 새로 정한 것을 **날짜와 사용자 말 그대로** 적는다.
+  ```
+  - 2026-11-26 "보스 체력은 지금보다 2할만 낮춰 줘"
+    → src/core/data.gd ECHO_HP 조정
+  ```
+- 작업 시작 때 `git status --porcelain` 결과를 NOTES.md 에 붙여 둔다 (이미 있던 사용자 변경을 구분하려고).
+- 작업 메모에 적은 것이 여러 작업에 계속 쓰일 규칙이면, 사용자에게 물어본 뒤 이 파일로 옮긴다.
+
+## 역할 나누기
+
+- **그림이 필요한 작업은 Codex에게 넘긴다** → `.claude/skills/codex-handoff/SKILL.md`
+  - 지시서: 먼저 읽을 것 / 목표(사용자 말 그대로) / 고쳐도 되는 범위 / 하면 안 되는 일
+  - Codex 보고 첫 줄: `결과: 통과` | `결과: 실패` | `결과: 못 돌림`
+  - Claude는 바뀐 파일·보호 파일·검사·렌더를 **직접 다시 확인한 뒤에만** 커밋한다.
+- 코드·테스트·측정은 Claude가 직접 한다.
+- Codex는 커밋·푸시하지 않는다.
+- Codex는 이 저장소의 Python 스크립트(검사·테스트·측정)를 돌리지 않는다. Windows의 Codex 쓰기 모드에서는 Python을 쓸 수 없다. 검사는 Claude가 Codex 작업 전후에 한다. Codex가 검사를 못 돌린 것만으로는 `못 돌림`이 아니다.
+
+## 프로젝트 구조
+
+지금: **KILNBORN** 하나 (2026-11-28 사용자가 정한 게임 이름. 예전 이름 "가마의 병사" — 코드·문서 주석에 남아 있으면 같은 게임) (2026-11-30 사용자: "게임은 가마 병사만 하고 알 관련 게임은 없이"). 시작하면 `src/game/kiln_scene` 첫 화면으로 바로 간다.
+지난 시험판 **AFTERSELF (가제)** 는 보류 (`docs/기획서.md`, `src/core/`). Godot 4.7, 위에서 내려다보는 2D 픽셀 아트(타일 32×32).
+
+| 위치 | 내용 |
+|---|---|
+| `src/proto/` | 가마의 병사 규칙 (화면과 무관). `data.gd` 수치 · `battle.gd` 전투 · `kiln.gd` 가마 · `kiln_run.gd` 한 판(챕터·뽑기·상점·전직) · `meta.gd` 전술 강화·기록 |
+| `src/core/` | (보류) AFTERSELF 규칙 (화면과 무관). `data.gd` 수치 · `world.gd` 방 하나의 전투 · `run.gd` 한 판 흐름 · `habits.gd` 습관 기록 · `echo.gd` 어제의 나 · `save.gd` 판 사이 저장 |
+| `src/game/` | 화면·입력. `kiln_scene` 모든 화면 · `proto_base` 공통 연출·UI 부품 · `pixel_art.gd` 임시 도트 · `launcher` 바로 kiln 으로 · `main` (보류) AFTERSELF. 규칙을 읽어서 그리기만 한다 |
+| `assets/` | 게임에 들어가는 그림·글꼴 (글꼴: 본문 Pretendard · 제목 도현, 모두 OFL. 갈무리는 예비). 그림은 `assets/sprites/` — 목록 `art/sprite_list.json`, 설명 `docs/그림-목록.md`. 파일이 있으면 게임이 쓰고, 없으면 도형으로 그린다 |
+| `tests/` | Godot 테스트 (`test_p0.gd`, `test_p1.gd`, `test_boss.gd`), 봇, 성능 측정(`bench.gd`), 스크린샷(`screens.gd`) |
+| `art/` | 그림 루프용 기준 그림·기준표 (게임에 안 들어감) |
+
+- 규칙은 `src/proto/`(지금) · `src/core/`(보류) 에만 쓴다. 화면 코드에서 규칙을 바꾸지 않는다 (테스트·봇이 화면 없이 규칙을 돌리기 때문).
+- 수치(밸런스)는 `src/proto/data.gd`(지금) 한 곳에서만 바꾼다.
+- **그리기 층 (HD-2D)**: 화면은 1280×800 으로 그리고(실행 중에 canvas_items 로 바꿈), 픽셀 그림은 또렷하게, 빛·안개는 부드럽게. 층: `bg` 바닥 → `back` 그림자·뒷빛·안개 → 기본(캐릭터·UI) → `glow` 빛(가산 혼합) → `front` 앞 안개·밤 색감·비네트 (`src/game/glow_layer.gd`, `proto_base.gd` 의 `draw_layer`). 전투가 보일 때 기본층은 화면 전체를 칠하지 않는다 (`draw_screen_bg`).
+- **이펙트 애니메이션**: `assets/sprites/fx/<이름>.png` (정사각형 장면을 가로 한 줄) 이 있으면 `play_fx` 로 재생, 없으면 코드 효과.
+- **억울하지 않은 운** (사용자 요청): 안전 구간은 반드시 보통 이상 · 확률은 화면에 숫자로 · 실패하면 파편/조각 · 3개 모이면 확정 보상. 이 규칙을 깨는 변경은 사용자에게 먼저 묻는다.
+- `work/`, `reports/`, `docs/`, `scripts/`, `perf/`, `art/` 에는 `.gdignore` 가 있어 Godot 가 읽지 않는다.
+
+## 실행 환경
+
+- 이 문서의 `python3` 명령은 Windows에서 `python3` 이 안 되면 `python` 으로 바꿔 실행한다 (같은 것).
+- Godot: `scripts/godot_cmd.py` 가 찾는다 (환경 변수 `GODOT` → PATH 의 `godot` → Windows 기본 위치의 `*_console.exe`). 못 찾으면 환경 변수 `GODOT` 에 실행 파일 경로를 넣는다. Windows는 창 없는 실행을 위해 `_console.exe` 를 쓴다.
+- 화면 확인(스크린샷): `godot --path . --script res://tests/screens_proto.gd -- <저장 폴더>` (지난 시험판은 `screens.gd`) (화면이 있는 환경에서. 서버에서는 Xvfb 필요). 화면을 바꾸면 스크린샷을 직접 열어 확인한다.
+- Codex는 `codex exec` (Codex CLI)로 부른다. git 저장소 폴더 안에서만 실행한다.
+  쓰기 작업은 `--sandbox workspace-write`, 읽기만 하면 `--sandbox read-only` (Codex CLI 0.172 기준. `--full-auto` 는 없음).
+
+## 자동 테스트
+
+| 단계 | 뜻 | 위치 |
+|---|---|---|
+| P0 | 깨지면 게임이 안 되는 것 (시작·이동·공격·죽음→메아리·같은 시드 같은 결과) | `tests/test_p0.gd` |
+| P1 | 게임 전반. 가마의 병사(가마 확률·파편·합동 기술·뽑기·챕터·스킬·진영·상점·균형) `tests/test_proto.gd` `tests/test_kiln_run.gd` + AFTERSELF `tests/test_p1.gd` | `tests/test_proto.gd`, `tests/test_kiln_run.gd`, `tests/test_p1.gd` |
+| boss | 어제의 나가 습관·빌드를 따라 하는지 + 분석표를 읽는 봇(`reader`)이 여러 어제의 나와 싸움 → 깼는지·걸린 시간·잃은 체력 | `tests/test_boss.gd` → `reports/boss/` |
+
+```bash
+python3 scripts/test.py              # 바뀐 파일에 맞는 단계만
+python3 scripts/test.py --dry-run    # 무엇을 돌릴지만
+python3 scripts/test.py --stage all  # 전부
+```
+
+- 파일 → 단계 연결은 `test_map.json`. 새 폴더·파일을 만들면 여기에 규칙을 추가한다.
+- 게임 규칙(`src/core/*.gd`)을 고치면 boss 단계가 같이 돈다: Claude가 고친 직후(`.claude/hooks/after_edit.py`) + 커밋 전(`.githooks/pre-commit`).
+- 테스트 함수는 `test_` 로 시작하고, 끝까지 가면 `return true`. 확인은 `check(조건, "설명")`.
+- 봇과 어제의 나는 같은 두뇌(`echo.gd` 의 `Brain`)를 쓰고, 플레이어 조작(이동·조준·공격·구르기)만 낸다. 게임 내부 값을 직접 바꾸지 않는다.
+- 테스트를 통과시키려고 테스트나 봇 기준을 느슨하게 고치지 않는다. 고쳐야 하면 이유를 사용자에게 먼저 말한다.
+
+## 성능 검사
+
+조건(적 120마리 + 어제의 나, 시드 42, 600프레임, 고정 입력)은 `tests/bench.gd` 맨 위 상수로 고정한다. 화면 그리기는 빼고 규칙 계산만 잰다.
+
+1. `python3 perf/bench.py profile` — 함수(시스템)별 프레임 시간, 병목 찾기
+2. 고치기 전: `python3 perf/bench.py baseline` — 결과 지문 저장
+3. 고친 뒤: `python3 perf/bench.py compare` — 바꾸기 전과 결과가 같은지 (회귀 테스트). 다르면 성능 개선으로 인정하지 않는다.
+4. `python3 perf/bench.py fps --note "무엇을 바꿨나"` — FPS 평균·1% 저점을 같은 조건에서 재서 `perf/records.csv` 에 날짜와 함께 남긴다. 고치기 전·후 둘 다 잰다.
+
+- 결과가 일부러 달라져야 하는 변경(게임 규칙 변경)이면 사용자에게 말하고 baseline 을 새로 저장한 이유를 NOTES.md 에 적는다.
+
+## 그림 검사
+
+- Codex가 그림을 넣으면: `python3 scripts/check_sprites.py [--group 이름] [--sheet 비교시트.png]` — 크기·투명 배경·색 수(24개 이하)·흐린 가장자리
+- 그다음 스크린샷으로 게임 화면에서 직접 본다. 그림체 판단은 사용자 몫.
+
+## 그림 루프
+
+→ `.claude/skills/art-loop/SKILL.md`, 도구 `scripts/art_loop.py`, 기본값 `art/loop_config.json`
+
+- 회차마다 `work/art-<작업>/round_NN/` 스냅샷
+- 셀 수 있는 것(잡티, 끊긴 선)은 스크립트로 잰다.
+- "AI 티"와 "우리 그림체와 어울리는지"는 처음 보는 검토자 2명이 `art/rubric.md` 와 `art/references/` 만 보고 채점 → 평균
+- 회차 상한(기본 6), 2회 연속 점수가 안 오르면 멈추고 사용자에게 비교 시트를 보여 준다.
+
+## 커밋
+
+- 커밋 전에 `python3 scripts/test.py` 가 통과해야 한다 (pre-commit 훅이 자동으로 돌림).
+- 처음 받은 저장소라면 `git config core.hooksPath .githooks` 를 한 번 실행한다.
+- 커밋 메시지에 무엇을 왜 바꿨는지, 돌린 검사와 결과를 적는다.
+
+# Codex 작업 지시서 — UI 그림 (아이콘 14 · 창·버튼·카드 틀 7 · 상인 1)
+
+- 날짜: 2026-11-30
+- 작업 폴더: work/2026-11-30-UI그림/
+- 지시서 번호: 08
+
+## 먼저 읽을 것
+1. AGENTS.md
+2. art/references/ — 정한 그림체 (가 + 다: 흙·먹색 바탕, 유약 색은 포인트)
+3. `assets/sprites/kiln/soldier_*.png` — 병사 도자기 인형 (상인은 이 인형과 같은 그림체)
+4. `work/2026-11-30-UI그림/ref_lobby.png`, `ref_gacha.png`, `ref_shop.png`, `ref_clear.png`, `ref_tactics.png` — 지금 게임 화면 (코드로 그린 임시 UI). **이 자리에 들어갈 그림**이다
+5. UI 시안: claude.ai 아티팩트 "가마의 병사 UI 개편 시안" — 색과 배치의 방향 (옻칠 바탕 · 청동 테두리 · 금박)
+6. docs/그림-목록.md, art/sprite_list.json 의 "UI" 묶음
+
+## 목표 (사용자 말 그대로)
+> "UI 그림(아이콘, 패널 장식, 상인 그림)도 Codex 지시서로 만들어줘. 좀 더 세련되고 AI가 만든 것 같지 않도록 실제 전문 디자이너가 한 것처럼 자연스럽게 만들어줘."
+
+## AI 티 없애기 — 전문 픽셀 UI 디자이너처럼 (반드시 지킨다)
+사용자가 가장 신경 쓰는 부분이다. 아래는 "AI가 만든 티"가 나는 흔한 원인과 그 반대로 하는 방법이다.
+
+1. **팔레트를 먼저 정하고 그 색만 쓴다.** 아래 팔레트 밖의 색 금지 (표의 최대 색 수 안에서). 비슷한 색 여러 개(색 번짐) 금지
+   - 먹 `#282322` · 옻칠 어둠 `#120e16` `#1c1622` `#2a2236` · 청동 `#5a4630` `#8a6a48` `#a8862e` · 금박 `#e8c35a` `#fff1c4`
+   - 흙 `#b98a5e` `#7a5a44` · 한지 `#e8dcb8` `#f2e6c8` · 쇠 `#6f6c66` `#b0b8c0` `#dfe6ee` · 진사 `#b8463a` `#7a2a24` · 청자 `#6b9878` `#a6c5a3` · 불 `#ff9a3c`
+2. **점은 손으로 찍은 것처럼:** 의미 있는 덩어리(클러스터)로만. 외톨이 점·흩뿌린 잡티·노이즈 결 금지. 모든 점이 "왜 거기 있는지" 설명되어야 한다
+3. **빛은 왼쪽 위 한 방향.** 하이라이트는 1~2px, 그림자는 오른쪽 아래. 형태마다 빛 방향이 다르면 AI 티가 난다
+4. **그라데이션·흐림·광택 번짐 금지.** 단계는 2~3단으로 끊는다. 디더링은 필요한 곳에만 아주 조금
+5. **1배 크기에서 읽혀야 한다.** 16×16 아이콘은 실루엣만 보고도 무엇인지 알아야 한다 — 디테일보다 형태 먼저. 작게 줄여 확인할 것
+6. **외곽선:** 먹색 1px. 안쪽 선은 바깥보다 밝게(선택적 외곽선). 계단(jaggies) 없이 1-2-3 규칙적인 기울기
+7. **한 벌로:** 아이콘 14개는 같은 크기 틀(대략 12~13px 안), 같은 외곽선 굵기, 같은 빛·같은 채도. 하나만 튀면 안 된다
+8. **9조각 그림(panel·button·card·title_plate·chip):** 모서리는 정해진 px 안에서 끝나고, **가운데와 변은 단색**(늘어나도 무늬가 늘어지지 않게). 버튼·카드·제목 판은 **밝은 무채색**으로 — 게임이 상황마다 색을 입힌다
+9. **장식은 절제:** 한국 전통 장석·구름무늬는 모서리에 작게 하나. 테두리 전체를 문양으로 채우지 않는다
+10. 글자·로고를 그림에 넣지 않는다 (게임이 글을 쓴다)
+
+## 정한 그림체 (반드시 따른다)
+- 가 + 다 섞음: 형태는 또렷하게, 바탕은 먹·흙 회색조, 강한 색은 포인트에만
+- 투명 배경 (9조각의 깎은 모서리 바깥도 투명), 흐림(안티에일리어싱) 없음, 표의 색 수 이하
+
+## 그리는 방법 (사용자가 정한 것)
+- [x] 이미지 생성 후 코드로 다듬기 (크기 맞추기·배경 투명·색 줄이기) — 사용자가 handoff-01 에서 정함 (2026-11-27)
+- 단, 위 "AI 티 없애기" 규칙에 맞게 **색을 팔레트로 강제로 맞추고, 외톨이 점을 지우고, 1배로 줄여 확인**하는 다듬기를 꼭 거친다
+
+정한 방법을 쓸 수 없으면 다른 방법으로 바꾸지 말고 `결과: 못 돌림` 으로 보고한다.
+
+## 만들 것 (22장)
+
+| 파일 | 크기 | 최대 색 | 내용 |
+|---|---|---|---|
+| `assets/sprites/ui/icon_ticket.png` | 16×16 | 12 | 아이콘 16×16 · 뽑기권 — 붉은 띠를 두른 누런 한지 표, 귀퉁이 접힘. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경 |
+| `assets/sprites/ui/icon_clay.png` | 16×16 | 12 | 아이콘 16×16 · 흙 — 손으로 뭉친 붉은 흙덩이, 손자국 한두 개. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경 |
+| `assets/sprites/ui/icon_pearl.png` | 16×16 | 12 | 아이콘 16×16 · 진주 — 흰 진주 한 알, 왼쪽 위 반사광 1px, 아래 연한 그림자. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경 |
+| `assets/sprites/ui/icon_shard.png` | 16×16 | 12 | 아이콘 16×16 · 요변 파편 — 유약 빛이 도는 깨진 도자기 조각 (보라·금 반사). 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경 |
+| `assets/sprites/ui/icon_ember.png` | 16×16 | 12 | 아이콘 16×16 · 불씨 — 숯 위의 작은 불씨, 주황 심지. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경 |
+| `assets/sprites/ui/icon_fire.png` | 16×16 | 12 | 아이콘 16×16 · 불 다스리기 — 아궁이 불꽃 세 갈래. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경 |
+| `assets/sprites/ui/icon_blade.png` | 16×16 | 12 | 아이콘 16×16 · 강철 칼날 — 비스듬한 짧은 환도 날, 금빛 코등이. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경 |
+| `assets/sprites/ui/icon_armor.png` | 16×16 | 12 | 아이콘 16×16 · 두석린갑 — 쇠 비늘 갑옷 앞판 (비늘 3줄). 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경 |
+| `assets/sprites/ui/icon_charm.png` | 16×16 | 12 | 아이콘 16×16 · 신속 부적 — 노란 한지에 붉은 경면주사 글씨 (글자 대신 획 모양만). 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경 |
+| `assets/sprites/ui/icon_gourd.png` | 16×16 | 12 | 아이콘 16×16 · 약 호리병 — 붉은 끈 맨 호리병. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경 |
+| `assets/sprites/ui/icon_whetstone.png` | 16×16 | 12 | 아이콘 16×16 · 숫돌 — 회색 숫돌 위 물기 한 줄. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경 |
+| `assets/sprites/ui/icon_scale.png` | 16×16 | 12 | 아이콘 16×16 · 쇠비늘 — 겹친 쇠 비늘 세 장. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경 |
+| `assets/sprites/ui/icon_scroll.png` | 16×16 | 12 | 아이콘 16×16 · 비급서 — 실로 묶은 낡은 책 (표지 끈). 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경 |
+| `assets/sprites/ui/icon_bell.png` | 16×16 | 12 | 아이콘 16×16 · 신령 방울 — 무당 방울 셋이 달린 손잡이. 1배 크기에서 실루엣만으로 알아볼 것. 외곽선 1px(먹색 #282322), 빛은 왼쪽 위에서 한 방향. 투명 배경 |
+| `assets/sprites/ui/panel_9.png` | 48×48 | 16 | 창(패널) 9조각 그림 — 모서리 8px 은 그대로, 가운데·변은 게임이 늘린다. 옻칠한 검붉은 나무판(#1c1622 계열) + 바깥 청동 테두리 2px + 안쪽 가는 선 1px. 가운데(늘어나는 부분)는 단색 또는 아주 약한 결 하나만 (늘여도 이상하지 않게). 모서리 1~2px 깎기 |
+| `assets/sprites/ui/panel_corner.png` | 14×14 | 10 | 창 모서리 장식 (왼쪽 위 한 장, 게임이 뒤집어 네 모서리에) — 반닫이 장석 같은 금박 쇠 장식, ㄱ자 모양에 작은 구름무늬 하나. 투명 배경 |
+| `assets/sprites/ui/button_9.png` | 24×24 | 12 | 버튼 9조각 (모서리 6px). **밝은 무채색 청동** (게임이 버튼마다 색을 입힌다). 위쪽 1px 하이라이트, 아래 2px 두께감, 모서리 깎기. 가운데는 단색 |
+| `assets/sprites/ui/button_primary_9.png` | 24×24 | 12 | 주 버튼 9조각 (모서리 6px) — 금박 칠 (#e8c35a 계열), 위 하이라이트·아래 두께감. 가운데는 단색 (글자가 그 위에 먹색으로 올라간다) |
+| `assets/sprites/ui/card_9.png` | 24×24 | 12 | 병사 카드 틀 9조각 (모서리 6px) — **밝은 무채색** (게임이 등급 색을 입힌다), 안쪽은 어두운 바탕, 아래쪽 이름 띠 자리가 살짝 더 어둡게. 가운데 단색 |
+| `assets/sprites/ui/title_plate_9.png` | 20×14 | 8 | 창 제목 판 9조각 (모서리 5px) — 작은 현판 모양, 밝은 무채색 테두리 (게임이 색을 입힌다), 안은 어두운 옻칠 |
+| `assets/sprites/ui/chip_9.png` | 16×16 | 8 | 자원 알약 9조각 (모서리 6px) — 안으로 파인 어두운 홈, 청동 테두리 1px |
+| `assets/sprites/ui/merchant.png` | 48×64 | 24 | 진주 상점 상인 (가슴 위 정도, 오른쪽을 봄) — 지게에 보따리를 진 보부상 도자기 인형, 패랭이 모자에 목화 송이, 손에 진주 한 알, 부드럽게 웃는 얼굴. 병사 도자기 인형과 같은 그림체 (얼굴 회색, 흰 광택), 옷은 흙빛·쪽빛. 투명 배경 |
+
+## 고쳐도 되는 범위
+- `assets/sprites/ui/icon_ticket.png` (새 파일)
+- `assets/sprites/ui/icon_clay.png` (새 파일)
+- `assets/sprites/ui/icon_pearl.png` (새 파일)
+- `assets/sprites/ui/icon_shard.png` (새 파일)
+- `assets/sprites/ui/icon_ember.png` (새 파일)
+- `assets/sprites/ui/icon_fire.png` (새 파일)
+- `assets/sprites/ui/icon_blade.png` (새 파일)
+- `assets/sprites/ui/icon_armor.png` (새 파일)
+- `assets/sprites/ui/icon_charm.png` (새 파일)
+- `assets/sprites/ui/icon_gourd.png` (새 파일)
+- `assets/sprites/ui/icon_whetstone.png` (새 파일)
+- `assets/sprites/ui/icon_scale.png` (새 파일)
+- `assets/sprites/ui/icon_scroll.png` (새 파일)
+- `assets/sprites/ui/icon_bell.png` (새 파일)
+- `assets/sprites/ui/panel_9.png` (새 파일)
+- `assets/sprites/ui/panel_corner.png` (새 파일)
+- `assets/sprites/ui/button_9.png` (새 파일)
+- `assets/sprites/ui/button_primary_9.png` (새 파일)
+- `assets/sprites/ui/card_9.png` (새 파일)
+- `assets/sprites/ui/title_plate_9.png` (새 파일)
+- `assets/sprites/ui/chip_9.png` (새 파일)
+- `assets/sprites/ui/merchant.png` (새 파일)
+
+이 목록에 없는 파일은 만들거나 고치지 않는다.
+
+## 보호 검사 결과 (Claude가 미리 확인함)
+- `python3 scripts/protected.py <위 파일들>` → 걸린 파일 없음 (모두 새 파일)
+- 이 검사는 Claude가 했다. Codex는 다시 돌리지 않는다.
+
+## 하면 안 되는 일
+- 범위 밖 파일 수정·삭제 (특히 `src/`, `tests/`, `art/references/`, `art/rubric.md`, 이미 있는 `assets/sprites/`)
+- 게임 코드에 그림을 연결하는 작업 (이미 되어 있다: 파일이 있으면 코드 그림 대신 쓴다)
+- 저장소의 Python 스크립트 실행 (검사는 Claude가 작업 후에 한다)
+- git commit / push
+- 못 했는데 했다고 보고하기
+
+## 끝나면 이 형식으로 보고
+```
+결과: 통과 | 실패 | 못 돌림   ← 셋 중 하나만
+바뀐 파일:
+- 경로 — 무엇을
+직접 확인한 것:
+- 예) 1배·4배로 줄여 보고 실루엣 확인, 팔레트 밖 색 없음, 9조각 가운데 단색
+그리는 데 쓴 방법:
+- 이미지 생성 / 코드 / 둘 다 (무엇을 어떻게, 팔레트 맞추기를 어떻게 했는지)
+못 한 것 / 걱정되는 것:
+- …
+```
+- 저장소의 Python 검사를 못 돌린 것만으로는 `못 돌림`이 아니다. 검사는 Claude가 한다.
+
+## Claude가 받은 뒤 할 일
+1. `git status` — 바뀐 파일이 위 범위뿐인지
+2. `python3 scripts/check_sprites.py --group "UI" --sheet work/2026-11-30-UI그림/sheet-08.png` — 크기·투명 배경·색 수·흐린 가장자리
+3. 게임 화면 스크린샷 (`tests/screens_proto.gd`): 로비·뽑기·상점·클리어 창·전술 강화에서 직접 본다 (9조각이 늘어날 때 깨지지 않는지)
+4. **그림 루프** (`.claude/skills/art-loop/SKILL.md`): 처음 보는 검토자 2명이 `art/rubric.md` 로 "AI 티"·"그림체 어울림" 채점 → 낮으면 다시 지시
+5. `python3 scripts/test.py --stage all`
+6. 사용자에게 보여 주고 "검사는 통과, 미술 판단은 사용자 몫" — 허락을 받은 뒤 커밋
+
+---
+name: "imagegen"
+description: "Generate or edit raster images when the task benefits from AI-created bitmap visuals such as photos, illustrations, textures, sprites, mockups, or transparent-background cutouts. Use when Codex should create a brand-new image, transform an existing image, or derive visual variants from references, and the output should be a bitmap asset rather than repo-native code or vector. Do not use when the task is better handled by editing existing SVG/vector/code-native assets, extending an established icon or logo system, or building the visual directly in HTML/CSS/canvas."
+---
+
+# Image Generation Skill
+
+Generates or edits images for the current project (for example website assets, game assets, UI mockups, product mockups, wireframes, logo design, photorealistic images, or infographics).
+
+## Top-level modes and rules
+
+This skill has exactly two top-level modes:
+
+- **Default built-in tool mode (preferred):** built-in `image_gen` tool for image generation, editing, and transparent-image requests. Does not require `OPENAI_API_KEY`.
+- **Fallback CLI mode:** `scripts/image_gen.py` CLI. Use when the user explicitly asks for or confirms the CLI/API/model path. Requires `OPENAI_API_KEY`.
+
+Within CLI fallback, the CLI exposes three subcommands:
+
+- `generate`
+- `edit`
+- `generate-batch`
+
+Rules:
+- Use the built-in `image_gen` tool by default for normal image generation and editing requests.
+- Do not switch to CLI fallback for ordinary quality, size, or file-path control.
+- For transparent images, ask built-in `image_gen` for a transparent background and preserve the generated alpha.
+- Never silently switch from built-in `image_gen` or CLI `gpt-image-2` to CLI `gpt-image-1.5`; ask the user first unless they explicitly requested `gpt-image-1.5`.
+- The word `batch` by itself does not mean CLI fallback. If the user asks for many assets or says to batch-generate assets without explicitly asking for CLI/API/model controls, stay on the built-in path and issue one built-in call per requested asset or variant.
+- If the built-in tool fails or is unavailable, tell the user the CLI fallback exists and that it requires `OPENAI_API_KEY`. Proceed only if the user explicitly asks for that fallback.
+- If the user explicitly asks for CLI mode, use the bundled `scripts/image_gen.py` workflow. Do not create one-off SDK runners.
+- Never modify `scripts/image_gen.py`. If something is missing, ask the user before doing anything else.
+
+Built-in save-path policy:
+- In built-in tool mode, Codex saves generated images under `$CODEX_HOME/*` by default.
+- Do not describe or rely on OS temp as the default built-in destination.
+- Do not describe or rely on a destination-path argument (if any) on the built-in `image_gen` tool. If a specific location is needed, generate first and then move or copy the selected output from `$CODEX_HOME/generated_images/...`.
+- Save-path precedence in built-in mode:
+  1. If the user names a destination, move or copy the selected output there.
+  2. If the image is meant for the current project, move or copy the final selected image into the workspace before finishing.
+  3. If the image is only for preview or brainstorming, render it inline; the underlying file can remain at the default `$CODEX_HOME/*` path.
+- Never leave a project-referenced asset only at the default `$CODEX_HOME/*` path.
+- Do not overwrite an existing asset unless the user explicitly asked for replacement; otherwise create a sibling versioned filename such as `hero-v2.png` or `item-icon-edited.png`.
+
+Shared prompt guidance for both modes lives in `references/prompting.md` and `references/sample-prompts.md`.
+
+Fallback-only docs/resources for CLI mode:
+- `references/cli.md`
+- `references/image-api.md`
+- `references/codex-network.md`
+- `scripts/image_gen.py`
+
+## When to use
+- Generate a new image (concept art, product shot, cover, website hero)
+- Generate a new image using one or more reference images for style, composition, or mood
+- Edit an existing image (inpainting, lighting or weather transformations, background replacement, object removal, compositing, transparent background)
+- Produce many assets or variants for one task
+
+## When not to use
+- Extending or matching an existing SVG/vector icon set, logo system, or illustration library inside the repo
+- Creating simple shapes, diagrams, wireframes, or icons that are better produced directly in SVG, HTML/CSS, or canvas
+- Making a small project-local asset edit when the source file already exists in an editable native format
+- Any task where the user clearly wants deterministic code-native output instead of a generated bitmap
+
+## Decision tree
+
+Think about two separate questions:
+
+1. **Intent:** is this a new image or an edit of an existing image?
+2. **Execution strategy:** is this one asset or many assets/variants?
+
+Intent:
+- If the user wants to modify an existing image while preserving parts of it, treat the request as **edit**.
+- If the user provides images only as references for style, composition, mood, or subject guidance, treat the request as **generate**.
+- If the user provides no images, treat the request as **generate**.
+
+Built-in edit semantics:
+- Built-in edit mode is for images already visible in the conversation context, such as attached images or images generated earlier in the thread.
+- If the user wants to edit a local image file with the built-in tool, first load it with built-in `view_image` tool so the image is visible in the conversation context, then proceed with the built-in edit flow.
+- Do not promise arbitrary filesystem-path editing through the built-in tool.
+- If a local file still needs direct file-path control, masks, or other explicit CLI-only parameters, use the explicit CLI fallback only when the user asks for it.
+- For edits, preserve invariants aggressively and save non-destructively by default.
+
+Execution strategy:
+- In the built-in default path, produce many assets or variants by issuing one `image_gen` call per requested asset or variant.
+- In the CLI fallback path, use the CLI `generate-batch` subcommand only when the user explicitly chose CLI mode and needs many prompts/assets.
+- For many distinct assets, do not use `n` as a substitute for separate prompts. `n` is for variants of one prompt; distinct assets need distinct built-in calls or distinct CLI `generate-batch` jobs.
+
+Assume the user wants a new image unless they clearly ask to change an existing one.
+
+## Workflow
+1. Decide the top-level mode: built-in by default, including transparent-output requests; fallback CLI only if explicitly requested or confirmed.
+2. Decide the intent: `generate` or `edit`.
+3. Decide whether the output is preview-only or meant to be consumed by the current project.
+4. Decide the execution strategy: single asset vs repeated built-in calls vs CLI `generate-batch`.
+5. Collect inputs up front: prompt(s), exact text (verbatim), constraints/avoid list, and any input images.
+6. For every input image, label its role explicitly:
+   - reference image
+   - edit target
+   - supporting insert/style/compositing input
+7. If the edit target is only on the local filesystem and you are staying on the built-in path, inspect it with `view_image` first so the image is available in conversation context.
+8. If the user asked for a photo, illustration, sprite, product image, banner, or other explicitly raster-style asset, use `image_gen` rather than substituting SVG/HTML/CSS placeholders. If the request is for an icon, logo, or UI graphic that should match existing repo-native SVG/vector/code assets, prefer editing those directly instead.
+9. Augment the prompt based on specificity:
+   - If the user's prompt is already specific and detailed, normalize it into a clear spec without adding creative requirements.
+   - If the user's prompt is generic, add tasteful augmentation only when it materially improves output quality.
+10. Use the built-in `image_gen` tool by default.
+11. For transparent-output requests, ask built-in `image_gen` for a transparent background and preserve the generated alpha channel.
+12. Inspect outputs and validate: subject, style, composition, text accuracy, and invariants/avoid items.
+13. Iterate with a single targeted change, then re-check.
+14. For preview-only work, render the image inline; the underlying file may remain at the default `$CODEX_HOME/generated_images/...` path.
+15. For project-bound work, move or copy the selected artifact into the workspace and update any consuming code or references. Never leave a project-referenced asset only at the default `$CODEX_HOME/generated_images/...` path.
+16. For batches or multi-asset requests, persist every requested deliverable final in the workspace unless the user explicitly asked to keep outputs preview-only. Discarded variants do not need to be kept unless requested.
+17. If the user explicitly chooses or confirms the CLI fallback, then use the fallback-only docs for model, quality, size, `input_fidelity`, masks, output format, output paths, and network setup.
+18. Always report the final saved path(s) for any workspace-bound asset(s), plus the final prompt or prompt set and whether the built-in tool or fallback CLI mode was used.
+
+## Transparent image requests
+
+Ask built-in `image_gen` for a genuinely transparent background and preserve its alpha.
+
+## Prompt augmentation
+
+Reformat user prompts into a structured, production-oriented spec. Make the user's goal clearer and more actionable, but do not blindly add detail.
+
+Treat this as prompt-shaping guidance, not a closed schema. Use only the lines that help, and add a short extra labeled line when it materially improves clarity.
+
+### Specificity policy
+
+Use the user's prompt specificity to decide how much augmentation is appropriate:
+
+- If the prompt is already specific and detailed, preserve that specificity and only normalize/structure it.
+- If the prompt is generic, you may add tasteful augmentation when it will materially improve the result.
+
+Allowed augmentations:
+- composition or framing hints
+- polish level or intended-use hints
+- practical layout guidance
+- reasonable scene concreteness that supports the stated request
+
+Not allowed augmentations:
+- extra characters or objects that are not implied by the request
+- brand names, slogans, palettes, or narrative beats that are not implied
+- arbitrary side-specific placement unless the surrounding layout supports it
+
+## Use-case taxonomy (exact slugs)
+
+Classify each request into one of these buckets and keep the slug consistent across prompts and references.
+
+Generate:
+- photorealistic-natural — candid/editorial lifestyle scenes with real texture and natural lighting.
+- product-mockup — product/packaging shots, catalog imagery, merch concepts.
+- ui-mockup — app/web interface mockups and wireframes; specify the desired fidelity.
+- infographic-diagram — diagrams/infographics with structured layout and text.
+- scientific-educational — classroom explainers, scientific diagrams, and learning visuals with required labels and accuracy constraints.
+- ads-marketing — campaign concepts and ad creatives with audience, brand position, scene, and exact tagline/copy.
+- productivity-visual — slide, chart, workflow, and data-heavy business visuals.
+- logo-brand — logo/mark exploration, vector-friendly.
+- illustration-story — comics, children’s book art, narrative scenes.
+- stylized-concept — style-driven concept art, 3D/stylized renders.
+- historical-scene — period-accurate/world-knowledge scenes.
+
+Edit:
+- text-localization — translate/replace in-image text, preserve layout.
+- identity-preserve — try-on, person-in-scene; lock face/body/pose.
+- precise-object-edit — remove/replace a specific element (including interior swaps).
+- lighting-weather — time-of-day/season/atmosphere changes only.
+- background-extraction — transparent background / clean cutout. Ask built-in `image_gen` for actual transparency.
+- style-transfer — apply reference style while changing subject/scene.
+- compositing — multi-image insert/merge with matched lighting/perspective.
+- sketch-to-render — drawing/line art to photoreal render.
+
+## Shared prompt schema
+
+Use the following labeled spec as shared prompt scaffolding for both top-level modes:
+
+```text
+Use case: <taxonomy slug>
+Asset type: <where the asset will be used>
+Primary request: <user's main prompt>
+Input images: <Image 1: role; Image 2: role> (optional)
+Scene/backdrop: <environment>
+Subject: <main subject>
+Style/medium: <photo/illustration/3D/etc>
+Composition/framing: <wide/close/top-down; placement>
+Lighting/mood: <lighting + mood>
+Color palette: <palette notes>
+Materials/textures: <surface details>
+Text (verbatim): "<exact text>"
+Constraints: <must keep/must avoid>
+Avoid: <negative constraints>
+```
+
+Notes:
+- `Asset type` and `Input images` are prompt scaffolding, not dedicated CLI flags.
+- `Scene/backdrop` refers to the visual setting. It is not the same as the fallback CLI `background` parameter, which controls output transparency behavior.
+- Fallback-only execution notes such as `Quality:`, `Input fidelity:`, masks, output format, and output paths belong in the CLI path only. Do not treat them as built-in `image_gen` tool arguments.
+
+Augmentation rules:
+- Keep it short.
+- Add only the details needed to improve the prompt materially.
+- For edits, explicitly list invariants (`change only X; keep Y unchanged`).
+- If any critical detail is missing and blocks success, ask a question; otherwise proceed.
+
+## Examples
+
+### Generation example (hero image)
+```text
+Use case: product-mockup
+Asset type: landing page hero
+Primary request: a minimal hero image of a ceramic coffee mug
+Style/medium: clean product photography
+Composition/framing: wide composition with usable negative space for page copy if needed
+Lighting/mood: soft studio lighting
+Constraints: no logos, no text, no watermark
+```
+
+### Edit example (invariants)
+```text
+Use case: precise-object-edit
+Asset type: product photo background replacement
+Primary request: replace only the background with a warm sunset gradient
+Constraints: change only the background; keep the product and its edges unchanged; no text; no watermark
+```
+
+## Prompting best practices
+- Structure prompt as scene/backdrop -> subject -> details -> constraints.
+- Include intended use (ad, UI mock, infographic) to set the mode and polish level.
+- Use camera/composition language for photorealism.
+- Only use SVG/vector stand-ins when the user explicitly asked for vector output or a non-image placeholder.
+- Quote exact text and specify typography + placement.
+- For tricky words, spell them letter-by-letter and require verbatim rendering.
+- For multi-image inputs, reference images by index and describe how they should be used.
+- For edits, repeat invariants every iteration to reduce drift.
+- Iterate with single-change follow-ups.
+- If the prompt is generic, add only the extra detail that will materially help.
+- If the prompt is already detailed, normalize it instead of expanding it.
+- For CLI fallback only, see `references/cli.md` and `references/image-api.md` for model, `quality`, `input_fidelity`, masks, output format, and output-path guidance.
+- For transparent images, ask built-in `image_gen` for actual transparency and preserve its alpha.
+
+More principles shared by both modes: `references/prompting.md`.
+Copy/paste specs shared by both modes: `references/sample-prompts.md`.
+
+## Guidance by asset type
+Asset-type templates (website assets, game assets, wireframes, logo) are consolidated in `references/sample-prompts.md`.
+
+## gpt-image-2 guidance for CLI fallback
+
+The fallback CLI defaults to `gpt-image-2`.
+
+- Use `gpt-image-2` for new CLI/API workflows unless the user confirms a different model.
+- CLI `gpt-image-2` does not support `background=transparent`; ask before using `gpt-image-1.5` unless the user explicitly requested that model.
+- `gpt-image-2` always uses high fidelity for image inputs; do not set `input_fidelity` with this model.
+- `gpt-image-2` supports `quality` values `low`, `medium`, `high`, and `auto`.
+- Use `quality low` for fast drafts, thumbnails, and quick iterations. Use `medium`, `high`, or `auto` for final assets, dense text, diagrams, identity-sensitive edits, or high-resolution outputs.
+- Square images are typically fastest to generate. Use `1024x1024` for fast square drafts.
+- If the user asks for 4K-style output, use `3840x2160` for landscape or `2160x3840` for portrait.
+- `gpt-image-2` size may be `auto` or `WIDTHxHEIGHT` if all constraints hold: max edge `<= 3840px`, both edges multiples of `16px`, long-to-short ratio `<= 3:1`, total pixels between `655,360` and `8,294,400`.
+
+Popular `gpt-image-2` sizes:
+- `1024x1024` square
+- `1536x1024` landscape
+- `1024x1536` portrait
+- `2048x2048` 2K square
+- `2048x1152` 2K landscape
+- `3840x2160` 4K landscape
+- `2160x3840` 4K portrait
+- `auto`
+
+## Fallback CLI mode only
+
+### Temp and output conventions
+These conventions apply only to the CLI fallback. They do not describe built-in `image_gen` output behavior.
+- Use `tmp/imagegen/` for intermediate files (for example JSONL batches); delete them when done.
+- Write final artifacts under `output/imagegen/`.
+- Use `--out` or `--out-dir` to control output paths; keep filenames stable and descriptive.
+
+### Dependencies
+Prefer `uv` for dependency management in this repo.
+
+Required Python package:
+```bash
+uv pip install openai
+```
+
+Optional for image inspection and downscaling:
+```bash
+uv pip install pillow
+```
+
+Portability note:
+- If you are using the installed skill outside this repo, install dependencies into that environment with its package manager.
+- In uv-managed environments, `uv pip install ...` remains the preferred path.
+
+### Environment
+- `OPENAI_API_KEY` must be set for live API calls.
+- Do not ask the user for `OPENAI_API_KEY` when using the built-in `image_gen` tool.
+- Never ask the user to paste the full key in chat. Ask them to set it locally and confirm when ready.
+
+If the key is missing, give the user these steps:
+1. Create an API key in the OpenAI platform UI: https://platform.openai.com/api-keys
+2. Set `OPENAI_API_KEY` as an environment variable in their system.
+3. Offer to guide them through setting the environment variable for their OS/shell if needed.
+
+If installation is not possible in this environment, tell the user which dependency is missing and how to install it into their active environment.
+
+### Script-mode notes
+- CLI commands + examples: `references/cli.md`
+- API parameter quick reference: `references/image-api.md`
+- Network approvals / sandbox settings for CLI mode: `references/codex-network.md`
+
+## Reference map
+- `references/prompting.md`: shared prompting principles for both modes.
+- `references/sample-prompts.md`: shared copy/paste prompt recipes for both modes.
+- `references/cli.md`: fallback-only CLI usage via `scripts/image_gen.py`.
+- `references/image-api.md`: fallback-only API/CLI parameter reference.
+- `references/codex-network.md`: fallback-only network/sandbox troubleshooting for CLI mode.
+- `scripts/image_gen.py`: fallback-only CLI implementation. Use only when the user explicitly chooses or confirms CLI mode.
+
+# 사용자가 직접 고친 파일 / 덮어쓰면 안 되는 파일 (한 줄에 하나, glob 가능)
+# Claude·Codex는 여기 적힌 파일을 덮어쓰지 않는다. 고쳐야 하면 바꿀 내용을 제안만 한다.
+art/references/*
+art/rubric.md
+
+ M reports/boss/history.csv
+ M "work/2026-11-27-\352\267\270\353\246\274/NOTES.md"
+ M "work/2026-11-27-\352\267\270\353\246\274/handoff-03.md"
+?? assets/sprites/fx/cutin_earth.png
+?? assets/sprites/fx/cutin_earth.png.import
+?? assets/sprites/fx/cutin_fire.png
+?? assets/sprites/fx/cutin_fire.png.import
+?? assets/sprites/fx/cutin_water.png
+?? assets/sprites/fx/cutin_water.png.import
+?? assets/sprites/ui/title_bg.png
+?? assets/sprites/ui/title_bg.png.import
+?? reports/boss/history-local-backup.csv
+?? "work/2026-11-27-\352\267\270\353\246\274/compare-03-screens.png"
+?? "work/2026-11-27-\352\267\270\353\246\274/compare-03.png"
+?? "work/2026-11-27-\352\267\270\353\246\274/handoff-03-run1/"
+?? "work/2026-11-27-\352\267\270\353\246\274/handoff-03-run2/"
+?? "work/2026-11-27-\352\267\270\353\246\274/handoff-03.report.md"
+?? "work/2026-11-27-\352\267\270\353\246\274/screens-02b/"
+?? "work/2026-11-27-\352\267\270\353\246\274/screens-03-run1/"
+?? "work/2026-11-27-\352\267\270\353\246\274/screens-03-run2/"
+?? "work/2026-11-27-\354\213\244\352\260\220/handoff-04.report.md"
+?? "work/2026-11-27-\354\213\244\352\260\220/sheet-04.png"
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/handoff-05.report.md"
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/handoff-06.report.md"
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/old-06-soldiers/"
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/screens-05/"
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/screens-06/"
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/sheet-05.png"
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/sheet-06a.png"
+?? "work/2026-11-28-\353\213\244\353\223\254\352\270\260/sheet-06b.png"
+?? "work/2026-11-28-\355\221\234\354\247\200/handoff-10.log"
+?? "work/2026-11-29-\354\212\244\355\202\254\354\247\204\354\230\201/handoff-07.report.md"
+?? "work/2026-11-29-\354\212\244\355\202\254\354\247\204\354\230\201/screens-07/"
+?? "work/2026-11-29-\354\212\244\355\202\254\354\247\204\354\230\201/sheet-07a.png"
+?? "work/2026-11-29-\354\212\244\355\202\254\354\247\204\354\230\201/sheet-07b.png"
+?? "work/2026-11-30-UI\352\267\270\353\246\274/handoff-08.report.md"
+?? "work/2026-11-30-UI\352\267\270\353\246\274/handoff-09-run1/"
+?? "work/2026-11-30-UI\352\267\270\353\246\274/handoff-09-run2.log"
+?? "work/2026-11-30-UI\352\267\270\353\246\274/handoff-09.report.md"
+?? "work/2026-11-30-UI\352\267\270\353\246\274/screens-08/"
+?? "work/2026-11-30-UI\352\267\270\353\246\274/screens-09/"
+?? "work/2026-11-30-UI\352\267\270\353\246\274/sheet-08.png"
+?? "work/2026-11-30-UI\352\267\270\353\246\274/sheet-09.png"
+?? work/art-ui08/
+?? work/art-ui09/
+assets/sprites/kiln\soldier_bulgasari_earth.png
+assets/sprites/kiln\soldier_axe_earth.png.import
+assets/sprites/kiln\soldier_cavalry_water.png.import
+assets/sprites/kiln\soldier_hyeonmu_earth.png.import
+assets/sprites/kiln\soldier_baekho_water.png.import
+assets/sprites/kiln\soldier_baekho_water.png
+assets/sprites/kiln\soldier_baekho_fire.png.import
+assets/sprites/kiln\soldier_axe_earth.png
+assets/sprites/kiln\soldier_baekho_fire.png
+assets/sprites/kiln\soldier_archer_water.png.import
+assets/sprites/kiln\soldier_baekho_earth.png.import
+assets/sprites/kiln\soldier_archer_water.png
+assets/sprites/kiln\soldier_baekho_earth.png
+assets/sprites/kiln\soldier_hyeonmu_earth.png
+assets/sprites/kiln\soldier_archer_fire.png.import
+assets/sprites/kiln\soldier_cavalry_water.png
+assets/sprites/kiln\soldier_axe_water.png.import
+assets/sprites/kiln\soldier_archer_fire.png
+assets/sprites/kiln\soldier_healer_water.png.import
+assets/sprites/kiln\soldier_cavalry_fire.png.import
+assets/sprites/kiln\soldier_axe_water.png
+assets/sprites/kiln\soldier_healer_water.png
+assets/sprites/kiln\soldier_archer_earth.png.import
+assets/sprites/kiln\soldier_healer_fire.png.import
+assets/sprites/kiln\soldier_cavalry_fire.png
+assets/sprites/kiln\soldier_archer_earth.png
+assets/sprites/kiln\soldier_axe_fire.png.import
+assets/sprites/kiln\soldier_cavalry_earth.png.import
+assets/sprites/kiln\soldier_healer_fire.png
+assets/sprites/kiln\kiln_body.png.import
+assets/sprites/kiln\soldier_axe_fire.png
+assets/sprites/kiln\soldier_shield_water.png.import
+assets/sprites/kiln\soldier_shield_water.png
+assets/sprites/kiln\soldier_shield_fire.png.import
+assets/sprites/kiln\soldier_shield_fire.png
+assets/sprites/kiln\soldier_shield_earth.png.import
+assets/sprites/kiln\soldier_shield_earth.png
+assets/sprites/kiln\soldier_jujak_water.png.import
+assets/sprites/kiln\soldier_jujak_water.png
+assets/sprites/kiln\soldier_jujak_fire.png.import
+assets/sprites/kiln\soldier_jujak_fire.png
+assets/sprites/kiln\soldier_jujak_earth.png.import
+assets/sprites/kiln\soldier_jujak_earth.png
+assets/sprites/kiln\soldier_hyeonmu_water.png.import
+assets/sprites/kiln\soldier_hyeonmu_water.png
+assets/sprites/kiln\soldier_hyeonmu_fire.png.import
+assets/sprites/kiln\soldier_hyeonmu_fire.png
+assets/sprites/kiln\soldier_sniper_fire.png
+assets/sprites/kiln\soldier_sniper_earth.png.import
+assets/sprites/kiln\soldier_sniper_earth.png
+assets/sprites/kiln\soldier_slinger_water.png.import
+assets/sprites/kiln\soldier_slinger_water.png
+assets/sprites/kiln\soldier_slinger_fire.png.import
+assets/sprites/kiln\soldier_slinger_fire.png
+assets/sprites/kiln\soldier_slinger_earth.png.import
+assets/sprites/kiln\soldier_slinger_earth.png
+assets/sprites/kiln\soldier_spear_earth.png
+assets/sprites/kiln\soldier_sniper_water.png.import
+assets/sprites/kiln\soldier_sniper_water.png
+assets/sprites/kiln\soldier_sniper_fire.png.import
+assets/sprites/kiln\soldier_spear_fire.png
+assets/sprites/kiln\soldier_spear_earth.png.import
+assets/sprites/kiln\soldier_spear_fire.png.import
+assets/sprites/kiln\soldier_spear_water.png
+assets/sprites/kiln\soldier_cannon_earth.png
+assets/sprites/kiln\soldier_bulgasari_water.png.import
+assets/sprites/kiln\soldier_bulgasari_water.png
+assets/sprites/kiln\soldier_bulgasari_fire.png.import
+assets/sprites/kiln\soldier_bulgasari_fire.png
+assets/sprites/kiln\soldier_bulgasari_earth.png.import
+assets/sprites/kiln\soldier_cannon_fire.png.import
+assets/sprites/kiln\soldier_cannon_fire.png
+assets/sprites/kiln\soldier_cannon_earth.png.import
+assets/sprites/kiln\soldier_cannon_water.png
+assets/sprites/kiln\soldier_cannon_water.png.import
+assets/sprites/kiln\soldier_general_earth.png
+assets/sprites/kiln\soldier_dragon_water.png.import
+assets/sprites/kiln\soldier_dragon_water.png
+assets/sprites/kiln\soldier_dragon_fire.png.import
+assets/sprites/kiln\soldier_dragon_fire.png
+assets/sprites/kiln\soldier_dragon_earth.png.import
+assets/sprites/kiln\soldier_dragon_earth.png
+assets/sprites/kiln\soldier_cheoyong_water.png.import
+assets/sprites/kiln\soldier_healer_earth.png.import
+assets/sprites/kiln\soldier_cheoyong_water.png
+assets/sprites/kiln\soldier_cheoyong_fire.png.import
+assets/sprites/kiln\soldier_cheoyong_fire.png
+assets/sprites/kiln\soldier_cheoyong_earth.png.import
+assets/sprites/kiln\soldier_cheoyong_earth.png
+assets/sprites/kiln\soldier_healer_earth.png
+assets/sprites/kiln\soldier_haetae_water.png.import
+assets/sprites/kiln\soldier_haetae_earth.png
+assets/sprites/kiln\soldier_cavalry_earth.png
+assets/sprites/kiln\soldier_haetae_fire.png
+assets/sprites/kiln\soldier_haetae_earth.png.import
+assets/sprites/kiln\soldier_haetae_fire.png.import
+assets/sprites/kiln\soldier_general_fire.png
+assets/sprites/kiln\soldier_general_earth.png.import
+assets/sprites/kiln\soldier_general_fire.png.import
+assets/sprites/kiln\soldier_general_water.png
+assets/sprites/kiln\soldier_spear_water.png.import
+assets/sprites/kiln\soldier_haetae_water.png
+assets/sprites/kiln\kiln_body.png
+assets/sprites/kiln\soldier_general_water.png.import
+assets/sprites/kiln\soldier_twin_earth.png
+assets/sprites/kiln\soldier_twin_earth.png.import
+assets/sprites/kiln\soldier_twin_water.png.import
+assets/sprites/kiln\soldier_twin_water.png
+assets/sprites/kiln\soldier_twin_fire.png.import
+assets/sprites/kiln\soldier_twin_fire.png
+work/2026-11-28-표지\ref_title_now.png
+work/2026-11-28-표지\handoff-10.md
+work/2026-11-28-표지\handoff-10.log
+art/references\soldier_spear_fire.png
+art/references\soldier_shield_earth.png
+art/references\soldier_archer_water.png
+art/references\sheet.png
+art/references\README.md
+art/references\house.png
+art/references\goblin.png
+art/references\creature_shield_water.png
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw -Encoding UTF8 'C:/Users/pc/.codex/skills/.system/imagegen/SKILL.md'" in C:\Users\pc\Documents\game
+ succeeded in 329ms:
+---
+name: "imagegen"
+description: "Generate or edit raster images when the task benefits from AI-created bitmap visuals such as photos, illustrations, textures, sprites, mockups, or transparent-background cutouts. Use when Codex should create a brand-new image, transform an existing image, or derive visual variants from references, and the output should be a bitmap asset rather than repo-native code or vector. Do not use when the task is better handled by editing existing SVG/vector/code-native assets, extending an established icon or logo system, or building the visual directly in HTML/CSS/canvas."
+---
+
+# Image Generation Skill
+
+Generates or edits images for the current project (for example website assets, game assets, UI mockups, product mockups, wireframes, logo design, photorealistic images, or infographics).
+
+## Top-level modes and rules
+
+This skill has exactly two top-level modes:
+
+- **Default built-in tool mode (preferred):** built-in `image_gen` tool for image generation, editing, and transparent-image requests. Does not require `OPENAI_API_KEY`.
+- **Fallback CLI mode:** `scripts/image_gen.py` CLI. Use when the user explicitly asks for or confirms the CLI/API/model path. Requires `OPENAI_API_KEY`.
+
+Within CLI fallback, the CLI exposes three subcommands:
+
+- `generate`
+- `edit`
+- `generate-batch`
+
+Rules:
+- Use the built-in `image_gen` tool by default for normal image generation and editing requests.
+- Do not switch to CLI fallback for ordinary quality, size, or file-path control.
+- For transparent images, ask built-in `image_gen` for a transparent background and preserve the generated alpha.
+- Never silently switch from built-in `image_gen` or CLI `gpt-image-2` to CLI `gpt-image-1.5`; ask the user first unless they explicitly requested `gpt-image-1.5`.
+- The word `batch` by itself does not mean CLI fallback. If the user asks for many assets or says to batch-generate assets without explicitly asking for CLI/API/model controls, stay on the built-in path and issue one built-in call per requested asset or variant.
+- If the built-in tool fails or is unavailable, tell the user the CLI fallback exists and that it requires `OPENAI_API_KEY`. Proceed only if the user explicitly asks for that fallback.
+- If the user explicitly asks for CLI mode, use the bundled `scripts/image_gen.py` workflow. Do not create one-off SDK runners.
+- Never modify `scripts/image_gen.py`. If something is missing, ask the user before doing anything else.
+
+Built-in save-path policy:
+- In built-in tool mode, Codex saves generated images under `$CODEX_HOME/*` by default.
+- Do not describe or rely on OS temp as the default built-in destination.
+- Do not describe or rely on a destination-path argument (if any) on the built-in `image_gen` tool. If a specific location is needed, generate first and then move or copy the selected output from `$CODEX_HOME/generated_images/...`.
+- Save-path precedence in built-in mode:
+  1. If the user names a destination, move or copy the selected output there.
+  2. If the image is meant for the current project, move or copy the final selected image into the workspace before finishing.
+  3. If the image is only for preview or brainstorming, render it inline; the underlying file can remain at the default `$CODEX_HOME/*` path.
+- Never leave a project-referenced asset only at the default `$CODEX_HOME/*` path.
+- Do not overwrite an existing asset unless the user explicitly asked for replacement; otherwise create a sibling versioned filename such as `hero-v2.png` or `item-icon-edited.png`.
+
+Shared prompt guidance for both modes lives in `references/prompting.md` and `references/sample-prompts.md`.
+
+Fallback-only docs/resources for CLI mode:
+- `references/cli.md`
+- `references/image-api.md`
+- `references/codex-network.md`
+- `scripts/image_gen.py`
+
+## When to use
+- Generate a new image (concept art, product shot, cover, website hero)
+- Generate a new image using one or more reference images for style, composition, or mood
+- Edit an existing image (inpainting, lighting or weather transformations, background replacement, object removal, compositing, transparent background)
+- Produce many assets or variants for one task
+
+## When not to use
+- Extending or matching an existing SVG/vector icon set, logo system, or illustration library inside the repo
+- Creating simple shapes, diagrams, wireframes, or icons that are better produced directly in SVG, HTML/CSS, or canvas
+- Making a small project-local asset edit when the source file already exists in an editable native format
+- Any task where the user clearly wants deterministic code-native output instead of a generated bitmap
+
+## Decision tree
+
+Think about two separate questions:
+
+1. **Intent:** is this a new image or an edit of an existing image?
+2. **Execution strategy:** is this one asset or many assets/variants?
+
+Intent:
+- If the user wants to modify an existing image while preserving parts of it, treat the request as **edit**.
+- If the user provides images only as references for style, composition, mood, or subject guidance, treat the request as **generate**.
+- If the user provides no images, treat the request as **generate**.
+
+Built-in edit semantics:
+- Built-in edit mode is for images already visible in the conversation context, such as attached images or images generated earlier in the thread.
+- If the user wants to edit a local image file with the built-in tool, first load it with built-in `view_image` tool so the image is visible in the conversation context, then proceed with the built-in edit flow.
+- Do not promise arbitrary filesystem-path editing through the built-in tool.
+- If a local file still needs direct file-path control, masks, or other explicit CLI-only parameters, use the explicit CLI fallback only when the user asks for it.
+- For edits, preserve invariants aggressively and save non-destructively by default.
+
+Execution strategy:
+- In the built-in default path, produce many assets or variants by issuing one `image_gen` call per requested asset or variant.
+- In the CLI fallback path, use the CLI `generate-batch` subcommand only when the user explicitly chose CLI mode and needs many prompts/assets.
+- For many distinct assets, do not use `n` as a substitute for separate prompts. `n` is for variants of one prompt; distinct assets need distinct built-in calls or distinct CLI `generate-batch` jobs.
+
+Assume the user wants a new image unless they clearly ask to change an existing one.
+
+## Workflow
+1. Decide the top-level mode: built-in by default, including transparent-output requests; fallback CLI only if explicitly requested or confirmed.
+2. Decide the intent: `generate` or `edit`.
+3. Decide whether the output is preview-only or meant to be consumed by the current project.
+4. Decide the execution strategy: single asset vs repeated built-in calls vs CLI `generate-batch`.
+5. Collect inputs up front: prompt(s), exact text (verbatim), constraints/avoid list, and any input images.
+6. For every input image, label its role explicitly:
+   - reference image
+   - edit target
+   - supporting insert/style/compositing input
+7. If the edit target is only on the local filesystem and you are staying on the built-in path, inspect it with `view_image` first so the image is available in conversation context.
+8. If the user asked for a photo, illustration, sprite, product image, banner, or other explicitly raster-style asset, use `image_gen` rather than substituting SVG/HTML/CSS placeholders. If the request is for an icon, logo, or UI graphic that should match existing repo-native SVG/vector/code assets, prefer editing those directly instead.
+9. Augment the prompt based on specificity:
+   - If the user's prompt is already specific and detailed, normalize it into a clear spec without adding creative requirements.
+   - If the user's prompt is generic, add tasteful augmentation only when it materially improves output quality.
+10. Use the built-in `image_gen` tool by default.
+11. For transparent-output requests, ask built-in `image_gen` for a transparent background and preserve the generated alpha channel.
+12. Inspect outputs and validate: subject, style, composition, text accuracy, and invariants/avoid items.
+13. Iterate with a single targeted change, then re-check.
+14. For preview-only work, render the image inline; the underlying file may remain at the default `$CODEX_HOME/generated_images/...` path.
+15. For project-bound work, move or copy the selected artifact into the workspace and update any consuming code or references. Never leave a project-referenced asset only at the default `$CODEX_HOME/generated_images/...` path.
+16. For batches or multi-asset requests, persist every requested deliverable final in the workspace unless the user explicitly asked to keep outputs preview-only. Discarded variants do not need to be kept unless requested.
+17. If the user explicitly chooses or confirms the CLI fallback, then use the fallback-only docs for model, quality, size, `input_fidelity`, masks, output format, output paths, and network setup.
+18. Always report the final saved path(s) for any workspace-bound asset(s), plus the final prompt or prompt set and whether the built-in tool or fallback CLI mode was used.
+
+## Transparent image requests
+
+Ask built-in `image_gen` for a genuinely transparent background and preserve its alpha.
+
+## Prompt augmentation
+
+Reformat user prompts into a structured, production-oriented spec. Make the user's goal clearer and more actionable, but do not blindly add detail.
+
+Treat this as prompt-shaping guidance, not a closed schema. Use only the lines that help, and add a short extra labeled line when it materially improves clarity.
+
+### Specificity policy
+
+Use the user's prompt specificity to decide how much augmentation is appropriate:
+
+- If the prompt is already specific and detailed, preserve that specificity and only normalize/structure it.
+- If the prompt is generic, you may add tasteful augmentation when it will materially improve the result.
+
+Allowed augmentations:
+- composition or framing hints
+- polish level or intended-use hints
+- practical layout guidance
+- reasonable scene concreteness that supports the stated request
+
+Not allowed augmentations:
+- extra characters or objects that are not implied by the request
+- brand names, slogans, palettes, or narrative beats that are not implied
+- arbitrary side-specific placement unless the surrounding layout supports it
+
+## Use-case taxonomy (exact slugs)
+
+Classify each request into one of these buckets and keep the slug consistent across prompts and references.
+
+Generate:
+- photorealistic-natural — candid/editorial lifestyle scenes with real texture and natural lighting.
+- product-mockup — product/packaging shots, catalog imagery, merch concepts.
+- ui-mockup — app/web interface mockups and wireframes; specify the desired fidelity.
+- infographic-diagram — diagrams/infographics with structured layout and text.
+- scientific-educational — classroom explainers, scientific diagrams, and learning visuals with required labels and accuracy constraints.
+- ads-marketing — campaign concepts and ad creatives with audience, brand position, scene, and exact tagline/copy.
+- productivity-visual — slide, chart, workflow, and data-heavy business visuals.
+- logo-brand — logo/mark exploration, vector-friendly.
+- illustration-story — comics, children’s book art, narrative scenes.
+- stylized-concept — style-driven concept art, 3D/stylized renders.
+- historical-scene — period-accurate/world-knowledge scenes.
+
+Edit:
+- text-localization — translate/replace in-image text, preserve layout.
+- identity-preserve — try-on, person-in-scene; lock face/body/pose.
+- precise-object-edit — remove/replace a specific element (including interior swaps).
+- lighting-weather — time-of-day/season/atmosphere changes only.
+- background-extraction — transparent background / clean cutout. Ask built-in `image_gen` for actual transparency.
+- style-transfer — apply reference style while changing subject/scene.
+- compositing — multi-image insert/merge with matched lighting/perspective.
+- sketch-to-render — drawing/line art to photoreal render.
+
+## Shared prompt schema
+
+Use the following labeled spec as shared prompt scaffolding for both top-level modes:
+
+```text
+Use case: <taxonomy slug>
+Asset type: <where the asset will be used>
+Primary request: <user's main prompt>
+Input images: <Image 1: role; Image 2: role> (optional)
+Scene/backdrop: <environment>
+Subject: <main subject>
+Style/medium: <photo/illustration/3D/etc>
+Composition/framing: <wide/close/top-down; placement>
+Lighting/mood: <lighting + mood>
+Color palette: <palette notes>
+Materials/textures: <surface details>
+Text (verbatim): "<exact text>"
+Constraints: <must keep/must avoid>
+Avoid: <negative constraints>
+```
+
+Notes:
+- `Asset type` and `Input images` are prompt scaffolding, not dedicated CLI flags.
+- `Scene/backdrop` refers to the visual setting. It is not the same as the fallback CLI `background` parameter, which controls output transparency behavior.
+- Fallback-only execution notes such as `Quality:`, `Input fidelity:`, masks, output format, and output paths belong in the CLI path only. Do not treat them as built-in `image_gen` tool arguments.
+
+Augmentation rules:
+- Keep it short.
+- Add only the details needed to improve the prompt materially.
+- For edits, explicitly list invariants (`change only X; keep Y unchanged`).
+- If any critical detail is missing and blocks success, ask a question; otherwise proceed.
+
+## Examples
+
+### Generation example (hero image)
+```text
+Use case: product-mockup
+Asset type: landing page hero
+Primary request: a minimal hero image of a ceramic coffee mug
+Style/medium: clean product photography
+Composition/framing: wide composition with usable negative space for page copy if needed
+Lighting/mood: soft studio lighting
+Constraints: no logos, no text, no watermark
+```
+
+### Edit example (invariants)
+```text
+Use case: precise-object-edit
+Asset type: product photo background replacement
+Primary request: replace only the background with a warm sunset gradient
+Constraints: change only the background; keep the product and its edges unchanged; no text; no watermark
+```
+
+## Prompting best practices
+- Structure prompt as scene/backdrop -> subject -> details -> constraints.
+- Include intended use (ad, UI mock, infographic) to set the mode and polish level.
+- Use camera/composition language for photorealism.
+- Only use SVG/vector stand-ins when the user explicitly asked for vector output or a non-image placeholder.
+- Quote exact text and specify typography + placement.
+- For tricky words, spell them letter-by-letter and require verbatim rendering.
+- For multi-image inputs, reference images by index and describe how they should be used.
+- For edits, repeat invariants every iteration to reduce drift.
+- Iterate with single-change follow-ups.
+- If the prompt is generic, add only the extra detail that will materially help.
+- If the prompt is already detailed, normalize it instead of expanding it.
+- For CLI fallback only, see `references/cli.md` and `references/image-api.md` for model, `quality`, `input_fidelity`, masks, output format, and output-path guidance.
+- For transparent images, ask built-in `image_gen` for actual transparency and preserve its alpha.
+
+More principles shared by both modes: `references/prompting.md`.
+Copy/paste specs shared by both modes: `references/sample-prompts.md`.
+
+## Guidance by asset type
+Asset-type templates (website assets, game assets, wireframes, logo) are consolidated in `references/sample-prompts.md`.
+
+## gpt-image-2 guidance for CLI fallback
+
+The fallback CLI defaults to `gpt-image-2`.
+
+- Use `gpt-image-2` for new CLI/API workflows unless the user confirms a different model.
+- CLI `gpt-image-2` does not support `background=transparent`; ask before using `gpt-image-1.5` unless the user explicitly requested that model.
+- `gpt-image-2` always uses high fidelity for image inputs; do not set `input_fidelity` with this model.
+- `gpt-image-2` supports `quality` values `low`, `medium`, `high`, and `auto`.
+- Use `quality low` for fast drafts, thumbnails, and quick iterations. Use `medium`, `high`, or `auto` for final assets, dense text, diagrams, identity-sensitive edits, or high-resolution outputs.
+- Square images are typically fastest to generate. Use `1024x1024` for fast square drafts.
+- If the user asks for 4K-style output, use `3840x2160` for landscape or `2160x3840` for portrait.
+- `gpt-image-2` size may be `auto` or `WIDTHxHEIGHT` if all constraints hold: max edge `<= 3840px`, both edges multiples of `16px`, long-to-short ratio `<= 3:1`, total pixels between `655,360` and `8,294,400`.
+
+Popular `gpt-image-2` sizes:
+- `1024x1024` square
+- `1536x1024` landscape
+- `1024x1536` portrait
+- `2048x2048` 2K square
+- `2048x1152` 2K landscape
+- `3840x2160` 4K landscape
+- `2160x3840` 4K portrait
+- `auto`
+
+## Fallback CLI mode only
+
+### Temp and output conventions
+These conventions apply only to the CLI fallback. They do not describe built-in `image_gen` output behavior.
+- Use `tmp/imagegen/` for intermediate files (for example JSONL batches); delete them when done.
+- Write final artifacts under `output/imagegen/`.
+- Use `--out` or `--out-dir` to control output paths; keep filenames stable and descriptive.
+
+### Dependencies
+Prefer `uv` for dependency management in this repo.
+
+Required Python package:
+```bash
+uv pip install openai
+```
+
+Optional for image inspection and downscaling:
+```bash
+uv pip install pillow
+```
+
+Portability note:
+- If you are using the installed skill outside this repo, install dependencies into that environment with its package manager.
+- In uv-managed environments, `uv pip install ...` remains the preferred path.
+
+### Environment
+- `OPENAI_API_KEY` must be set for live API calls.
+- Do not ask the user for `OPENAI_API_KEY` when using the built-in `image_gen` tool.
+- Never ask the user to paste the full key in chat. Ask them to set it locally and confirm when ready.
+
+If the key is missing, give the user these steps:
+1. Create an API key in the OpenAI platform UI: https://platform.openai.com/api-keys
+2. Set `OPENAI_API_KEY` as an environment variable in their system.
+3. Offer to guide them through setting the environment variable for their OS/shell if needed.
+
+If installation is not possible in this environment, tell the user which dependency is missing and how to install it into their active environment.
+
+### Script-mode notes
+- CLI commands + examples: `references/cli.md`
+- API parameter quick reference: `references/image-api.md`
+- Network approvals / sandbox settings for CLI mode: `references/codex-network.md`
+
+## Reference map
+- `references/prompting.md`: shared prompting principles for both modes.
+- `references/sample-prompts.md`: shared copy/paste prompt recipes for both modes.
+- `references/cli.md`: fallback-only CLI usage via `scripts/image_gen.py`.
+- `references/image-api.md`: fallback-only API/CLI parameter reference.
+- `references/codex-network.md`: fallback-only network/sandbox troubleshooting for CLI mode.
+- `scripts/image_gen.py`: fallback-only CLI implementation. Use only when the user explicitly chooses or confirms CLI mode.
+
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw -Encoding UTF8 'art/references/README.md'
+Get-Command magick,node,godot -ErrorAction SilentlyContinue | Select-Object Name,Source" in C:\Users\pc\Documents\game
+ exited 1 in 2141ms:
+# 기준 그림
+
+우리 그림체를 대표하는 그림을 이 폴더에 넣어 주세요 (png/jpg, 3~8장 권장).
+검토자는 이 그림들과 `art/rubric.md`만 보고 채점합니다.
+
+
+Name     Source                          
+----     ------                          
+node.exe C:\Program Files\nodejs\node.exe
+
+
+
+codex
+`imagegen` 스킬을 사용해 이미지를 생성한 뒤, 크기·팔레트·투명 경계를 코드로 다듬겠습니다. 빛 방향은 표지 지시서에 명시된 오른쪽 가마를 기준으로 하고, 기존 병사와 기준 그림을 먼저 확인하고 있습니다.
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$taskDir = '"'work/2026-11-28-표지'
+"'$initialStatus = git status --porcelain
+$note = @'"'
+# 표지 10 작업 메모
+
+- 2026-11-28 \"세 장은 한 장면을 세 층으로 나눈 것이라 같은 팔레트·같은 빛이어야 해.\"
+  → 공통 팔레트, 오른쪽 가마 주광과 약한 푸른 달빛으로 맞춘다.
+- 2026-11-28 \"지시서의 '먼저 읽을 것'을 모두 읽은 뒤 시작하고, '고쳐도 되는 범위' 밖의 파일은 절대 건드리지 마.\"
+  → 출력 3장과 이 작업 폴더만 사용. Python 스크립트·커밋·푸시 실행하지 않음.
+
+## 작업 시작 git status --porcelain
+"'```
+'"'@
+"'$note + "`n" + ($initialStatus -join "`n") + "`n```n" | Set-Content -Encoding UTF8 "$taskDir/NOTES.md"
+Add-Type -AssemblyName System.Drawing
+$files = @(Get-ChildItem '"'art/references' -Filter '*.png') + @(Get-ChildItem 'assets/sprites/kiln' -Filter 'soldier_*.png') + @(Get-Item 'assets/sprites/ui/merchant.png')
+"'$cellW = 180; $cellH = 150; $cols = 7
+$sheet = New-Object System.Drawing.Bitmap ($cols*$cellW),([int][Math]::Ceiling($files.Count/$cols)*$cellH)
+$g = [System.Drawing.Graphics]::FromImage($sheet)
+$g.Clear([System.Drawing.Color]::FromArgb(55,55,60)); $g.InterpolationMode = '"'NearestNeighbor'; "'$g.PixelOffsetMode='"'Half'
+"'$font = New-Object System.Drawing.Font '"'Arial',8
+for ("'$i=0; $i -lt $files.Count; $i++) {
+ $src=[System.Drawing.Image]::FromFile($files[$i].FullName)
+ $ratio=[Math]::Min(168.0/$src.Width,120.0/$src.Height)
+ $w=[int]($src.Width*$ratio); $h=[int]($src.Height*$ratio); $x=($i%$cols)*$cellW; $y=[Math]::Floor($i/$cols)*$cellH
+ $g.DrawImage($src,[System.Drawing.Rectangle]::new($x+[int](($cellW-$w)/2),$y,$w,$h),0,0,$src.Width,$src.Height,[System.Drawing.GraphicsUnit]::Pixel)
+ $g.DrawString($files[$i].BaseName,$font,[System.Drawing.Brushes]::White,$x+2,$y+124)
+ $src.Dispose()
+}
+$sheet.Save((Join-Path (Resolve-Path $taskDir) '"'reference-contact.png'))
+"'$g.Dispose(); $sheet.Dispose(); $font.Dispose()' in C:\Users\pc\Documents\game
+ succeeded in 1916ms:
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rg -n 'title_far|title_mid|title_front|title_bg|draw_title|title_screen' src/game
+Get-ChildItem 'C:/Users/pc/.codex/generated_images' -ErrorAction SilentlyContinue | Select-Object -Last 5 Name,FullName
+Get-Content -Tail 5 -Encoding UTF8 'work/2026-11-28-표지/NOTES.md'" in C:\Users\pc\Documents\game
+ succeeded in 422ms:
+src/game\kiln_scene.gd:734:			_draw_title()
+src/game\kiln_scene.gd:781:func _draw_title() -> void:
+src/game\kiln_scene.gd:783:	var far := tex("ui/title_far")
+src/game\kiln_scene.gd:787:		var mid := tex("ui/title_mid")
+src/game\kiln_scene.gd:792:		var front := tex("ui/title_front")
+src/game\kiln_scene.gd:795:		_draw_title_front(false)
+src/game\kiln_scene.gd:797:	var tbg := tex("ui/title_bg")
+src/game\kiln_scene.gd:803:		_draw_title_front(false)
+src/game\kiln_scene.gd:843:	_draw_title_front(false)   # 도트 병사 행렬은 빼 둔다 (사용자: "기본 도트 병사를 그대로 보여줬는데" → 표지 그림이 대신)
+src/game\kiln_scene.gd:854:func _draw_title_front(marchers := true) -> void:
+
+Name                                 FullName                                                                
+----                                 --------                                                                
+01a21c87-bb0e-7563-a198-0077bdf18c6c C:\Users\pc\.codex\generated_images\01a21c87-bb0e-7563-a198-0077bdf18c6c
+01a21f90-3732-7161-94ee-403a0836455f C:\Users\pc\.codex\generated_images\01a21f90-3732-7161-94ee-403a0836455f
+01a21fdd-4bf0-7523-bd11-b4f8ef3b8757 C:\Users\pc\.codex\generated_images\01a21fdd-4bf0-7523-bd11-b4f8ef3b8757
+01a21ff8-e260-7e03-b67f-acc4920090e2 C:\Users\pc\.codex\generated_images\01a21ff8-e260-7e03-b67f-acc4920090e2
+01a220c5-23a0-75e3-81f5-2267d7aa9ded C:\Users\pc\.codex\generated_images\01a220c5-23a0-75e3-81f5-2267d7aa9ded
+?? "work/2026-11-30-UI\352\267\270\353\246\274/sheet-09.png"
+?? work/art-ui08/
+?? work/art-ui09/
+`
+
+
+
+

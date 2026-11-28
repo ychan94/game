@@ -164,6 +164,16 @@ func _all() -> void:
 	k.state = "shop"
 	run.pearls = 9
 	await _snap("p05f_kiln_shop")
+	# 대기실: 부대 자리를 넘게 구운 병사들
+	var D2 = load("res://src/proto/data.gd")
+	var roles: Array = D2.KILN_ROLES
+	for i in 52:
+		run._add_soldier(roles[(i * 7) % roles.size()], D2.ELEMENTS[i % 3], "legend" if i % 11 == 0 else ("fine" if i % 4 == 0 else "normal"), 2 if i % 9 == 0 else 1, true)
+	k.state = "barracks"
+	k.res_pick = run.reserve[3]["id"]
+	await _snap("p05i_kiln_barracks")
+	k.res_pick = -1
+	k.state = "shop"
 	k.state = "prep"
 	# 전직: ★3 창병 + 같은 관군 재료
 	var sp3: Dictionary = run._add_soldier("spear", "earth", "fine", 3)

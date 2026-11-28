@@ -15,7 +15,8 @@ var night := 1                   # 챕터 안의 날 (1~5)
 var chapter_cleared := false     # 방금 챕터를 넘겼다 (화면용)
 var clay := D.CLAY_START
 var village_hp := D.VILLAGE_HP
-var army: Array = []             # [{id, role, element, tier, star, name, equip: {} 또는 장비}]
+var army: Array = []             # 부대: 밤에 싸우는 병사 (자리 cap 까지) [{id, role, element, tier, star, name, equip: {} 또는 장비}]
+var reserve: Array = []          # 대기실: 부대에 안 넣은 병사 (RESERVE_MAX 칸까지). 골라서 부대로 옮긴다
 var queue: Array = []            # 가마에 넣은 것 [{kind: "new"/"refire", role, element, id(다시 굽기)}]
 var results: Array = []          # 방금 연 가마 결과 (화면용)
 var state := "prep"              # prep → (가마) → night → prep … → won / lost
@@ -33,6 +34,7 @@ var shop: Array = []             # 오늘 아침 진열 (상점 물건 이름, �
 var bet_busts := 0               # 내기 꽝 횟수 (3번이면 다음 내기 대박 확정)
 var last_bet := {}               # 방금 내기 결과 (화면용) {key, name, desc, ids}
 var last_draw := {}              # 방금 뽑은 것 (화면용)
+var last_stars := 0              # 방금 밤의 별 (마을 체력 %)
 
 
 var meta := {}                   # 전술 강화 효과 (판 시작 때 받는다)
@@ -83,7 +85,60 @@ func soldier(id: int) -> Dictionary:
 	for s in army:
 		if s["id"] == id:
 			return s
+	for s in reserve:
+		if s["id"] == id:
+			return s
 	return {}
+
+
+## 부대 + 대기실 모든 병사
+func all_soldiers() -> Array:
+	return army + reserve
+
+
+func in_army(id: int) -> bool:
+	return army.any(func(x): return x["id"] == id)
+
+
+func _remove(id: int) -> void:
+	army = army.filter(func(x): return x["id"] != id)
+	reserve = reserve.filter(func(x): return x["id"] != id)
+
+
+# ---------------- 대기실 ↔ 부대 ----------------
+func to_army(id: int) -> bool:
+	if state != "prep" or army.size() >= cap() or in_army(id):
+		return false
+	var s := soldier(id)
+	if s.is_empty():
+		return false
+	reserve = reserve.filter(func(x): return x["id"] != id)
+	army.append(s)
+	return true
+
+
+func to_reserve(id: int) -> bool:
+	if state != "prep" or not in_army(id) or reserve.size() >= D.RESERVE_MAX:
+		return false
+	var s := soldier(id)
+	army = army.filter(func(x): return x["id"] != id)
+	reserve.append(s)
+	return true
+
+
+## 부대 병사 a 와 대기실 병사 b 를 맞바꾼다 (a 자리에 b)
+func swap(a_id: int, b_id: int) -> bool:
+	if state != "prep" or not in_army(a_id) or in_army(b_id):
+		return false
+	var a := soldier(a_id)
+	var b := soldier(b_id)
+	if a.is_empty() or b.is_empty():
+		return false
+	var i: int = army.find(a)
+	reserve = reserve.filter(func(x): return x["id"] != b_id)
+	army[i] = b
+	reserve.append(a)
+	return true
 
 
 func queued_new() -> int:
@@ -100,17 +155,22 @@ static func soldier_name(role: String, element: String) -> String:
 
 # ---------------- 준비: 뽑기 · 다시 굽기 · 합치기 ----------------
 func can_draw() -> bool:
-	return state == "prep" and (tickets > 0 or clay >= D.CLAY_DRAW) and queue.size() < D.KILN_SLOTS
+	return draws_left() > 0
 
 
-## 지금 더 뽑을 수 있는 수 (가마 자리·뽑기권·흙)
+## 남은 병사 칸: 부대 자리 + 대기실 칸 - 이미 있는 병사 - 가마 속 새 병사
+func room_left() -> int:
+	return cap() + D.RESERVE_MAX - army.size() - reserve.size() - queued_new()
+
+
+## 지금 더 뽑을 수 있는 수 (가마 자리·병사 칸·뽑기권·흙)
 func draws_left() -> int:
 	if state != "prep":
 		return 0
-	return mini(D.KILN_SLOTS - queue.size(), tickets + clay / D.CLAY_DRAW)
+	return maxi(0, mini(mini(D.KILN_SLOTS - queue.size(), room_left()), tickets + clay / D.CLAY_DRAW))
 
 
-## 가마는 30칸이라 부대 자리보다 많이 구울 수 있다. 넘치면 합치거나 돌려보내야 밤을 맞는다
+## 부대는 자리(cap)를 넘지 않는다 (넘는 병사는 대기실로). 예전 판과 맞추려고 남겨 둔다
 func over_cap() -> int:
 	return maxi(0, army.size() - cap())
 
@@ -124,7 +184,7 @@ func release(id: int) -> bool:
 	var s := soldier(id)
 	if s.is_empty() or is_queued(id) or state != "prep":
 		return false
-	army = army.filter(func(x): return x["id"] != id)
+	_remove(id)
 	if not s.get("equip", {}).is_empty():
 		inventory.append(s["equip"])   # 장비는 창고로
 	clay += D.CLAY_SMASH_BACK
@@ -220,7 +280,7 @@ static func merge_class(s: Dictionary) -> String:
 ## 지금 합칠 수 있는 묶음 (같은 병사·같은 별 3명). 가마에 넣은 병사는 뺀다
 func merge_groups() -> Array:
 	var by := {}
-	for s in army:
+	for s in all_soldiers():
 		if s["star"] >= D.MAX_STAR or is_queued(s["id"]):
 			continue
 		var key := merge_class(s)
@@ -239,7 +299,7 @@ func merge_groups() -> Array:
 ## 이 병사와 합칠 수 있는 짝 수 (자기 포함) / 필요한 수
 func merge_progress(s: Dictionary) -> Vector2i:
 	var key := merge_class(s)
-	var n := army.filter(func(o): return merge_class(o) == key and not is_queued(o["id"])).size()
+	var n := all_soldiers().filter(func(o): return merge_class(o) == key and not is_queued(o["id"])).size()
 	return Vector2i(n, D.merge_need(s["star"]))
 
 
@@ -265,8 +325,14 @@ func merge(ids: Array) -> Dictionary:
 		if D.TIERS.find(p["tier"]) > best:
 			best = D.TIERS.find(p["tier"])
 			element = p["element"]
-	army = army.filter(func(s): return not ids.has(s["id"]))
-	var m := _add_soldier(a["role"], element, D.TIERS[best], a["star"] + 1)
+	var was_army: bool = ids.any(func(i): return in_army(i))
+	var slot: int = army.find(a)
+	for i in ids:
+		_remove(i)
+	var m := _add_soldier(a["role"], element, D.TIERS[best], a["star"] + 1, not was_army)
+	if was_army and slot >= 0 and army.size() > 0 and army.back() == m:
+		army.pop_back()
+		army.insert(mini(slot, army.size()), m)   # 첫 병사 자리에 (부대 칸 순서 유지)
 	# 상점 강화는 합쳐진다 (한도 안에서), 전직·자리는 먼저 것
 	for p in parts:
 		for k in p.get("upg", {}):
@@ -278,11 +344,15 @@ func merge(ids: Array) -> Dictionary:
 	return m
 
 
-func _add_soldier(role: String, element: String, tier: String, star := 1) -> Dictionary:
+## 새 병사: 부대에 자리가 있으면 부대, 없으면 대기실 (prefer_reserve 면 대기실부터)
+func _add_soldier(role: String, element: String, tier: String, star := 1, prefer_reserve := false) -> Dictionary:
 	var s := {"id": _next_id, "role": role, "element": element, "tier": tier, "star": star, "name": soldier_name(role, element),
 		"equip": {}, "upg": {}, "promo": "", "home": null}
 	_next_id += 1
-	army.append(s)
+	if army.size() < cap() and not (prefer_reserve and reserve.size() < D.RESERVE_MAX):
+		army.append(s)
+	else:
+		reserve.append(s)
 	return s
 
 
@@ -313,7 +383,7 @@ func fire(bet := false) -> Array:
 			r["before"] = s["tier"]
 			r["star"] = s["star"]
 			if rr["cracked"]:
-				army = army.filter(func(x): return x["id"] != q["id"])
+				_remove(q["id"])
 			elif D.TIERS.find(rr["tier"]) > D.TIERS.find(s["tier"]):
 				s["tier"] = rr["tier"]
 			r["tier"] = s["tier"] if not rr["cracked"] else s["tier"]
@@ -355,7 +425,7 @@ func _bet(new_ids: Array) -> void:
 					ids.append(id)
 		"twin":
 			var s2 := soldier(new_ids[rng.randi() % new_ids.size()])
-			if army.size() < cap():
+			if room_left() > 0:
 				var c := _add_soldier(s2["role"], s2["element"], s2["tier"], s2["star"])
 				ids = [s2["id"], c["id"]]
 			else:
@@ -370,7 +440,7 @@ func _bet(new_ids: Array) -> void:
 		"bust":
 			var id4: int = new_ids[rng.randi() % new_ids.size()]
 			ids = [id4]
-			army = army.filter(func(x): return x["id"] != id4)
+			_remove(id4)
 			kiln.shards += 1
 			bet_busts += 1
 	if key == "jackpot":
@@ -465,7 +535,7 @@ func can_promote(base_id: int, ing_id: int) -> bool:
 
 ## base 와 전직할 수 있는 재료 병사들
 func promo_partners(base_id: int) -> Array:
-	return army.filter(func(o): return can_promote(base_id, o["id"])).map(func(o): return o["id"])
+	return all_soldiers().filter(func(o): return can_promote(base_id, o["id"])).map(func(o): return o["id"])
 
 
 func promote(base_id: int, ing_id: int) -> Dictionary:
@@ -477,7 +547,7 @@ func promote(base_id: int, ing_id: int) -> Dictionary:
 		inventory.append(b["equip"])
 	a["promo"] = b["role"]
 	a["name"] = promo_name(a["role"], b["role"], a["element"])
-	army = army.filter(func(o): return o["id"] != ing_id)
+	_remove(ing_id)
 	return a
 
 
@@ -547,10 +617,15 @@ func end_night(b) -> void:
 	# 전리품: 뽑기권 · 흙 · (챕터 3부터) 장비
 	var boss_night := night >= D.KILN_NIGHTS
 	nights_cleared += 1
-	var tk: int = D.TICKETS_PER_NIGHT + last_kills / D.TICKET_PER_KILLS + (D.TICKETS_BOSS if boss_night else 0) + int(meta.get("night_tickets", 0.0))
+	# 마을이 멀쩡할수록 별과 보상이 많다: ★3(90%↑) 뽑기권·흙·진주 / ★2·★1(30%↑) 흙·진주 / ★0 진주만
+	last_stars = D.night_stars(village_hp / D.VILLAGE_HP)
+	var tk: int = 0
+	if last_stars >= 3:
+		tk = D.TICKETS_PER_NIGHT + last_kills / D.TICKET_PER_KILLS + (D.TICKETS_BOSS if boss_night else 0) + int(meta.get("night_tickets", 0.0))
+	var cl: int = D.CLAY_PER_NIGHT if last_stars >= 1 else 0
 	tickets += tk
-	clay += D.CLAY_PER_NIGHT
-	last_reward = D.CLAY_PER_NIGHT
+	clay += cl
+	last_reward = cl
 	var got: Array = []
 	if chapter >= D.EQUIP_FROM_CHAPTER:
 		for i in (D.EQUIP_BOSS if boss_night else D.EQUIP_PER_NIGHT):
@@ -559,7 +634,7 @@ func end_night(b) -> void:
 	var pr: int = last_kills / D.PEARL_PER_KILLS + (D.PEARL_BOSS if boss_night else 0)
 	pearls += pr
 	restock()
-	last_loot = {"tickets": tk, "clay": D.CLAY_PER_NIGHT, "pearls": pr, "equip": got, "chapter_clay": 0, "boss": boss_night}
+	last_loot = {"tickets": tk, "clay": cl, "pearls": pr, "equip": got, "chapter_clay": 0, "boss": boss_night, "stars": last_stars}
 	night += 1
 	chapter_cleared = false
 	if night > D.KILN_NIGHTS:

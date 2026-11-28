@@ -920,16 +920,78 @@ func button(rect: Rect2, label: String, id: String, color: Color = C["accent"], 
 	var tint: Color = (Color.WHITE if primary else Color.WHITE.lerp(edge, 0.45)) if enabled else Color(0.5, 0.48, 0.55)
 	if hover:
 		tint = tint.lightened(0.15)
-	var art: bool = nine("button_primary_9" if primary else "button_9", r, 6, tint)
+	if not enabled:
+		tint = Color(0.36, 0.34, 0.4)   # 못 누르는 버튼: 어둡게 (글자는 아래에서 밝게 골라 읽히게)
+	var art_name := "button_primary_9" if primary else "button_9"
+	var art: bool = nine(art_name, r, 6, tint)
 	if not art:
 		rrect(r, fill)
 		draw_rect(Rect2(r.position + Vector2(2, 1), Vector2(r.size.x - 4, 1)), Color(1, 1, 1, 0.08 if not primary else 0.25))
 		rline(r, edge)
-	# 글자: 밝은 버튼(그림 버튼·주 버튼)에는 진한 글자, 어두운 버튼에는 테두리 색 글자 — 늘 바탕과 대비가 크게
-	var tc: Color = (UI["lacquer"] if (primary or art) else edge.lightened(0.15)) if enabled else (Color("4a4458") if art else Color("6b6478"))
+	# 글자 색: 실제 바탕색(그림 평균 × 물들인 색)과의 명암 대비를 재서 고른다 (WCAG 대비 4.5 이상, 못 누르는 버튼은 3 이상)
+	var bg: Color = fill
+	if art:
+		var avg: Color = _tex_avg(art_name)
+		bg = Color(avg.r * tint.r, avg.g * tint.g, avg.b * tint.b)
+	var tc: Color = _readable_on(bg, edge.lightened(0.15) if not (primary or art) else Color(0, 0, 0, 0), 4.5 if enabled else 3.0)
+	if not enabled:
+		tc.a = 0.85
 	var lab := fit(label, r.size.x - 8.0)
 	var w: float = font_bold.get_string_size(lab, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
 	draw_string(font_bold, (r.position + Vector2((r.size.x - w) / 2.0, r.size.y / 2.0 + 5.0)).round(), lab, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, tc)
+
+
+## 바탕 bg 위에서 읽히는 글자 색: prefer 가 대비 기준을 넘으면 그 색, 아니면 진한 색·밝은 색 중 대비가 큰 쪽
+func _readable_on(bg: Color, prefer: Color, need: float) -> Color:
+	if prefer.a > 0.0 and contrast_ratio(prefer, bg) >= need:
+		return prefer
+	var dark := Color("1c1622")
+	var light := Color("f6f0e4")
+	return dark if contrast_ratio(dark, bg) >= contrast_ratio(light, bg) else light
+
+
+static func _lin(c: float) -> float:
+	return c / 12.92 if c <= 0.04045 else pow((c + 0.055) / 1.055, 2.4)
+
+
+static func rel_lum(c: Color) -> float:
+	return 0.2126 * _lin(c.r) + 0.7152 * _lin(c.g) + 0.0722 * _lin(c.b)
+
+
+static func contrast_ratio(a: Color, b: Color) -> float:
+	var la := rel_lum(a)
+	var lb := rel_lum(b)
+	return (maxf(la, lb) + 0.05) / (minf(la, lb) + 0.05)
+
+
+## UI 그림 가운데 부분의 평균 색 (버튼 바탕 밝기를 알려고)
+var _avg_cache := {}
+
+
+func _tex_avg(name: String) -> Color:
+	if _avg_cache.has(name):
+		return _avg_cache[name]
+	var out := Color(0.5, 0.5, 0.5)
+	var tx := tex("ui/" + name)
+	if tx != null:
+		var img: Image = tx.get_image()
+		if img != null:
+			if img.is_compressed():
+				img.decompress()
+			var w := img.get_width()
+			var h := img.get_height()
+			var sum := Vector3.ZERO
+			var n := 0
+			for y in range(h / 4, h * 3 / 4):
+				for x in range(w / 4, w * 3 / 4):
+					var c := img.get_pixel(x, y)
+					if c.a > 0.5:
+						sum += Vector3(c.r, c.g, c.b)
+						n += 1
+			if n > 0:
+				out = Color(sum.x / n, sum.y / n, sum.z / n)
+	_avg_cache[name] = out
+	return out
 
 
 ## 패널: 옻칠 바탕 + 청동 테두리 + 안쪽 선 + 금박 모서리 장식. title 이 있으면 위쪽에 제목 판

@@ -71,25 +71,68 @@ func test_army_carries_over_nights() -> bool:
 
 func test_cap_and_clay_limit_drawing() -> bool:
 	var run = KilnRun.new(1)
-	run.clay = 999
+	run.clay = 9999
 	var n := 0
 	while not run.draw().is_empty():
 		n += 1
-	check(n == PD.KILN_SLOTS and PD.KILN_SLOTS == 30, "한 번에 가마 자리(30)만큼 넣는다: %d" % n)
+	check(n == PD.KILN_SLOTS and PD.KILN_SLOTS == 100, "한 번에 가마 자리(100)만큼 넣는다: %d" % n)
 	check(run.draws_left() == 0, "가마가 차면 더 못 뽑는다")
 	run.fire()
-	check(run.army.size() > run.cap() and not run.can_start_night(), "부대 자리를 넘으면 밤을 못 맞는다")
-	var clay0: int = run.clay
-	var sent := 0
-	while run.over_cap() > 0:
-		check(run.release(run.army[0]["id"]), "돌려보내기")
-		sent += 1
-	check(run.clay == clay0 + PD.CLAY_SMASH_BACK * sent, "돌려보내면 흙 %d씩" % PD.CLAY_SMASH_BACK)
-	check(run.can_start_night(), "자리를 맞추면 밤을 맞는다")
+	var alive: int = run.results.filter(func(r): return not r["cracked"]).size()
+	check(run.army.size() == mini(run.cap(), alive), "부대는 자리만큼만 (%d)" % run.army.size())
+	check(run.reserve.size() == alive - run.army.size(), "나머지는 대기실로 (%d)" % run.reserve.size())
+	check(run.can_start_night(), "부대가 자리 안이면 밤을 맞는다")
+	# 대기실 ↔ 부대
+	var a_id: int = run.army[0]["id"]
+	var b_id: int = run.reserve[0]["id"]
+	check(not run.to_army(b_id), "부대가 꽉 차면 그냥은 못 옮긴다")
+	check(run.swap(a_id, b_id) and run.in_army(b_id) and not run.in_army(a_id), "맞바꾸기")
+	check(run.to_reserve(b_id) and run.army.size() == run.cap() - 1, "대기실로")
+	check(run.to_army(a_id) and run.army.size() == run.cap(), "부대로")
+	# 대기실 병사도 합칠 수 있다
+	var groups: Array = run.merge_groups()
+	check(not groups.is_empty(), "대기실까지 합쳐 같은 병사 3명")
+	var total0: int = run.army.size() + run.reserve.size()
+	check(not run.merge(groups[0]).is_empty() and run.army.size() + run.reserve.size() == total0 - 2, "합치기 (3 → 1)")
 	check(run.army.size() <= run.cap(), "병사 자리를 넘지 않는다")
+	# 대기실 칸 한도
+	var r3 = KilnRun.new(2)
+	r3.clay = 999999
+	var guard := 0
+	while r3.draws_left() > 0 and guard < 20:
+		while not r3.draw().is_empty():
+			pass
+		r3.kiln.heat = 0
+		r3.fire()
+		guard += 1
+	check(r3.reserve.size() + r3.army.size() <= r3.cap() + PD.RESERVE_MAX, "대기실은 %d칸까지" % PD.RESERVE_MAX)
+	check(r3.reserve.size() == PD.RESERVE_MAX, "대기실이 차면 더 못 뽑는다 (%d)" % r3.reserve.size())
+	# 돌려보내기
+	var clay0: int = r3.clay
+	check(r3.release(r3.reserve[0]["id"]) and r3.clay == clay0 + PD.CLAY_SMASH_BACK, "돌려보내면 흙 %d" % PD.CLAY_SMASH_BACK)
 	var r2 = KilnRun.new(1)
 	r2.clay = PD.CLAY_DRAW - 1
 	check(r2.draw().is_empty(), "흙이 모자라면 못 뽑는다")
+	return true
+
+
+## 밤 보상: 마을 체력 % 로 별과 보상 (★3 뽑기권·흙·진주 / ★2·★1 흙·진주 / ★0 진주만)
+func test_night_reward_by_village() -> bool:
+	check(PD.night_stars(1.0) == 3 and PD.night_stars(0.9) == 3 and PD.night_stars(0.89) == 2 and PD.night_stars(0.6) == 2, "90%·60% 경계")
+	check(PD.night_stars(0.59) == 1 and PD.night_stars(0.3) == 1 and PD.night_stars(0.29) == 0, "30% 경계")
+	for case in [[1.0, true, true], [0.7, false, true], [0.45, false, true], [0.2, false, false]]:
+		var run = KilnRun.new(3)
+		run.draw("spear", "fire")
+		run.fire()
+		var b = run.start_night()
+		b.spawn_queue = []
+		b.step()
+		b.village_hp = PD.VILLAGE_HP * case[0]
+		var t0: int = run.tickets
+		var c0: int = run.clay
+		run.end_night(b)
+		check((run.tickets > t0) == case[1], "마을 %d%%: 뽑기권 %s" % [int(case[0] * 100), "있음" if case[1] else "없음"])
+		check((run.clay > c0) == case[2], "마을 %d%%: 흙 %s" % [int(case[0] * 100), "있음" if case[2] else "없음"])
 	return true
 
 

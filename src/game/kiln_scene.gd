@@ -840,7 +840,7 @@ func _draw_title() -> void:
 	for i in 5:
 		var ph: float = fmod(t * 0.006 + i * 0.2, 1.0)
 		glow(self, kp + Vector2(-6 + ph * 30.0, -70 - ph * 110.0), 12.0 + ph * 26.0, Color(0.5, 0.45, 0.5, 0.25 * (1.0 - ph)))
-	_draw_title_front()
+	_draw_title_front(false)   # 도트 병사 행렬은 빼 둔다 (사용자: "기본 도트 병사를 그대로 보여줬는데" → 표지 그림이 대신)
 
 
 ## 시작 화면 앞쪽: 행군하는 병사 · 도깨비 눈빛 · 반딧불 · 제목 · 버튼 · 소개 문장
@@ -874,7 +874,7 @@ func _draw_title_front(marchers := true) -> void:
 		var fa: float = maxf(0.0, sin(t * 0.07 + i))
 		glow(self, fp, 5.0, Color(1.0, 0.8, 0.4, 0.5 * fa))
 	# 제목
-	var title := "가마의 병사"
+	var title := "KILNBORN"   # 게임 이름 (2026-11-28 사용자: "KILNBORN 이거만 해서 이름 정하자")
 	var w: float = font_bold.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36).x
 	glow(self, Vector2(320, 92), 120.0, Color(1.0, 0.75, 0.35, 0.12))
 	for oo in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 3)]:

@@ -31,6 +31,14 @@ var unit_sid := {}       # 전투 유닛 id → 병사 id
 var gfx := {}            # 희귀 이상 등장 연출 {i, grade, need, taps, phase(tap/burst/show), t}
 var gfx_done := {}       # 연출을 마친 결과 칸
 const GFX_TAPS := {"rare": 1, "hero": 2, "legendary": 3, "mythic": 3}
+var drawn_at := {}       # 작업대: 가마 줄 번호 → 흙 인형이 나타나는 프레임 (5번 뽑기는 차례로)
+var popped := {}         # 나타날 때 흙먼지를 이미 냈나
+var load_t := 0          # 흙 인형이 가마로 들어가는 연출 시간
+var card_at := {}        # 꺼낸 병사 카드가 나타난 프레임 (결과 번호 → t)
+const OPEN_T := 64       # 가마 문이 열리기까지
+const CARD_GAP := 16     # 카드 사이 간격 (프레임)
+const NEUTRAL := Color(1.0, 0.9, 0.74)   # 등장 연출의 빛: 등급을 미리 알리지 않는 따뜻한 흰빛
+const CLAY_TONES := [Color("3a2c22"), Color("7a604a"), Color("a88a6c"), Color("cdb594")]
 var end_t := 0           # 밤 결과 창 연출 시간
 var shop_pick := -1      # 상점: 병사를 고르는 중인 진열 칸
 var end_wait := 0        # 마지막 적이 쓰러진 뒤 여운
@@ -107,6 +115,24 @@ func _physics_process(_d: float) -> void:
 				state = "title"
 		"prep", "gacha", "shop", "equip":
 			_prep_input()
+			for i in drawn_at:
+				if not popped.has(i) and t >= drawn_at[i] and i < run.queue.size():
+					popped[i] = true
+					if state == "gacha":
+						var bp := _bench_pos(i, run.queue.size())
+						burst(bp + Vector2(0, 8), CLAY_TONES[2], 12, 2.2, 2.0)
+						shake = maxf(shake, 1.5)
+		"load":
+			_tick_fire()
+			load_t += 1
+			var nq: int = run.queue.size()
+			for i in nq:
+				if load_t == _load_start(i) + LOAD_FLY:
+					var dc := _door_screen_box(FIRE_O).get_center()
+					burst(dc + Vector2(0, 30), CLAY_TONES[3], 10, 2.0, 2.0)
+					shake = maxf(shake, 2.0)
+			if load_t >= _load_start(nq - 1) + LOAD_FLY + 16:
+				state = "fire"
 		"fire":
 			_tick_fire()
 			if (pressed(KEY_SPACE) or clicked("heat")) and kiln.heat < PD.KILN_MAX_HEAT:
@@ -124,6 +150,9 @@ func _physics_process(_d: float) -> void:
 				bet_told = false
 				gfx = {}
 				gfx_done = {}
+				card_at = {}
+				drawn_at.clear()
+				popped.clear()
 				state = "reveal"
 				reveal_t = 0
 				reveal_shown = 0
@@ -132,11 +161,22 @@ func _physics_process(_d: float) -> void:
 				_gfx_tick()
 			else:
 				reveal_t += 1
-				var due := (reveal_t - 50) / 32 + 1
-				while reveal_shown < mini(due, kiln.results.size()):
+				if reveal_t == 24 or reveal_t == 44:
+					shake = maxf(shake, 4.0)
+				if reveal_t == OPEN_T - 6:
+					do_flash(NEUTRAL, 16)
+					shake = maxf(shake, 7.0)
+				var due := (reveal_t - OPEN_T) / CARD_GAP + 1 if reveal_t >= OPEN_T else 0
+				while reveal_shown < kiln.results.size():
 					var rr: Dictionary = kiln.results[reveal_shown]
+					if rr["cracked"]:
+						_reveal_one(reveal_shown)   # 깨진 인형은 카드 없이 아래 줄에 센다
+						reveal_shown += 1
+						continue
+					if _cards_before(reveal_shown) >= due:
+						break
 					var gg: String = PD.ROLE_GRADE.get(rr["role"], "common")
-					if not rr["cracked"] and not rr.get("refire", false) and GFX_TAPS.has(gg) and not gfx_done.has(reveal_shown):
+					if not rr.get("refire", false) and GFX_TAPS.has(gg) and not gfx_done.has(reveal_shown):
 						gfx = {"i": reveal_shown, "grade": gg, "need": GFX_TAPS[gg], "taps": 0, "phase": "tap", "t": 0}
 						banner = {}
 						floats.clear()
@@ -330,9 +370,13 @@ func _prep_input() -> void:
 	for i in run.queue.size():
 		if clicked("uq%d" % i):
 			run.unqueue(i)
+			drawn_at.clear()
+			popped.clear()
 			break
 	if not run.queue.is_empty() and (clicked("fire_go") or pressed(KEY_SPACE)):
-		state = "fire"
+		state = "load"
+		load_t = 0
+		banner = {}
 		_tut_done("fire")
 	elif state == "prep" and run.queue.is_empty() and not run.army.is_empty() and (clicked("night_go") or pressed(KEY_ENTER) or pressed(KEY_KP_ENTER)):
 		_tut_done("full")
@@ -447,81 +491,115 @@ func _gfx_tick() -> void:
 	var tap: bool = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not mouse_was or pressed(KEY_SPACE) or pressed(KEY_ENTER)
 	mouse_was = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
 	var gc: Color = GRADE_COL[gfx["grade"]]
+	var c := GFX_C
 	match gfx["phase"]:
 		"tap":
 			if tap and gfx["t"] > 8:
 				gfx["taps"] += 1
 				gfx["t"] = 0
-				shake = maxf(shake, 4.0 + gfx["taps"] * 3.0)
-				burst(Vector2(320, 230), gc, 10 + gfx["taps"] * 8, 3.0, 2.5)
+				shake = maxf(shake, 3.0 + gfx["taps"] * 2.5)
+				burst(c + Vector2(randf_range(-18, 18), randf_range(-30, 10)), CLAY_TONES[2], 8 + gfx["taps"] * 5, 3.0, 2.5)
 				if gfx["taps"] >= gfx["need"]:
 					gfx["phase"] = "burst"
-					do_flash(gc.lightened(0.5), 24)
+					gfx["t"] = 0
+					do_flash(NEUTRAL, 22)
 					shake = maxf(shake, 12.0)
+					burst(c, CLAY_TONES[2], 46, 5.5, 3.0)
+					burst(c, CLAY_TONES[1], 30, 4.0, 3.5)
 		"burst":
-			if gfx["t"] > 40:
+			if gfx["t"] == 14:
+				burst(c, gc.lightened(0.3), 40, 5.0, 2.5)   # 겉흙이 다 떨어진 뒤에야 등급 빛
+			if gfx["t"] > 44:
 				gfx["phase"] = "show"
 				gfx["t"] = 0
-				burst(Vector2(320, 190), gc, 50, 5.0, 3.0)
 		"show":
 			if tap and gfx["t"] > 20:
 				var i: int = gfx["i"]
 				gfx_done[i] = true
 				_reveal_one(i)
 				reveal_shown = i + 1
-				reveal_t = 50 + 32 * reveal_shown - 20
+				reveal_t = OPEN_T + CARD_GAP * _cards_before(reveal_shown) - 10
 				gfx = {}
 
 
+const GFX_C := Vector2(320, 176)
+
+
+## 희귀 이상 등장: 흙 인형의 겉흙에 금이 가고(등급 색 없이 흰빛), 다 깨지면 그제야 등급 빛과 함께 병사가 드러난다
 func _draw_gfx() -> void:
 	var gc: Color = GRADE_COL[gfx["grade"]]
 	var r: Dictionary = kiln.results[gfx["i"]]
-	draw_rect(Rect2(Vector2.ZERO, VIEW), Color(0.03, 0.02, 0.05, 0.92))
-	var c := Vector2(320, 196)
+	var c := GFX_C
+	var gt: int = gfx["t"]
+	draw_rect(Rect2(Vector2.ZERO, VIEW), Color(0.02, 0.015, 0.03, 0.95))
 	match gfx["phase"]:
 		"tap":
-			var k: float = float(gfx["taps"] + 1) / (gfx["need"] + 1)
-			var jit: Vector2 = Vector2(sin(t * 1.7) * 2.0, 0) * (1.0 + gfx["taps"])
-			for i in 3:
-				glow(self, c + Vector2(0, 30), 60.0 + 40.0 * k + i * 20.0, Color(gc.r, gc.g, gc.b, 0.25 * k))
-			_draw_kiln_body(Vector2(150, 40) + jit, 0.0)
-			# 문틈으로 새는 등급 빛 (두드릴수록 커진다)
-			var door: Vector2 = c + Vector2(0, 50) + jit
-			for i2 in 3:
-				glow(self, door, 30.0 + 30.0 * k + i2 * 16.0, Color(gc.r, gc.g, gc.b, 0.35 * k + 0.15))
-			rrect(Rect2(door - Vector2(22, 34) * k, Vector2(44, 68) * k), Color(gc.lightened(0.4).r, gc.lightened(0.4).g, gc.lightened(0.4).b, 0.5 * k))
+			var k: float = float(gfx["taps"]) / gfx["need"]
+			var jit := Vector2(sin(t * 2.1) * maxf(0.0, 8.0 - gt) * 0.5, 0)
+			glow(self, c + Vector2(0, 20), 80.0 + 50.0 * k, Color(NEUTRAL.r, NEUTRAL.g, NEUTRAL.b, 0.08 + 0.18 * k))
+			glow(self, c + Vector2(0, 66), 50.0, Color(0, 0, 0, 0.5), 0.25)
+			draw_clay(c + Vector2(0, 2) + jit, r["role"], 5.0)
+			# 금: 두드릴 때마다 새 금이 가고, 금 사이로 흰빛이 샌다
 			for i in gfx["taps"]:
-				var a: float = i * 1.7 + 0.4
-				draw_line(c + Vector2(0, 30), c + Vector2(0, 30) + Vector2.from_angle(a) * (40.0 + i * 10.0), gc.lightened(0.5), 2.0)
-			var msg := "가마가 흔들린다! 눌러서 두드리세요  %d / %d" % [gfx["taps"], gfx["need"]]
-			var w: float = font.get_string_size(msg, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-			panel(Rect2(320 - w / 2.0 - 16, 352, w + 32, 26))
-			text(Vector2(320 - w / 2.0, 370), msg, gc)
+				var pts := _crack_pts(gfx["i"] * 37 + i * 11, c + jit)
+				for j in pts.size() - 1:
+					draw_line(pts[j], pts[j + 1], Color(NEUTRAL.r, NEUTRAL.g, NEUTRAL.b, 0.95), 2.0)
+				glow(self, pts[pts.size() / 2], 18.0 + 6.0 * i, Color(NEUTRAL.r, NEUTRAL.g, NEUTRAL.b, 0.35))
+			var msg := "두드려서 겉흙을 깨세요"
+			text(Vector2(0, 318), msg, NEUTRAL, 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+			for i in gfx["need"]:
+				var dp := Vector2(320 + (i - (gfx["need"] - 1) / 2.0) * 14.0, 332)
+				draw_circle(dp, 3.5, NEUTRAL if i < gfx["taps"] else Color(1, 1, 1, 0.18))
 		"burst":
-			var k2: float = clampf(gfx["t"] / 40.0, 0.0, 1.0)
-			for i in 12:
-				var a2: float = i * TAU / 12.0 + t * 0.03
-				draw_colored_polygon(PackedVector2Array([c, c + Vector2.from_angle(a2 - 0.08) * 400.0, c + Vector2.from_angle(a2 + 0.08) * 400.0]), Color(gc.r, gc.g, gc.b, 0.18 * (1.0 - k2 * 0.5)))
-			draw_rect(Rect2(c.x - 40 * (1.0 - k2 * 0.5), 0, 80 * (1.0 - k2 * 0.5), 400), Color(gc.lightened(0.6).r, gc.lightened(0.6).g, gc.lightened(0.6).b, 0.85 * (1.0 - k2)))
-			glow(self, c, 160.0, Color(gc.r, gc.g, gc.b, 0.6 * (1.0 - k2)))
+			var k2: float = clampf((gt - 10) / 30.0, 0.0, 1.0)
+			if gt < 8:
+				draw_rect(Rect2(Vector2.ZERO, VIEW), Color(1.0, 0.95, 0.86, 0.9 * (1.0 - gt / 8.0)))
+			_draw_rays(c, gc, 0.16 * k2)
+			glow(self, c, 60.0 + 110.0 * k2, Color(gc.r, gc.g, gc.b, 0.45 * k2))
+			draw_ally_shape(c + Vector2(0, 4), r["role"], r["element"], r["tier"], 4.0, gt < 18)
 		"show":
-			var k3: float = clampf(gfx["t"] / 18.0, 0.0, 1.0)
-			for i in 12:
-				var a3: float = i * TAU / 12.0 + t * 0.01
-				draw_colored_polygon(PackedVector2Array([c, c + Vector2.from_angle(a3 - 0.06) * 420.0, c + Vector2.from_angle(a3 + 0.06) * 420.0]), Color(gc.r, gc.g, gc.b, 0.12))
-			glow(self, c, 120.0, Color(gc.r, gc.g, gc.b, 0.35))
-			var drop: float = (1.0 - (1.0 - pow(1.0 - k3, 3.0))) * -60.0
-			draw_ally_shape(c + Vector2(0, 10 + drop), r["role"], r["element"], r["tier"], 4.0)
-			var card := Rect2(170, 286 - (1.0 - k3) * 30.0, 300, 76)
-			panel(card, PD.GRADE_NAME[gfx["grade"]], gc)
-			var nm: String = r["name"]
-			var w2: float = font_bold.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x
-			draw_string(font_bold, Vector2(320 - w2 / 2.0, card.position.y + 34).round(), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, gc)
-			var sk: String = fit("스킬 · %s — %s" % [PD.SKILLS[r["role"]]["name"], PD.SKILLS[r["role"]]["desc"]], 280.0)
-			var w3: float = font.get_string_size(sk, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-			text(Vector2(320 - w3 / 2.0, card.position.y + 54), sk, C["text"])
-			if gfx["t"] > 20:
-				text(Vector2(320 - 40, card.position.y + 70), "눌러서 계속", UI["muted"])
+			var k3: float = clampf(gt / 16.0, 0.0, 1.0)
+			_draw_rays(c, gc, 0.11)
+			glow(self, c, 150.0, Color(gc.r, gc.g, gc.b, 0.28))
+			glow(self, c + Vector2(0, 58), 46.0, Color(0, 0, 0, 0.5), 0.25)
+			draw_ally_shape(c + Vector2(0, 4 + sin(t * 0.08) * 2.0), r["role"], r["element"], r["tier"], 4.0)
+			var card := Rect2(180, 252 + (1.0 - _ease_back(k3)) * 24.0, 280, 72)
+			rrect(Rect2(card.position + Vector2(0, 3), card.size), Color(0, 0, 0, 0.5))
+			if not nine("card_9", card, 6, Color.WHITE.lerp(gc, 0.6)):
+				rrect(card, UI["lacquer"])
+				rline(card, gc)
+			text(card.position + Vector2(0, 18), PD.GRADE_NAME[gfx["grade"]], gc, 12, card.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+			text(card.position + Vector2(0, 44), r["name"], gc, 24, card.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+			text(card.position + Vector2(0, 62), fit("%s — %s" % [PD.SKILLS[r["role"]]["name"], PD.SKILLS[r["role"]]["desc"]], 260.0), C["text"], 12, card.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+			if gt > 20:
+				text(Vector2(0, 350), "눌러서 계속", UI["muted"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+	# 위아래 검은 띠 (영화처럼)
+	draw_rect(Rect2(0, 0, 640, 26), Color(0, 0, 0, 0.9))
+	draw_rect(Rect2(0, 374, 640, 26), Color(0, 0, 0, 0.9))
+
+
+func _draw_rays(c: Vector2, col: Color, a: float) -> void:
+	if a <= 0.0:
+		return
+	for i in 14:
+		var ang: float = i * TAU / 14.0 + t * 0.006
+		var w: float = 0.05 + 0.03 * sin(i * 2.3)
+		draw_colored_polygon(PackedVector2Array([c, c + Vector2.from_angle(ang - w) * 460.0, c + Vector2.from_angle(ang + w) * 460.0]), Color(col.r, col.g, col.b, a))
+
+
+## 금 한 줄: 몸통 가운데 근처에서 시작해 꺾이며 뻗는다 (같은 번호면 같은 모양)
+func _crack_pts(seed_n: int, c: Vector2) -> Array:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_n
+	var p := c + Vector2(rng.randf_range(-14, 14), rng.randf_range(-40, 30))
+	var ang := rng.randf_range(0, TAU)
+	var pts := [p]
+	for j in 5:
+		ang += rng.randf_range(-0.9, 0.9)
+		p += Vector2.from_angle(ang) * rng.randf_range(7, 12)
+		p = Vector2(clampf(p.x, c.x - 26, c.x + 26), clampf(p.y, c.y - 56, c.y + 56))
+		pts.append(p)
+	return pts
 
 
 ## 전투 중 병사를 누르면 정보창 (잠깐 뒤 닫힘)
@@ -547,71 +625,63 @@ func _tip_input() -> void:
 	mouse_was = down
 
 
-## 뽑기: 한 번씩 가마에 들어가고, 등급이 높을수록 크게 알린다 (신화는 화면이 터진다)
+## 뽑기: 흙 인형이 작업대에 하나씩 선다. 무엇이 될지는 구워야 안다 (등급을 미리 알리지 않는다)
 func _do_draws(n: int) -> void:
+	var made := 0
 	for k in n:
 		var d: Dictionary = run.draw()
 		if d.is_empty():
 			break
+		drawn_at[run.queue.size() - 1] = t + made * 7
+		made += 1
+	if made > 0:
 		draw_flash = 30
-		var g: String = d["grade"]
-		var gc: Color = GRADE_COL[g]
-		var gi: int = PD.GRADES.find(g)
-		var p := Vector2(520, 220 + (run.queue.size() - 1) * 13)
-		var sub: String = ("천장 확정 — " if d["pity"] else "") + PD.ROLE_DESC[d["role"]]
-		match g:
-			"mythic":
-				show_banner("신화!! %s" % d["name"], sub, gc, 150)
-				do_flash(gc, 30)
-				burst(Vector2(320, 200), gc, 80, 6.0, 4.0)
-				burst(Vector2(320, 200), C["accent"], 50, 5.0, 3.0)
-				shake = maxf(shake, 14.0)
-			"legendary":
-				show_banner("전설! %s" % d["name"], sub + " · 신화 조각 +1", gc, 110)
-				do_flash(gc, 22)
-				burst(Vector2(320, 200), gc, 50, 5.0, 3.0)
-				shake = maxf(shake, 10.0)
-			"hero":
-				show_banner("영웅! %s" % d["name"], sub, gc, 80)
-				do_flash(gc, 12)
-				burst(p, gc, 30, 4.0, 3.0)
-				shake = maxf(shake, 6.0)
-			_:
-				if gi >= 1:
-					float_text(p + Vector2(-70, -6), "%s! %s" % [PD.GRADE_NAME[g], d["name"]], gc, 12)
-					burst(p, gc, 10 + gi * 6, 2.5, 2.0)
-					shake = maxf(shake, 1.5 + gi)
-				else:
-					burst(p, C[d["element"]].lightened(0.3), 6, 1.5)
 
 
-func _slot_pos(i: int) -> Vector2:
-	var n: int = kiln.results.size()
-	if n <= 5:
-		return Vector2(320 + (i - (n - 1) / 2.0) * 110, 225)
-	var per := 4
-	var row := i / per
-	var in_row: int = mini(per, n - row * per)
-	return Vector2(320 + (i % per - (in_row - 1) / 2.0) * 130, 120 + row * 118)
+## 결과 i 앞에 카드가 몇 장 나왔나 (깨진 인형은 카드가 없다)
+func _cards_before(n: int) -> int:
+	var c := 0
+	for i in mini(n, kiln.results.size()):
+		if not kiln.results[i]["cracked"]:
+			c += 1
+	return c
+
+
+func _survivors() -> Array:
+	var out := []
+	for i in kiln.results.size():
+		if not kiln.results[i]["cracked"]:
+			out.append(i)
+	return out
+
+
+## 카드 자리: 4장까지 한 줄, 넘으면 두 줄
+func _card_pos(j: int, n: int) -> Vector2:
+	if n <= 4:
+		return Vector2(320 + (j - (n - 1) / 2.0) * 128.0, 176)
+	var row := j / 4
+	var in_row: int = mini(4, n - row * 4)
+	return Vector2(320 + (j % 4 - (in_row - 1) / 2.0) * 128.0, 114 + row * 134)
 
 
 func _reveal_one(i: int) -> void:
 	var r: Dictionary = kiln.results[i]
-	var p := _slot_pos(i)
+	card_at[i] = t
 	if r["cracked"]:
-		burst(p, C["clay"], 22, 3.5, 3.0)
-		float_text(p + Vector2(-24, -40), "깨짐… 파편 +1", C["dim"])
-		shake = maxf(shake, 3.0)
-	elif r["tier"] == "legend" and r.get("before", "") != "legend":
+		burst(Vector2(320, 330), CLAY_TONES[2], 10, 2.0, 2.0)
+		return
+	var surv := _survivors()
+	var p := _card_pos(surv.find(i), surv.size())
+	var gc: Color = GRADE_COL[PD.ROLE_GRADE.get(r["role"], "common")]
+	if r["tier"] == "legend" and r.get("before", "") != "legend":
 		burst(p, C["accent"], 40, 4.5, 3.0)
 		do_flash(C["accent"], 18)
 		shake = maxf(shake, 9.0)
 		show_banner("요변!", "%s — 불이 우연히 만든 귀한 빛깔 · 힘 2.6배" % r["name"], C["accent"], 90)
 	elif r["tier"] == "fine" and r.get("before", "") != "fine":
-		burst(p, C[r["element"]].lightened(0.4), 14, 2.5)
-		float_text(p + Vector2(-12, -40), "상품", C["accent"])
+		burst(p, C[r["element"]].lightened(0.4), 16, 2.5)
 	else:
-		burst(p, C["dim"], 6, 1.5)
+		burst(p, gc.lightened(0.2), 8, 1.8)
 
 
 # ---------------- 그리기 ----------------
@@ -635,6 +705,9 @@ func _draw() -> void:
 			_draw_equip()
 		"fire":
 			_draw_fire()
+		"load":
+			_draw_fire()
+			_draw_loading()
 		"reveal":
 			_draw_reveal()
 		"deploy":
@@ -989,16 +1062,18 @@ func _draw_prep() -> void:
 	if run.queue.is_empty():
 		text(Vector2(426, 262), "비어 있음 — 가마 뽑기에서", UI["muted"])
 		text(Vector2(426, 278), "병사를 뽑아 넣으세요", UI["muted"])
+	else:
+		text(Vector2(426, 256), "구워야 무엇이 될지 압니다", UI["muted"])
 	for i in run.queue.size():
 		var q: Dictionary = run.queue[i]
-		var qx: float = 424.0 + (i % 2) * 104.0
-		var qy: float = 244.0 + (i / 2) * 22.0
-		var qr := Rect2(qx, qy, 100, 19)
-		rrect(qr, UI["deep"])
-		draw_rect(Rect2(qx + 4, qy + 5, 8, 8), C[q["element"]])
-		var qc: Color = GRADE_COL[PD.ROLE_GRADE[q["role"]]] if q["kind"] == "new" else C["text"]
-		text(Vector2(qx + 16, qy + 14), fit(PD.ROLE_NAME_KILN[q["role"]] + ("" if q["kind"] == "new" else " 재"), 64.0), qc)
-		button(Rect2(qx + 82, qy + 2, 16, 15), "×", "uq%d" % i, UI["muted"])
+		var qx: float = 428.0 + i * 25.0
+		var qp := Vector2(qx + 9, 298)
+		glow(self, qp + Vector2(0, 13), 11.0, Color(0, 0, 0, 0.5), 0.3)
+		if q["kind"] == "new":
+			draw_clay(qp, q["role"], 1.0)
+		else:
+			draw_ally_shape(qp, q["role"], q["element"], run.soldier(q["id"]).get("tier", "normal"), 1.0)
+		button(Rect2(qx, 316, 18, 16), "×", "uq%d" % i, UI["muted"])
 	# 아래 큰 버튼
 	button(Rect2(6, 348, 310, 30), "가마에 불 지피기  (스페이스)", "fire_go", Color("ff9a6a"), not run.queue.is_empty())
 	button(Rect2(324, 348, 310, 30), "밤 맞이하기 → 배치  (Enter)" if run.queue.is_empty() else "가마를 먼저 여세요", "night_go", UI["gold"], run.queue.is_empty() and not run.army.is_empty(), true)
@@ -1018,8 +1093,9 @@ func _draw_prep() -> void:
 func _draw_gacha() -> void:
 	_draw_topbar("가마 뽑기", true)
 	panel(Rect2(6, 56, 330, 284))
-	_draw_kiln_body(Vector2(-10, 36), 0.0)
-	text(Vector2(14, 358), fit("희귀 이상이 나오면 가마를 두드려 꺼냅니다", 322.0), UI["gold"])
+	_draw_kiln_body(Vector2(1, 4), 0.0)
+	_draw_bench()
+	text(Vector2(14, 358), fit("뽑은 흙 인형은 구워야 정체가 드러납니다", 322.0), UI["gold"])
 	# 등급 확률
 	panel(Rect2(344, 56, 290, 120), "등급 확률")
 	var y := 76.0
@@ -1050,7 +1126,7 @@ func _draw_gacha() -> void:
 	var dwhy := "" if run.can_draw() else ("흙·뽑기권 부족" if run.clay < PD.CLAY_DRAW and run.tickets == 0 else ("자리 없음 — 합치기" if run.army.size() + run.queued_new() >= run.cap() else "가마가 가득 참"))
 	button(Rect2(344, 288, 140, 34), ("1번 뽑기 · " + ("뽑기권" if run.tickets > 0 else "흙 %d" % PD.CLAY_DRAW)) if dwhy == "" else dwhy, "draw1", UI["gold"], dwhy == "")
 	button(Rect2(492, 288, 142, 34), "5번 뽑기", "draw5", UI["gold"], dwhy == "", true)
-	button(Rect2(344, 348, 290, 30), "가마에 불 지피기 (%d명)" % run.queue.size(), "fire_go", Color("ff9a6a"), not run.queue.is_empty())
+	button(Rect2(344, 348, 290, 30), "가마에 넣고 불 지피기 (%d)" % run.queue.size(), "fire_go", Color("ff9a6a"), not run.queue.is_empty())
 	text(Vector2(14, 374), fit("유약: 청자·진사·흑유 각 33%", 322.0), UI["muted"])
 
 
@@ -1352,7 +1428,7 @@ func _same_count(s: Dictionary) -> int:
 ## 튜토리얼: 화면을 어둡게 하고, 눌러야 할 곳을 밝게 둘러 화살표로 가리킨다
 const TUT := {
 	"draw": ["병사 뽑기", "'가마 뽑기'에 들어가 병사를 뽑습니다.\n등급은 6단계 — 일반부터 신화까지, 화면의 확률 그대로.\n천장이 있어서 운이 나빠도 정해진 횟수 안에 반드시 나옵니다.", Rect2(416, 58, 218, 50)],
-	"fire": ["가마에 굽기", "뽑은 병사는 가마에서 구워야 군대에 들어옵니다.\n불을 세게 올릴수록 상품·요변(힘 ×1.5·×2.6)이 잘 나오고,\n불 4까지는 절대 깨지지 않습니다.", Rect2(6, 348, 310, 30)],
+	"fire": ["가마에 굽기", "뽑은 흙 인형은 가마에서 구워야 병사가 됩니다 — 무엇이 될지는 구워 봐야 압니다.\n불을 세게 올릴수록 상품·요변(힘 ×1.5·×2.6)이 잘 나오고,\n불 4까지는 절대 깨지지 않습니다.", Rect2(6, 348, 310, 30)],
 	"star": ["별 올리기", "같은 병사·같은 별 3명을 합치면 별이 오릅니다 (확정).\n★1 → ★2 → … → ★5 까지, 단계마다 3명씩.\n유약은 달라도 되지만, 요변은 요변끼리만 합칩니다.", Rect2(218, 309, 188, 28)],
 	"full": ["자리가 꽉 찼습니다", "이제부터는 숫자보다 '키우기'입니다.\n· 같은 병사 3명 합치기 → 별 +1   · 다시 굽기 → 요변을 노림\n카드 오른쪽 위 2/3 표시가 합치기까지 모인 수입니다.", Rect2(6, 58, 404, 244)],
 	"equip": ["장비", "챕터 3부터 밤을 넘기면 장비를 얻습니다.\n'장비'에 들어가 병사를 고르고 눌러 끼우세요.\n칼날 공격력 · 갑옷 체력 · 부적 공격 속도 · 호리병 회복", Rect2(416, 170, 218, 50)],
@@ -1545,7 +1621,7 @@ func _draw_brick_body(o: Vector2) -> void:
 
 # ---- 가마 그림의 문 모양 읽기 ----
 # 그림 가운데의 어두운 영역(문 자리)을 찾아 같은 모양의 마스크를 만든다. 그림을 다시 그리지 않아도 문 모양이 맞는다.
-const KILN_BODY_RECT := Rect2(20, 0, 300, 300)   # 가마 그림을 그리는 자리 (o 기준)
+const KILN_BODY_RECT := Rect2(50, 60, 240, 240)   # 가마 그림(160px)을 1.5배로 — 화면에서 한 점이 3px 로 고르게 (o 기준)
 var door_mask: Texture2D = null
 var door_box := Rect2()                           # 문 영역 (그림 픽셀 기준)
 var _mask_tried := false
@@ -1634,7 +1710,7 @@ func _draw_door_base(o: Vector2) -> void:
 var flames: Array = []
 var embers: Array = []
 var smokes: Array = []
-const FIRE_O := Vector2(0, 70)
+const FIRE_O := Vector2(0, 44)
 
 
 func _tick_fire() -> void:
@@ -1686,7 +1762,7 @@ func _flame_color(age: float) -> Color:
 
 func draw_glow(ci: CanvasItem) -> void:
 	super.draw_glow(ci)
-	if state != "fire":
+	if state != "fire" and state != "load":
 		return
 	var k: float = float(kiln.heat) / PD.KILN_MAX_HEAT
 	var o := FIRE_O + _shake_now
@@ -1717,9 +1793,10 @@ func draw_glow(ci: CanvasItem) -> void:
 
 
 func _draw_fire() -> void:
-	_draw_kiln_body(Vector2(0, 70), 0.0)
+	_draw_kiln_body(FIRE_O, 0.0)
 	text(Vector2(0, 30), "불 올리기", C["accent"], 24, 340.0, HORIZONTAL_ALIGNMENT_CENTER)
-	text(Vector2(0, 390), "불을 올릴수록 요변이 나올 확률도, 깨질 확률도 오른다", C["dim"], 12, 340.0, HORIZONTAL_ALIGNMENT_CENTER)
+	if state == "fire":
+		text(Vector2(0, 390), "불을 올릴수록 요변이 나올 확률도, 깨질 확률도 오른다", C["dim"], 12, 340.0, HORIZONTAL_ALIGNMENT_CENTER)
 	panel(Rect2(350, 14, 280, 372))
 	var x := 364.0
 	text(Vector2(x, 34), "불 세기  %d / %d" % [kiln.heat, PD.KILN_MAX_HEAT], C["text"], 12)
@@ -1754,36 +1831,17 @@ func _draw_fire() -> void:
 
 
 func _draw_reveal() -> void:
-	var open_k := clampf(reveal_t / 40.0, 0.0, 1.0)
 	draw_rect(Rect2(Vector2.ZERO, VIEW), C["bg"])
-	text(Vector2(0, 34), "가마 열기", C["accent"], 24, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
-	# 연기
-	if reveal_t < 90:
-		for i in 12:
-			var sp := Vector2(80 + i * 45, 240 - fmod(reveal_t * 1.5 + i * 13.0, 160.0))
-			draw_circle(sp, 18.0, Color(0.8, 0.8, 0.8, 0.25 * (1.0 - reveal_t / 90.0)))
-	for i in kiln.results.size():
-		var r: Dictionary = kiln.results[i]
-		var p := _slot_pos(i)
-		draw_rect(Rect2(p + Vector2(-40, 30), Vector2(80, 6)), Color("3a261c"))
-		if i >= reveal_shown:
-			draw_rect(Rect2(p + Vector2(-16, -30), Vector2(32, 56)), Color(0.25, 0.2, 0.18, 0.6 + 0.4 * (1.0 - open_k)))
-			text(p + Vector2(-6, 0), "?", C["dim"], 24)
-			continue
-		if r["cracked"]:
-			for k in 5:
-				draw_rect(Rect2(p + Vector2(-18 + k * 8, 20 - (k % 2) * 4), Vector2(6, 4)), C["clay"].darkened(0.3))
-			text(p + Vector2(-40, 60), "깨짐", C["dim"], 12, 80.0, HORIZONTAL_ALIGNMENT_CENTER)
-			continue
-		draw_ally_shape(p, r["role"], r["element"], r["tier"], 2.0)
-		var tc: Color = C["accent"] if r["tier"] == "legend" else C["text"] if r["tier"] == "fine" else C["dim"]
-		var gcol: Color = GRADE_COL[PD.ROLE_GRADE.get(r["role"], "common")]
-		var nm2: String = fit(r["name"], 104.0)
-		text(p + Vector2(-font.get_string_size(nm2, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x / 2.0, 60), nm2, gcol)
-		var tier_label: String = PD.TIER_NAME_KILN[r["tier"]] + (" (파편 확정)" if r["lucky"] else "")
-		if r.get("refire", false):
-			tier_label = ("%s → %s" % [PD.TIER_NAME_KILN[r["before"]], PD.TIER_NAME_KILN[r["tier"]]]) if r["before"] != r["tier"] else ("%s 그대로" % PD.TIER_NAME_KILN[r["tier"]])
-		text(p + Vector2(-50, 78), tier_label, tc, 12, 100.0, HORIZONTAL_ALIGNMENT_CENTER)
+	if reveal_t < OPEN_T:
+		_draw_kiln_open()
+		return
+	var surv := _survivors()
+	var cracked: int = kiln.results.size() - surv.size()
+	text(Vector2(0, 34), "가마에서 나온 병사" if not surv.is_empty() else "모두 깨졌습니다…", UI["gold"], 24, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+	for j in surv.size():
+		var i: int = surv[j]
+		if i < reveal_shown and card_at.has(i):
+			_draw_card(kiln.results[i], _card_pos(j, surv.size()), t - card_at[i])
 	if reveal_shown >= kiln.results.size():
 		var counts := {}
 		for r2 in kiln.results:
@@ -1793,8 +1851,154 @@ func _draw_reveal() -> void:
 		for e in counts:
 			if counts[e] >= PD.SYNERGY_COUNT:
 				syn.append(PD.SYNERGY_NAME[e])
-		var st2: String = ("합동 기술: " + ", ".join(syn)) if not syn.is_empty() else "합동 기술 없음"
-		text(Vector2(320 - font.get_string_size(st2, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x / 2.0, 338), st2, C["accent"] if not syn.is_empty() else C["dim"])
+		var parts := []
+		if cracked > 0:
+			parts.append("깨진 인형 %d · 파편 +%d" % [cracked, cracked])
+		parts.append(("합동 기술: " + ", ".join(syn)) if not syn.is_empty() else "합동 기술 없음")
+		text(Vector2(0, 338), "   ·   ".join(parts), C["accent"] if not syn.is_empty() else C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
 		button(Rect2(230, 348, 180, 30), "준비로  (Enter)", "fight", UI["gold"], true, true)
 	if not gfx.is_empty():
 		_draw_gfx()
+
+
+## 꺼낸 병사 카드: 등급 색 테두리 + 둥근 도자 받침 위에 선 병사 + 이름·구움 상태. 살짝 튀어 오르며 나타난다
+func _draw_card(r: Dictionary, p: Vector2, age: int) -> void:
+	var k := clampf(age / 12.0, 0.0, 1.0)
+	var sc: float = 0.8 + 0.2 * _ease_back(k)
+	var g: String = PD.ROLE_GRADE.get(r["role"], "common")
+	var gc: Color = GRADE_COL[g]
+	var high: bool = GFX_TAPS.has(g)
+	glow(self, p + Vector2(0, -6), 74.0 * sc, Color(gc.r, gc.g, gc.b, 0.16 if high else 0.05))
+	draw_set_transform(p, 0.0, Vector2(sc, sc))
+	var rect := Rect2(-58, -62, 116, 124)
+	rrect(Rect2(rect.position + Vector2(0, 3), rect.size), Color(0, 0, 0, 0.45))
+	if not nine("card_9", rect, 6, Color.WHITE.lerp(gc, 0.55)):
+		rrect(rect, UI["lacquer"])
+		rline(rect, gc)
+	text(Vector2(-50, -44), PD.GRADE_NAME[g], gc)
+	var tier_label: String = PD.TIER_NAME_KILN[r["tier"]]
+	if r.get("refire", false):
+		tier_label = ("%s→%s" % [PD.TIER_NAME_KILN[r["before"]], PD.TIER_NAME_KILN[r["tier"]]]) if r["before"] != r["tier"] else "그대로"
+	var tc: Color = C["accent"] if r["tier"] == "legend" else C["text"] if r["tier"] == "fine" else UI["muted"]
+	text(Vector2(-50, -44), tier_label, tc, 12, 100.0, HORIZONTAL_ALIGNMENT_RIGHT)
+	# 둥근 도자 받침 (유약 색 테)
+	var ec: Color = C[r["element"]]
+	draw_set_transform(p + Vector2(0, 27) * sc, 0.0, Vector2(sc, sc * 0.3))
+	draw_circle(Vector2(0, 8), 30.0, ec.darkened(0.7))
+	draw_circle(Vector2.ZERO, 30.0, ec.darkened(0.35))
+	draw_arc(Vector2.ZERO, 30.0, 0.0, TAU, 40, ec.lightened(0.25), 2.0)
+	# 병사 그리기는 안에서 변환을 되돌리므로 화면 좌표로 바로 그린다
+	draw_set_transform(Vector2.ZERO)
+	draw_ally_shape(p + Vector2(0, -1) * sc, r["role"], r["element"], r["tier"], 2.0 * sc)
+	draw_set_transform(p, 0.0, Vector2(sc, sc))
+	text(Vector2(-58, 52), fit(r["name"], 106.0), gc, 12, 116.0, HORIZONTAL_ALIGNMENT_CENTER)
+	draw_set_transform(Vector2.ZERO)
+
+
+## 가마 문이 열린다: 문틈의 빛이 커지고 연기가 오르다 번쩍 (등급 색 없이)
+func _draw_kiln_open() -> void:
+	var k := clampf(float(reveal_t) / OPEN_T, 0.0, 1.0)
+	var o := Vector2(150, 10)
+	_draw_kiln_body(o, 0.0)
+	var box := _door_screen_box(o + _shake_now)
+	var dc := box.get_center()
+	if door_mask != null:
+		draw_texture_rect(door_mask, Rect2(o + _shake_now + KILN_BODY_RECT.position, KILN_BODY_RECT.size), false, Color(0.55, 0.3, 0.12, 0.35 + 0.4 * k))
+	# 문 안쪽 빛: 바닥이 가장 밝고 위로 옅어진다 (평평하게 칠하지 않게 겹친 빛으로)
+	glow(self, Vector2(dc.x, box.end.y - 10), box.size.x * (0.45 + 0.3 * k), Color(1.0, 0.82, 0.55, 0.25 + 0.55 * k), 0.6)
+	glow(self, dc + Vector2(0, box.size.y * 0.1), box.size.x * (0.3 + 0.25 * k), Color(NEUTRAL.r, NEUTRAL.g, NEUTRAL.b, 0.15 + 0.5 * k))
+	glow(self, dc, 40.0 + 170.0 * k * k, Color(NEUTRAL.r, NEUTRAL.g, NEUTRAL.b, 0.05 + 0.3 * k * k))
+	for i in 9:
+		var sp := Vector2(dc.x - 60 + i * 15, box.position.y - fmod(reveal_t * 1.2 + i * 17.0, 90.0))
+		glow(self, sp, 14.0 + fmod(reveal_t * 0.4 + i * 5.0, 12.0), Color(0.8, 0.78, 0.76, 0.2 * (1.0 - k * 0.5)))
+	text(Vector2(0, 352), "가마 문을 엽니다…", NEUTRAL, 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+
+
+## 작업대: 뽑은 흙 인형이 가마 앞에 줄지어 선다 (아직 굽지 않은 흙빛)
+func _bench_pos(i: int, n: int) -> Vector2:
+	return Vector2(171 + (i - (n - 1) / 2.0) * 36.0, 316)
+
+
+func _draw_bench() -> void:
+	var n: int = run.queue.size()
+	for i in n:
+		var q: Dictionary = run.queue[i]
+		var p := _bench_pos(i, n)
+		var age: int = t - drawn_at.get(i, -999)
+		if age < 0:
+			continue
+		var pop: float = _ease_back(clampf(age / 12.0, 0.0, 1.0))
+		glow(self, p + Vector2(0, 13), 13.0, Color(0, 0, 0, 0.55), 0.3)
+		if q["kind"] == "new":
+			draw_clay(p + Vector2(0, (1.0 - pop) * 8.0), q["role"], maxf(0.2, pop))
+		else:
+			draw_ally_shape(p, q["role"], q["element"], run.soldier(q["id"]).get("tier", "normal"), 1.0)
+			text(p + Vector2(-16, -20), "다시", UI["muted"], 12, 32.0, HORIZONTAL_ALIGNMENT_CENTER)
+	if n == 0:
+		text(Vector2(6, 322), "뽑으면 흙 인형이 여기 섭니다", UI["muted"], 12, 330.0, HORIZONTAL_ALIGNMENT_CENTER)
+
+
+## 흙 인형이 하나씩 가마 문으로 뛰어든다
+const LOAD_FLY := 22
+
+
+func _load_start(i: int) -> int:
+	return 10 + maxi(0, i) * 9
+
+
+func _draw_loading() -> void:
+	var n: int = run.queue.size()
+	var door := _door_screen_box(FIRE_O + _shake_now).get_center() + Vector2(0, 26)
+	for i in n:
+		var q: Dictionary = run.queue[i]
+		var p0 := Vector2(170 + (i - (n - 1) / 2.0) * 34.0, 372)
+		var k := clampf(float(load_t - _load_start(i)) / LOAD_FLY, 0.0, 1.0)
+		if k >= 1.0:
+			continue
+		var e: float = k * k * (3.0 - 2.0 * k)
+		var p := p0.lerp(door, e) + Vector2(0, -sin(k * PI) * 64.0)
+		var sk: float = 1.0 - 0.6 * e
+		if q["kind"] == "new":
+			draw_clay(p, q["role"], sk)
+		else:
+			draw_ally_shape(p, q["role"], q["element"], run.soldier(q["id"]).get("tier", "normal"), sk)
+
+
+## 굽기 전 흙 인형: 병사 그림의 밝기만 살려 흙빛 네 단계로 바꾼 그림 (유약 색·등급 색은 아직 없다)
+var _clay_cache := {}
+
+
+func clay_tex(role: String) -> Texture2D:
+	if _clay_cache.has(role):
+		return _clay_cache[role]
+	var out: Texture2D = null
+	var src := tex(soldier_sprite(role, "water"))
+	if src != null:
+		var img: Image = src.get_image()
+		if img != null:
+			if img.is_compressed():
+				img.decompress()
+			img.convert(Image.FORMAT_RGBA8)
+			for y in img.get_height():
+				for x in img.get_width():
+					var c := img.get_pixel(x, y)
+					if c.a < 0.1:
+						continue
+					var l := c.get_luminance()
+					var nc: Color = CLAY_TONES[0] if l < 0.14 else CLAY_TONES[1] if l < 0.32 else CLAY_TONES[2] if l < 0.55 else CLAY_TONES[3]
+					nc.a = c.a
+					img.set_pixel(x, y, nc)
+			out = ImageTexture.create_from_image(img)
+	_clay_cache[role] = out
+	return out
+
+
+## 흙 인형 그리기 (발바닥 기준은 draw_sprite 와 같다)
+func draw_clay(pos: Vector2, role: String, scale_k := 1.0) -> void:
+	var tx := clay_tex(role)
+	if tx != null:
+		var sz: Vector2 = tx.get_size() * scale_k
+		draw_texture_rect(tx, Rect2(pos + Vector2(-sz.x / 2.0, 12.8 * scale_k - sz.y), sz), false)
+		return
+	draw_rect(Rect2(pos + Vector2(-6, -4) * scale_k, Vector2(12, 16) * scale_k), CLAY_TONES[2])
+	draw_circle(pos + Vector2(0, -9) * scale_k, 5.0 * scale_k, CLAY_TONES[3])

@@ -932,11 +932,11 @@ func panel(rect: Rect2, title := "", tone: Color = Color(0, 0, 0, 0)) -> void:
 				draw_rect(Rect2(hx, cy, 1, 6), g)
 	if title != "":
 		var tw: float = font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 16.0
-		var tr := Rect2(rect.position + Vector2(10, -7), Vector2(tw, 14))
+		var tr := Rect2(rect.position + Vector2(10, -8), Vector2(tw, 16))
 		if not nine("title_plate_9", tr, 5, Color.WHITE if tone.a == 0.0 else Color.WHITE.lerp(tone, 0.5)):
 			rrect(tr, UI["lacquer"])
 			rline(tr, g)
-		draw_string(font, (tr.position + Vector2(8, 11)).round(), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, g)
+		draw_string(font, (tr.position + Vector2(8, 12)).round(), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, g)
 
 
 ## 자원 알약: 아이콘 + 값 (icon_fn 이 그리는 아이콘 자리는 왼쪽 12px)
@@ -1876,11 +1876,11 @@ func _draw_wave_wall(w: Dictionary) -> void:
 	# 지나간 자리 흔적 + 바닥 그림자
 	var trail := PackedVector2Array([Vector2(x - 120, 0), Vector2(x, 0), Vector2(x, 260), Vector2(x - 120, 260)])
 	var tc: Color = {"water": Color(0.2, 0.45, 0.5, 0.18), "fire": Color(0.35, 0.12, 0.05, 0.22), "earth": Color(0.15, 0.1, 0.06, 0.3)}[el]
-	draw_colored_polygon(trail, tc)
+	_wall_poly(trail, tc)
 	for j in n - 1:
 		var a0: Vector2 = base_pts[j]
 		var a1: Vector2 = base_pts[j + 1]
-		draw_colored_polygon(PackedVector2Array([a0, a1, a1 + Vector2(22, 8), a0 + Vector2(22, 8)]), Color(0, 0, 0, 0.28))
+		_wall_poly(PackedVector2Array([a0, a1, a1 + Vector2(22, 8), a0 + Vector2(22, 8)]), Color(0, 0, 0, 0.28))
 	# 벽 (먼 쪽부터)
 	for j in n - 1:
 		var b0: Vector2 = base_pts[j]
@@ -1892,8 +1892,8 @@ func _draw_wave_wall(w: Dictionary) -> void:
 			"water":
 				var back := Color("1f5a5c").lerp(Color("2f7d78"), shade)
 				var face := Color("3f9a90").lerp(Color("8fd6c8"), shade)
-				draw_colored_polygon(PackedVector2Array([b0 - Vector2(16, 0), b1 - Vector2(16, 0), t1 - Vector2(10, -6), t0 - Vector2(10, -6)]), back)
-				draw_colored_polygon(PackedVector2Array([b0, b1, t1, t0]), face)
+				_wall_poly(PackedVector2Array([b0 - Vector2(16, 0), b1 - Vector2(16, 0), t1 - Vector2(10, -6), t0 - Vector2(10, -6)]), back)
+				_wall_poly(PackedVector2Array([b0, b1, t1, t0]), face)
 				draw_line(t0, t1, Color(0.95, 1.0, 1.0, 0.95), 3.0)
 				if j % 2 == 0:
 					draw_arc(t0 + Vector2(6, 2), 5.0, -PI * 0.9, PI * 0.2, 8, Color(1, 1, 1, 0.9), 2.0)
@@ -1901,22 +1901,30 @@ func _draw_wave_wall(w: Dictionary) -> void:
 			"fire":
 				var mid0: Vector2 = b0.lerp(t0, 0.55)
 				var mid1: Vector2 = b1.lerp(t1, 0.55)
-				draw_colored_polygon(PackedVector2Array([b0, b1, mid1, mid0]), Color("b8341c").lerp(Color("e0532a"), shade))
-				draw_colored_polygon(PackedVector2Array([mid0, mid1, t1, t0]), Color("f08a2a").lerp(Color("ffc24a"), shade))
+				_wall_poly(PackedVector2Array([b0, b1, mid1, mid0]), Color("b8341c").lerp(Color("e0532a"), shade))
+				_wall_poly(PackedVector2Array([mid0, mid1, t1, t0]), Color("f08a2a").lerp(Color("ffc24a"), shade))
 				var tip: Vector2 = (t0 + t1) / 2.0 + Vector2(sin(t * 0.6 + j) * 3.0, -10.0 - absf(sin(t * 0.4 + j * 1.7)) * 10.0)
-				draw_colored_polygon(PackedVector2Array([t0, t1, tip]), Color(1.0, 0.9, 0.5, 0.9))
+				_wall_poly(PackedVector2Array([t0, t1, tip]), Color(1.0, 0.9, 0.5, 0.9))
 			"earth":
 				var light := Color("8a7660").lerp(Color("b49a7a"), shade)
 				var dark := Color("4a3a2e")
 				var peak: Vector2 = (t0 + t1) / 2.0
-				draw_colored_polygon(PackedVector2Array([b0, peak, (b0 + b1) / 2.0]), light)
-				draw_colored_polygon(PackedVector2Array([(b0 + b1) / 2.0, peak, b1]), dark)
+				_wall_poly(PackedVector2Array([b0, peak, (b0 + b1) / 2.0]), light)
+				_wall_poly(PackedVector2Array([(b0 + b1) / 2.0, peak, b1]), dark)
 				draw_line(b0, b1, Color(1.0, 0.55, 0.2, 0.8), 2.0)
 	if el == "earth":
 		for j in range(0, n, 3):
 			var dp: Vector2 = base_pts[j] + Vector2(8, -6 - fmod(t * 0.5 + j * 7.0, 18.0))
 			draw_circle(dp, 4.0, Color(0.45, 0.38, 0.3, 0.5))
 
+
+
+# 파도 벽 조각: 3·4꼭짓점은 삼각형으로 바로 그려서, 꼬인 사각형도 오류 없이 그린다
+func _wall_poly(pts: PackedVector2Array, col: Color) -> void:
+	if pts.size() == 3 or pts.size() == 4:
+		draw_primitive(pts, PackedColorArray([col, col, col, col].slice(0, pts.size())), PackedVector2Array())
+	else:
+		draw_colored_polygon(pts, col)
 
 func _draw_corpses(base: Vector2) -> void:
 	for c in corpses:
@@ -1991,14 +1999,14 @@ func draw_battle_hud(title: String) -> void:
 		if u.team == "enemy" and u.kind in PD.BOSSES:
 			var bk: float = clampf(u.hp / u.max_hp, 0.0, 1.0)
 			var btr: float = _mv(u.id).get("hp_trail", 1.0)
-			var r := Rect2(170, 328, 300, 8)
+			var r := Rect2(170, 372, 300, 8)
 			draw_rect(r.grow(2), Color(0.05, 0.03, 0.05, 0.9))
 			draw_rect(r, Color("3a2430"))
 			draw_rect(Rect2(r.position + Vector2(r.size.x * bk, 0), Vector2(r.size.x * maxf(0.0, btr - bk), r.size.y)), Color(1.0, 0.92, 0.7))
 			draw_rect(Rect2(r.position, Vector2(r.size.x * bk, r.size.y)), C["danger"])
 			draw_rect(Rect2(r.position, Vector2(r.size.x * bk, 2)), C["danger"].lightened(0.35))
-			text(Vector2(170, 324), u.name, C["danger"].lightened(0.3))
-			text(Vector2(170, 324), "%d / %d" % [ceili(u.hp), roundi(u.max_hp)], C["text"], 12, 300.0, HORIZONTAL_ALIGNMENT_RIGHT)
+			text(Vector2(170, 368), u.name, C["danger"].lightened(0.3))
+			text(Vector2(170, 368), "%d / %d" % [ceili(u.hp), roundi(u.max_hp)], C["text"], 12, 300.0, HORIZONTAL_ALIGNMENT_RIGHT)
 			break
 	text(Vector2(0, 345), "아군은 알아서 싸웁니다 · Esc 처음으로", C["dim"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
 

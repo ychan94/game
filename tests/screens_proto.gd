@@ -62,7 +62,10 @@ func _all() -> void:
 	await _snap("p01_kiln_prep_first")
 	k.state = "gacha"
 	await _snap("p01b_kiln_gacha")
-	k.state = "prep"
+	k.state = "load"
+	k.load_t = 0
+	await _frames(28)
+	await _snap("p01c_kiln_load")
 	k.state = "fire"
 	for i in 6:
 		k.kiln.heat_up()
@@ -80,17 +83,25 @@ func _all() -> void:
 	k.bet_told = false
 	k.kiln.results[1]["tier"] = "legend"
 	run.army[1]["tier"] = "legend"
+	k.kiln.results[3]["cracked"] = true
 	k.state = "reveal"
 	k.reveal_t = 0
 	k.reveal_shown = 0
-	await _frames(115)
+	await _frames(40)
+	await _snap("p02c_kiln_open")
+	await _frames(75)
 	await _snap("p03_kiln_reveal_legend")
 	k.reveal_t = 400
 	await _frames(4)
 	if not k.gfx.is_empty():
 		k.gfx["taps"] = 1
+		k.gfx["need"] = 3
 		await _frames(2)
 		await _snap("p03a_kiln_gacha_tap")
+		k.gfx["phase"] = "burst"
+		k.gfx["t"] = 24
+		await _frames(1)
+		await _snap("p03a2_kiln_gacha_burst")
 		k.gfx["phase"] = "show"
 		k.gfx["t"] = 30
 		await _frames(2)

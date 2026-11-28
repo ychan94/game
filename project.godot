@@ -5,6 +5,7 @@ config_version=5
 [application]
 
 config/name="KILNBORN"
+config/icon="res://assets/sprites/ui/app_icon.png"
 run/main_scene="res://src/game/launcher.tscn"
 config/features=PackedStringArray("4.7")
 

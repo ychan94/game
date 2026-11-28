@@ -901,8 +901,13 @@ func _draw_title_front(marchers := true) -> void:
 	var al: float = minf(1.0, minf(ph2 * 6.0, (1.0 - ph2) * 6.0))
 	var line: String = INTRO[idx]
 	var lw: float = font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-	draw_rect(Rect2(0, 352, 640, 30), Color(0, 0, 0, 0.45))
-	text(Vector2(320 - lw / 2.0, 372), line, Color(0.95, 0.9, 0.8, al))
+	if tex("ui/title_front") != null:
+		# 표지 그림이 있으면 아래는 병사들 자리 → 소개 문장은 불씨 칩 아래, 마을 지붕 위에 옅은 띠로
+		draw_rect(Rect2(320 - lw / 2.0 - 14, 240, lw + 28, 20), Color(0, 0, 0, 0.5 * al))
+		text(Vector2(320 - lw / 2.0, 254), line, Color(0.95, 0.9, 0.8, al))
+	else:
+		draw_rect(Rect2(0, 352, 640, 30), Color(0, 0, 0, 0.45))
+		text(Vector2(320 - lw / 2.0, 372), line, Color(0.95, 0.9, 0.8, al))
 
 
 func _draw_meta() -> void:

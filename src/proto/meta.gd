@@ -1,5 +1,5 @@
 extends RefCounted
-## 강화 나무 (판이 끝나도 남는 영구 강화) + 시간 기록. 화면과 무관하게 돌아간다.
+## 전술 강화 (판이 끝나도 남는 영구 강화) + 시간 기록. 화면과 무관하게 돌아간다.
 ## 불씨: 판이 끝날 때 얻는다 (넘긴 챕터·밤·처치). 나무의 칸을 사면 다음 판부터 적용.
 ## 저장: user://meta.cfg (테스트는 path 를 바꿔 쓴다)
 
@@ -8,7 +8,7 @@ const SAVE := "user://meta.cfg"
 ## 가지: core 코어 · supply 보급 · unit 병사 · shop 상점 · kiln 가마
 ## key: 효과 이름, per: 단계마다 더하는 값, max: 최대 단계, cost: 단계별 값, need: 먼저 1단계 이상 있어야 하는 칸
 const NODES := {
-	"core": {"name": "가마터", "branch": "core", "desc": "강화 나무의 뿌리", "key": "", "per": 0.0, "max": 1, "cost": [0], "need": ""},
+	"core": {"name": "가마터", "branch": "core", "desc": "전술 강화의 뿌리", "key": "", "per": 0.0, "max": 1, "cost": [0], "need": ""},
 	"wall": {"name": "마을 성벽", "branch": "core", "desc": "도깨비가 마을에 주는 피해 -10%", "key": "village_guard", "per": 0.1, "max": 3, "cost": [8, 16, 28], "need": "core"},
 	"command": {"name": "지휘 한도", "branch": "core", "desc": "병사 자리 +1", "key": "cap", "per": 1.0, "max": 2, "cost": [20, 40], "need": "wall"},
 	"clay": {"name": "흙 창고", "branch": "supply", "desc": "판을 시작할 때 흙 +6", "key": "start_clay", "per": 6.0, "max": 3, "cost": [6, 12, 20], "need": "core"},

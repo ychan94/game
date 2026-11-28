@@ -35,7 +35,7 @@ var last_bet := {}               # 방금 내기 결과 (화면용) {key, name, 
 var last_draw := {}              # 방금 뽑은 것 (화면용)
 
 
-var meta := {}                   # 강화 나무 효과 (판 시작 때 받는다)
+var meta := {}                   # 전술 강화 효과 (판 시작 때 받는다)
 var chapter_time := 0.0          # 이번 챕터 밤 전투 시간 합 (초) — 시간 기록
 var last_chapter_time := 0.0     # 방금 넘긴 챕터의 시간
 var total_kills := 0

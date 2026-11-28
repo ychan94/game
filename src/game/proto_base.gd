@@ -811,17 +811,91 @@ func text(pos: Vector2, s: String, color: Color = C["text"], size := 12, width :
 		draw_string(font, pos, s, align, -1, size, color)
 
 
-func button(rect: Rect2, label: String, id: String, color: Color = C["accent"], enabled := true) -> void:
+# ---------------- UI 부품 (옻칠 바탕 + 금박 테두리, 시안: claude.ai 아티팩트 "가마의 병사 UI 개편 시안") ----------------
+const UI := {"ground": Color("120e16"), "lacquer": Color("1c1622"), "inner": Color("18131d"), "deep": Color("120e16"),
+	"gold": Color("e8c35a"), "gold_dk": Color("a8862e"), "bronze": Color("5a4630"), "line": Color("3a2e22"), "muted": Color("a89cb0")}
+
+
+## 모서리를 1~2px 깎은 사각형 (픽셀 둥근 모서리)
+func rrect(r: Rect2, col: Color, ci: CanvasItem = null) -> void:
+	var c: CanvasItem = ci if ci != null else self
+	if r.size.x < 5 or r.size.y < 5:
+		c.draw_rect(r, col)
+		return
+	c.draw_rect(Rect2(r.position + Vector2(2, 0), r.size - Vector2(4, 0)), col)
+	c.draw_rect(Rect2(r.position + Vector2(0, 2), r.size - Vector2(0, 4)), col)
+	c.draw_rect(Rect2(r.position + Vector2(1, 1), r.size - Vector2(2, 2)), col)
+
+
+## 깎은 모서리 테두리
+func rline(r: Rect2, col: Color, ci: CanvasItem = null) -> void:
+	var c: CanvasItem = ci if ci != null else self
+	var x0 := r.position.x
+	var y0 := r.position.y
+	var x1 := r.end.x - 1
+	var y1 := r.end.y - 1
+	c.draw_rect(Rect2(x0 + 2, y0, r.size.x - 4, 1), col)
+	c.draw_rect(Rect2(x0 + 2, y1, r.size.x - 4, 1), col)
+	c.draw_rect(Rect2(x0, y0 + 2, 1, r.size.y - 4), col)
+	c.draw_rect(Rect2(x1, y0 + 2, 1, r.size.y - 4), col)
+	c.draw_rect(Rect2(x0 + 1, y0 + 1, 1, 1), col)
+	c.draw_rect(Rect2(x1 - 1, y0 + 1, 1, 1), col)
+	c.draw_rect(Rect2(x0 + 1, y1 - 1, 1, 1), col)
+	c.draw_rect(Rect2(x1 - 1, y1 - 1, 1, 1), col)
+
+
+## 버튼: 옻칠 바탕 + 아래 그림자 + 테두리. primary 는 금빛으로 채움. 글은 칸 안에 맞춰 자른다
+func button(rect: Rect2, label: String, id: String, color: Color = C["accent"], enabled := true, primary := false) -> void:
 	buttons.append({"rect": rect, "id": id})
-	var hover := rect.has_point(get_local_mouse_position())
-	draw_rect(rect, C["card"].lightened(0.15 if hover else 0.0))
-	draw_rect(rect, color if enabled else C["dim"], false, 1.0)
-	text(rect.position + Vector2(0, rect.size.y / 2.0 + 5.0), label, color if enabled else C["dim"], 12, rect.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	var hover := enabled and rect.has_point(get_local_mouse_position())
+	var down := hover and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	var r := rect
+	if down:
+		r.position.y += 1
+	var edge: Color = color if enabled else Color("4a4458")
+	var fill: Color = (edge if primary else UI["lacquer"]) if enabled else UI["inner"]
+	if hover and not primary:
+		fill = fill.lerp(edge, 0.14)
+	elif hover:
+		fill = fill.lightened(0.12)
+	if not down:
+		rrect(Rect2(r.position + Vector2(0, 2), r.size), Color(0, 0, 0, 0.45))
+	rrect(r, fill)
+	draw_rect(Rect2(r.position + Vector2(2, 1), Vector2(r.size.x - 4, 1)), Color(1, 1, 1, 0.08 if not primary else 0.25))
+	rline(r, edge)
+	var tc: Color = (UI["lacquer"] if primary else edge) if enabled else Color("6b6478")
+	var lab := fit(label, r.size.x - 8.0)
+	var w: float = font.get_string_size(lab, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+	draw_string(font, (r.position + Vector2((r.size.x - w) / 2.0, r.size.y / 2.0 + 5.0)).round(), lab, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, tc)
 
 
-func panel(rect: Rect2) -> void:
-	draw_rect(rect, C["panel"])
-	draw_rect(rect, C["dim"], false, 1.0)
+## 패널: 옻칠 바탕 + 청동 테두리 + 안쪽 선 + 금박 모서리 장식. title 이 있으면 위쪽에 제목 판
+func panel(rect: Rect2, title := "", tone: Color = Color(0, 0, 0, 0)) -> void:
+	var edge: Color = UI["bronze"] if tone.a == 0.0 else tone
+	rrect(Rect2(rect.position + Vector2(0, 3), rect.size), Color(0, 0, 0, 0.35))
+	rrect(rect, UI["lacquer"])
+	rline(rect, edge)
+	draw_rect(Rect2(rect.position + Vector2(3, 3), rect.size - Vector2(6, 6)), UI["line"], false, 1.0)
+	var g: Color = UI["gold"] if tone.a == 0.0 else tone
+	for cx in [rect.position.x + 1, rect.end.x - 7]:
+		for cy in [rect.position.y + 1, rect.end.y - 7]:
+			var hx: float = cx if cx < rect.get_center().x else cx + 5
+			var vy: float = cy if cy < rect.get_center().y else cy + 5
+			draw_rect(Rect2(cx, vy, 6, 1), g)
+			draw_rect(Rect2(hx, cy, 1, 6), g)
+	if title != "":
+		var tw: float = font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 16.0
+		var tr := Rect2(rect.position + Vector2(10, -7), Vector2(tw, 14))
+		rrect(tr, UI["lacquer"])
+		rline(tr, g)
+		draw_string(font, (tr.position + Vector2(8, 11)).round(), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, g)
+
+
+## 자원 알약: 아이콘 + 값 (icon_fn 이 그리는 아이콘 자리는 왼쪽 12px)
+func chip(r: Rect2, value: String, col: Color) -> void:
+	rrect(r, UI["deep"])
+	rline(r, UI["bronze"])
+	draw_string(font_bold, (r.position + Vector2(18, r.size.y / 2.0 + 5.0)).round(), fit(value, r.size.x - 20.0), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, col)
 
 
 func shake_offset() -> Vector2:

@@ -39,7 +39,7 @@ func heat_up() -> void:
 	heat = mini(heat + 1, D.KILN_MAX_HEAT)
 
 
-var safe_bonus := 0            # 강화 나무: 안전한 불 +n
+var safe_bonus := 0            # 전술 강화: 안전한 불 +n
 var shard_need := D.SHARDS_FOR_LEGEND
 
 

@@ -57,6 +57,7 @@ class U:
 	var tgt = null
 	var idle_t := 0
 	var fixed_home := false       # 사용자가 직접 배치한 자리
+	var move_t := 0               # 전투 중 이동 명령: 걷는 동안은 싸우지 않는다
 	var hit_flash := 0
 	var alive := true
 
@@ -74,7 +75,7 @@ var stats := {"kills": 0, "specials": 0, "synergies": 0, "damage": 0.0}
 var _next_id := 1
 var synergy_power: float = D.SYNERGY_POWER
 var waves: Array = []           # 지나가는 합동 기술 파도 [{element, x, power}]
-var village_guard := 0.0       # 강화 나무: 마을이 받는 피해 감소
+var village_guard := 0.0       # 전술 강화: 마을이 받는 피해 감소
 var _summons: Array = []        # 이번 프레임에 대장이 부른 부하 [[종류, 자리, 능력치]]
 
 
@@ -280,6 +281,14 @@ func _act(u: U) -> void:
 	_tick_skills(u)
 	if not u.alive:
 		return
+	if u.move_t > 0:
+		u.move_t -= 1
+		var d0: float = u.pos.distance_to(u.home)
+		if d0 <= 2.0:
+			u.move_t = 0
+		else:
+			u.pos += (u.home - u.pos).normalized() * minf(maxf(spd, 1.0) * 1.3, d0)
+			return
 	if target != null:
 		var d: float = u.pos.distance_to(target.pos)
 		if d <= u.range + target.radius + u.radius:
@@ -685,3 +694,17 @@ func _skill(u: U, role: String) -> void:
 	stats["skills"] = stats.get("skills", 0) + 1
 	events.append({"kind": "skill", "role": role, "unit": u.id, "pos": u.pos, "lv": lv, "element": u.element,
 		"name": D.SKILLS[role]["name"], "targets": hits.map(func(o): return o.pos)})
+
+
+
+## 전투 중 이동 명령: 병사를 pos 로 보낸다 (그 자리를 새 제자리로). 마을 담장 앞 ~ 전장 안
+func order_move(id: int, pos: Vector2) -> bool:
+	for u in units:
+		if u.id == id and u.alive and u.team == "ally":
+			u.home = Vector2(clampf(pos.x, VILLAGE_X + 12.0, FIELD.size.x - 20.0), clampf(pos.y, 16.0, FIELD.size.y - 16.0))
+			u.fixed_home = true
+			u.move_t = 240
+			u.tgt = null
+			u.idle_t = 0
+			return true
+	return false

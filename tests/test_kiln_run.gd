@@ -578,7 +578,7 @@ func test_no_back_and_forth() -> bool:
 	return true
 
 
-## 강화 나무: 앞 칸이 있어야 사고, 불씨가 들고, 효과가 다음 판에 들어간다. 저장·불러오기
+## 전술 강화: 앞 칸이 있어야 사고, 불씨가 들고, 효과가 다음 판에 들어간다. 저장·불러오기
 func test_meta_tree() -> bool:
 	var Meta = load("res://src/proto/meta.gd")
 	var m = Meta.new("user://test_meta.cfg")
@@ -622,4 +622,23 @@ func test_time_records() -> bool:
 	b.done = true
 	run.end_night(b)
 	check(run.chapter == 2 and absf(run.last_chapter_time - 10.0) < 0.01, "챕터 시간 = 밤 전투 시간 합: %.1f" % run.last_chapter_time)
+	return true
+
+
+
+## 전투 중 자유 이동: 명령한 곳으로 걸어가고 (궁수처럼 서 있는 병사도), 도착하면 그 자리를 지킨다
+func test_order_move_in_battle() -> bool:
+	var b = Battle.new(2, [])
+	var ar = b.add_ally("archer", "fire", "normal", "궁수", 1.0, {"star": 1})
+	b.spawn_queue = []
+	var e = b.add_enemy("goblin", 30.0)
+	e.pos = Vector2(600, 30)
+	e.speed = 0.0
+	var dest := Vector2(300, 200)
+	check(b.order_move(ar.id, dest), "명령 받음")
+	for i in 400:
+		b.step()
+	check(ar.pos.distance_to(dest) < 4.0, "궁수가 명령한 곳까지 걸어갔다: %s" % [ar.pos])
+	check(ar.home == dest, "그 자리가 새 제자리")
+	check(not b.order_move(99999, dest), "없는 병사는 명령 못 받음")
 	return true

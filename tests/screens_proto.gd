@@ -64,6 +64,9 @@ func _all() -> void:
 		run.draw(f[0], f[1])
 	run.since["rare"] = 5
 	await _snap("p01_kiln_prep_first")
+	k.state = "gacha"
+	await _snap("p01b_kiln_gacha")
+	k.state = "prep"
 	k.state = "fire"
 	for i in 6:
 		k.kiln.heat_up()
@@ -86,7 +89,20 @@ func _all() -> void:
 	k.reveal_shown = 0
 	await _frames(115)
 	await _snap("p03_kiln_reveal_legend")
-	await _frames(100)
+	k.reveal_t = 400
+	await _frames(4)
+	if not k.gfx.is_empty():
+		k.gfx["taps"] = 1
+		await _frames(2)
+		await _snap("p03a_kiln_gacha_tap")
+		k.gfx["phase"] = "show"
+		k.gfx["t"] = 30
+		await _frames(2)
+		await _snap("p03b_kiln_gacha_show")
+	for i in k.kiln.results.size():
+		k.gfx_done[i] = true
+	k.gfx = {}
+	await _frames(260)
 	await _snap("p04_kiln_reveal_done")
 	# 둘째 밤 준비: 병사가 남아 있고, 진사 창병 3명이면 합치기 버튼
 	run.night = 2
@@ -118,12 +134,12 @@ func _all() -> void:
 		run.inventory.append(run._roll_equip(i == 0))
 	run.equip(run.army[-6]["id"], run.inventory[0]["id"])
 	k.selected = run.army[-6]["id"]
-	k.right_tab = "equip"
+	k.state = "equip"
 	await _snap("p05e_kiln_equip")
-	k.right_tab = "shop"
+	k.state = "shop"
 	run.pearls = 9
 	await _snap("p05f_kiln_shop")
-	k.right_tab = "draw"
+	k.state = "prep"
 	# 전직: ★3 창병 + 같은 관군 재료
 	var sp3: Dictionary = run._add_soldier("spear", "earth", "fine", 3)
 	k.selected = sp3["id"]
@@ -164,7 +180,7 @@ func _all() -> void:
 			break
 	while not k.battle.done:
 		await physics_frame
-	await _frames(10)
+	await _frames(140)
 	await _snap("p07_kiln_night_end")
 	# 챕터 대장들
 	for c in [[1, "chief", "p07b_kiln_chief"], [2, "gumiho", "p07d_kiln_gumiho"], [5, "king", "p07e_kiln_king"]]:
@@ -194,6 +210,7 @@ func _all() -> void:
 	run.end_night(b)
 	k.battle = b
 	k.state = "night_end"
+	k.end_t = 90
 	await _frames(5)
 	await _snap("p07c_kiln_chapter_clear")
 	# 챕터 3 밤 클리어 (전리품에 장비)
@@ -207,6 +224,11 @@ func _all() -> void:
 	b3.step()
 	run.end_night(b3)
 	k.battle = b3
+	k.state = "night_end"
+	k.end_t = 26
+	await _frames(14)
+	await _snap("p07e2_kiln_end_anim")
+	k.end_t = 90
 	await _frames(5)
 	await _snap("p07f_kiln_loot")
 

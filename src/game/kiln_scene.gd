@@ -38,6 +38,7 @@ var inv_page := 0        # 장비 가방 쪽 (12개씩)
 var codex_tab := "unit"  # 도감: unit 병사 / skill 스킬 / combo 합동 기술 / rule 합치기·전직
 var codex_role := "spear"
 var codex_from := "prep" # 도감을 어디서 열었나
+var rf_pick: Array = []   # 원군으로 고른 대기실 병사 id (최대 3)
 var preview := {}        # 스킬·합동 기술 영상: 작은 전투를 되풀이해 보여 준다 {kind, role, element, combo, t, back}
 var res_sort := "grade"  # 대기실 정렬: grade 등급순 / new 최근순
 var res_pick := -1       # 대기실에서 고른 병사 (부대 병사를 누르면 맞바꾼다)
@@ -241,7 +242,10 @@ func _physics_process(_d: float) -> void:
 		"deploy":
 			_deploy_input()
 		"battle":
-			_tip_input()
+			if battle.pending != "":
+				_pending_input()
+			else:
+				_tip_input()
 			step_battle()
 			if battle.done:
 				var stars_before: int = run.embers_earned
@@ -260,6 +264,7 @@ func _physics_process(_d: float) -> void:
 			end_wait -= 1
 			if end_wait <= 0:
 				state = "night_end"
+				cutin = {}
 				end_t = 0
 				floats.clear()
 		"night_end":
@@ -503,6 +508,7 @@ func _prep_input() -> void:
 
 ## 배치 화면 열기: 전장에 병사를 미리 세워 두고 끌어서 옮긴다 (전투는 아직 안 돈다)
 func _open_deploy() -> void:
+	cutin = {}
 	battle = run.start_night()
 	run.state = "prep"
 	_map_units()
@@ -859,6 +865,10 @@ func _draw() -> void:
 				_draw_tip_for_unit()
 			if state == "battle":
 				_draw_move_hint()
+				if battle.pending == "draft":
+					_draw_draft()
+				elif battle.pending == "reinforce":
+					_draw_reinforce()
 	draw_fx()
 
 
@@ -1839,7 +1849,7 @@ func _draw_night_end() -> void:
 		title = "마을이 무너졌다"
 		sub = "챕터 %d · 밤 %d" % [fought.x, fought.y]
 	elif run.chapter_cleared:
-		title = "챕터 %d 클리어!" % fought.x
+		title = "최종 보스 격파! 챕터 %d 클리어" % fought.x
 		sub = "다음: 챕터 %d · %s" % [run.chapter, run.chapter_info()["name"]]
 	elif battle != null and battle.result == "hold":
 		title = "밤 %d — 간신히 버텼다" % fought.y
@@ -3021,3 +3031,106 @@ func draw_top_ui(ci: CanvasItem) -> void:
 func _draw_preview_buttons() -> void:
 	buttons.append({"rect": Rect2(14, 16, 70, 24), "id": "pv_back"})
 	buttons.append({"rect": Rect2(560, 362, 66, 24), "id": "pv_close"})
+
+
+
+# ---------------- 전술 뽑기 · 원군 (전투가 멈춘 동안) ----------------
+const RARE_COL := {"common": Color("cfc6b4"), "rare": Color("6fa8ff"), "hero": Color("c58bff")}
+
+
+func _pending_input() -> void:
+	cutin = {}
+	floats.clear()
+	if battle.pending == "draft":
+		if run.draft_offer.is_empty():
+			run.roll_draft()
+		if clicked("tc_reroll"):
+			if not run.reroll_draft():
+				float_text(Vector2(300, 300), "진주 부족", C["danger"])
+			return
+		for i in run.draft_offer.size():
+			if clicked("tc%d" % i) or pressed(KEY_1 + i):
+				var id: String = run.draft_offer[i]
+				run.pick_tactic(id, battle)
+				show_banner("전술: %s" % PD.TACTICS[id]["name"], PD.TACTICS[id]["desc"], RARE_COL[PD.TACTICS[id]["rare"]], 80)
+				do_flash(RARE_COL[PD.TACTICS[id]["rare"]], 10)
+				return
+	elif battle.pending == "reinforce":
+		for sd in run.reserve:
+			if clicked("rf_%d" % sd["id"]):
+				if rf_pick.has(sd["id"]):
+					rf_pick.erase(sd["id"])
+				elif rf_pick.size() < PD.REINFORCE_COUNT:
+					rf_pick.append(sd["id"])
+				return
+		if clicked("rf_auto"):
+			rf_pick = run.best_reserve(PD.REINFORCE_COUNT)
+			return
+		if clicked("rf_go") and not rf_pick.is_empty():
+			var got: Array = run.reinforce(battle, rf_pick)
+			for g in got:
+				unit_sid[g[0].id] = g[1]
+			rf_pick = []
+			show_banner("원군 도착!", "대기실 병사 %d명이 마을 앞에 섰다" % got.size(), UI["gold"], 90)
+			shake = maxf(shake, 6.0)
+
+
+## 전술 뽑기: 카드 3장 (등급 색 테두리 · 아이콘 · 효과) + 다시 뽑기 (진주)
+func _draw_draft() -> void:
+	draw_rect(Rect2(Vector2.ZERO, VIEW), Color(0, 0, 0, 0.62))
+	var boss: bool = battle.boss_stage
+	text(Vector2(0, 74), "전술 뽑기!", UI["gold"], 36, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+	text(Vector2(0, 94), "보스 체력이 절반 아래로! 하나를 고르세요" if boss else "도깨비 %d마리를 물리쳤다 · 하나를 고르세요 (판이 끝날 때까지)" % (battle.draft_next - PD.DRAFT_KILLS), C["text"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+	var offer: Array = run.draft_offer
+	for i in offer.size():
+		var c: Dictionary = PD.TACTICS[offer[i]]
+		var rc: Color = RARE_COL[c["rare"]]
+		var r := Rect2(320 - offer.size() * 80 + i * 160 + 6, 112, 148, 176)
+		buttons.append({"rect": r, "id": "tc%d" % i})
+		var hov: bool = r.has_point(get_local_mouse_position())
+		rrect(Rect2(r.position + Vector2(0, 3), r.size), Color(0, 0, 0, 0.5))
+		rrect(r, Color("231c33").lightened(0.06 if hov else 0.0))
+		rline(r, rc if not hov else Color.WHITE)
+		if hov:
+			rline(r.grow(1), rc)
+		text(r.position + Vector2(0, 22), c["name"], Color.WHITE, 12, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+		var ib := Rect2(r.get_center().x - 18, r.position.y + 34, 36, 36)
+		rrect(ib, Color("0d0a10"))
+		rline(ib, rc)
+		draw_icon(c["icon"], ib.position + Vector2(6, 6), 2.0)
+		var y: float = r.position.y + 92.0
+		for ln in wrap_lines(c["desc"], r.size.x - 20.0):
+			text(Vector2(r.position.x, y), ln, C["text"], 12, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+			y += 14.0
+		text(r.position + Vector2(0, r.size.y - 12), "%d  ·  %s" % [i + 1, PD.TACTIC_RARE_NAME[c["rare"]]], rc, 12, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	var rb := Rect2(250, 300, 140, 26)
+	var can: bool = run.pearls >= PD.DRAFT_REROLL
+	button(rb, "", "tc_reroll", Color("dfe6ee"), can)
+	draw_string(font_bold, (rb.position + Vector2(14, 17)).round(), "다시 뽑기", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, _readable_on(Color(0.75, 0.78, 0.82) if can else Color(0.2, 0.19, 0.22), Color(0, 0, 0, 0), 4.5))
+	draw_icon("pearl", rb.position + Vector2(92, 6), 1.0)
+	text(rb.position + Vector2(110, 17), "%d" % PD.DRAFT_REROLL, Color("e8eef5") if can else C["danger"])
+	if not run.tactics.is_empty():
+		text(Vector2(0, 344), fit("고른 전술 %d: " % run.tactics.size() + ", ".join(run.tactics.map(func(z): return PD.TACTICS[z]["name"])), 600.0), UI["muted"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+
+
+## 원군: 대기실 병사 중 3명을 골라 마을 앞으로 (챕터 3부터, 한 밤에 한 번)
+func _draw_reinforce() -> void:
+	draw_rect(Rect2(Vector2.ZERO, VIEW), Color(0.08, 0, 0, 0.66))
+	var pk: float = 1.0 + 0.04 * sin(t * 0.2)
+	draw_set_transform(Vector2(320, 70), 0.0, Vector2(pk, pk))
+	text(Vector2(-320, 0), "돌발! 원군이 왔다", C["danger"].lightened(0.2), 36, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+	draw_set_transform(Vector2.ZERO)
+	text(Vector2(0, 92), "병사가 모두 쓰러졌다 — 대기실 병사 %d명을 골라 마을 앞으로 (한 밤에 한 번)" % PD.REINFORCE_COUNT, C["text"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+	hover_sid = -1
+	var list: Array = run.best_reserve(30).map(func(id): return run.soldier(id))   # 센 병사부터
+	for i in mini(list.size(), 30):
+		var sd: Dictionary = list[i]
+		var r := Rect2(320 - 5 * 40 + (i % 10) * 40, 106 + (i / 10) * 50, MINI.x, MINI.y)
+		_draw_mini(r, sd, rf_pick.has(sd["id"]), "rf_%d" % sd["id"])
+	text(Vector2(0, 274), "고른 병사 %d / %d" % [rf_pick.size(), PD.REINFORCE_COUNT], UI["gold"], 12, 640.0, HORIZONTAL_ALIGNMENT_CENTER)
+	button(Rect2(170, 288, 140, 30), "추천 %d명" % PD.REINFORCE_COUNT, "rf_auto", UI["gold"])
+	button(Rect2(330, 288, 140, 30), "출전!", "rf_go", C["danger"].lightened(0.2), not rf_pick.is_empty(), true)
+	if hover_sid >= 0:
+		var hs: Dictionary = run.soldier(hover_sid)
+		if not hs.is_empty():
+			draw_unit_tip(hs, get_local_mouse_position() + Vector2(14, -40))

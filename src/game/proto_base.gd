@@ -143,7 +143,7 @@ func draw_top_ui(_ci: CanvasItem) -> void:
 
 ## 빛 층에 그릴 것: 장면마다 덮어써서 더한다 (super 호출)
 func draw_glow(ci: CanvasItem) -> void:
-	if battle == null:
+	if battle == null or battle_paused_ui():
 		return
 	var o := FIELD_OFFSET + _shake_now
 	_draw_ambient_lights(ci, o)
@@ -441,7 +441,7 @@ func draw_back(ci: CanvasItem) -> void:
 
 ## 앞층(부드럽게, 캐릭터 앞): 앞 안개 자락, 밤 색감, 가장자리 어둡게
 func draw_front(ci: CanvasItem) -> void:
-	if battle == null:
+	if battle == null or battle_paused_ui():
 		return
 	var o := FIELD_OFFSET + _shake_now
 	for i in 3:
@@ -1099,7 +1099,14 @@ func rainbow(phase: float) -> Color:
 	return Color.from_hsv(fmod(phase, 1.0), 0.6, 1.0)
 
 
+## 전투를 멈추고 고르는 창이 떠 있나 (그동안 빛·안개·숫자를 그리지 않아 창이 또렷하게)
+func battle_paused_ui() -> bool:
+	return battle != null and "pending" in battle and battle.pending != "" and get("state") == "battle"
+
+
 func draw_fx() -> void:
+	if battle_paused_ui():
+		return
 	for p in fx:
 		var c: Color = p["color"]
 		c.a = float(p["t"]) / p["life"]
@@ -1543,7 +1550,7 @@ func _draw_cutin(ci: CanvasItem) -> void:
 		for oo in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 2), Vector2(2, 3)]:
 			ci.draw_string(font_bold, tp + oo, title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36, Color(0, 0, 0, a))
 		ci.draw_string(font_bold, tp, title, HORIZONTAL_ALIGNMENT_LEFT, -1, 36, Color(col.lightened(0.6).r, col.lightened(0.6).g, col.lightened(0.6).b, a * pop))
-		var sub := "%s %d명 합동 기술" % [PD.GLAZE_NAME[cutin["element"]], cutin["count"]]
+		var sub := "%d명 합동 기술" % cutin["count"]
 		var w2: float = font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
 		ci.draw_string(font, Vector2(320.0 - w2 / 2.0, 366.0).round(), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1, 1, 1, a * pop))
 

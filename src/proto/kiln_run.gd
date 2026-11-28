@@ -36,6 +36,8 @@ var last_bet := {}               # 방금 내기 결과 (화면용) {key, name, 
 var last_draw := {}              # 방금 뽑은 것 (화면용)
 var last_stars := 0              # 방금 밤의 별 (마을 체력 %)
 var last_bought := {}            # 방금 상점에서 산 장비 (화면용)
+var tactics: Array = []          # 전술 뽑기로 고른 카드 (판이 끝날 때까지 모든 병사에게)
+var draft_offer: Array = []      # 지금 내놓은 카드 3장
 var combo := ""                  # 로비에서 고른 합동 기술 (하나만)
 var embers_earned := 0           # 이번 판에서 얻은 불씨 (★3 밤마다 1)
 var free_rerolls := 0            # 오늘 아침 남은 공짜 다시 진열
@@ -503,14 +505,21 @@ func _bet(new_ids: Array) -> void:
 
 # ---------------- 밤 ----------------
 func start_night():
-	var b = Battle.new(rng.randi(), D.wave_plan(night, true, chapter))
+	var boss_night: bool = night >= D.KILN_NIGHTS
+	var b = Battle.new(rng.randi(), D.boss_plan(chapter) if boss_night else D.wave_plan(night, true, chapter))
+	b.boss_stage = boss_night
+	b.reinforce_ok = chapter >= D.REINFORCE_FROM_CHAPTER and not reserve.is_empty()
+	b.draft_every = D.DRAFT_KILLS if chapter >= D.DRAFT_FROM_CHAPTER else 0
+	b.draft_next = D.DRAFT_KILLS
+	b.village_guard += tactic_val("village_guard")
+	b.combo_pow_mul += tactic_val("combo_pow")
 	b.village_hp = village_hp
 	b.combo_id = combo
 	b.combo_pow_mul = 1.0 + meta.get("combo_pow", 0.0)
 	b.combo_cd_mul = maxf(0.4, 1.0 - meta.get("combo_cd", 0.0))
 	b.combo_first_cut = int(meta.get("combo_first", 0.0))
 	b.combo_heal = meta.get("combo_heal", 0.0)
-	b.village_guard = meta.get("village_guard", 0.0)
+	b.village_guard += meta.get("village_guard", 0.0)
 	for s in army:
 		var home = s.get("home", null)
 		b.add_ally(s["role"], s["element"], s["tier"], s["name"], D.STAR_MUL[s["star"]], soldier_mods(s), home if home is Vector2 else Vector2.INF)
@@ -545,6 +554,9 @@ func soldier_mods(s: Dictionary) -> Dictionary:
 	for k in ["atk", "hp", "cdr", "haste", "range", "skill", "regen", "shield", "boss_dmg"]:
 		if meta.has(k):
 			m[k] = m.get(k, 0.0) + meta[k]
+		var tv: float = tactic_val(k)
+		if tv != 0.0:
+			m[k] = m.get(k, 0.0) + tv
 	return m
 
 
@@ -702,9 +714,10 @@ func end_night(b) -> void:
 	# 마을이 멀쩡할수록 별과 보상이 많다: ★3(90%↑) 뽑기권·흙·진주 / ★2·★1(30%↑) 흙·진주 / ★0 진주만
 	last_stars = D.night_stars(village_hp / D.VILLAGE_HP)
 	var tk: int = 0
+	var bm: float = D.BOSS_REWARD_MUL if boss_night else 1.0   # 최종 보스 밤은 1.5배
 	if last_stars >= 3:
-		tk = D.TICKETS_PER_NIGHT + last_kills / D.TICKET_PER_KILLS + (D.TICKETS_BOSS if boss_night else 0) + int(meta.get("night_tickets", 0.0))
-	var cl: int = D.CLAY_PER_NIGHT if last_stars >= 1 else 0
+		tk = roundi((D.TICKETS_PER_NIGHT + last_kills / D.TICKET_PER_KILLS + int(meta.get("night_tickets", 0.0))) * bm)
+	var cl: int = roundi(D.CLAY_PER_NIGHT * bm) if last_stars >= 1 else 0
 	if last_stars >= 3:
 		embers_earned += 1   # 불씨: ★3 밤마다 1개 (화면이 전술 강화에 더한다)
 	village_hp = minf(D.VILLAGE_HP, village_hp + D.VILLAGE_HP * meta.get("night_repair", 0.0))
@@ -718,7 +731,7 @@ func end_night(b) -> void:
 		for i in (D.EQUIP_BOSS if boss_night else D.EQUIP_PER_NIGHT):
 			got.append(_roll_equip(boss_night and i == 0))
 	inventory.append_array(got)
-	var pr: int = last_kills / maxi(2, D.PEARL_PER_KILLS - int(meta.get("pearl_rate", 0.0))) + (D.PEARL_BOSS if boss_night else 0)
+	var pr: int = roundi(last_kills / maxi(2, D.PEARL_PER_KILLS - int(meta.get("pearl_rate", 0.0))) * bm)
 	pearls += pr
 	restock()
 	free_rerolls = int(meta.get("free_reroll", 0.0))
@@ -810,3 +823,108 @@ func soldier_stats(s: Dictionary) -> Dictionary:
 		"cdr": m.get("cdr", 0.0),
 		"skills": [s["role"]] + m.get("skills", []),
 	}
+
+
+
+# ---------------- 전술 뽑기 (챕터 2부터) ----------------
+## 고른 카드의 값 합 (key 하나). "atk+hp" 카드는 둘 다에 더한다
+func tactic_val(key: String) -> float:
+	var v := 0.0
+	for id in tactics:
+		var c: Dictionary = D.TACTICS[id]
+		if c["key"] == key or (c["key"] == "atk+hp" and (key == "atk" or key == "hp")):
+			v += c["val"]
+	return v
+
+
+## 카드 3장 (서로 다르게, 몫대로)
+func roll_draft() -> Array:
+	var pool: Array = D.TACTICS.keys()
+	draft_offer = []
+	for i in D.DRAFT_CHOICES:
+		var tot := 0.0
+		for k in pool:
+			tot += D.TACTICS[k]["w"]
+		var x := rng.randf() * tot
+		var pick: String = pool[0]
+		for k in pool:
+			x -= D.TACTICS[k]["w"]
+			pick = k
+			if x < 0.0:
+				break
+		draft_offer.append(pick)
+		pool.erase(pick)
+	return draft_offer
+
+
+func reroll_draft() -> bool:
+	if pearls < D.DRAFT_REROLL:
+		return false
+	pearls -= D.DRAFT_REROLL
+	roll_draft()
+	return true
+
+
+## 카드를 고른다: 판이 끝날 때까지 남고, 지금 싸우는 병사에게도 바로 들어간다
+func pick_tactic(id: String, b) -> void:
+	tactics.append(id)
+	draft_offer = []
+	var c: Dictionary = D.TACTICS[id]
+	var keys: Array = ["atk", "hp"] if c["key"] == "atk+hp" else [c["key"]]
+	var v: float = c["val"]
+	for key in keys:
+		match key:
+			"village_guard":
+				b.village_guard += v
+			"combo_pow":
+				b.combo_pow_mul += v
+		for u in b.units:
+			if not u.alive or u.team != "ally":
+				continue
+			match key:
+				"atk":
+					u.atk *= 1.0 + v
+				"hp":
+					u.max_hp *= 1.0 + v
+					u.hp *= 1.0 + v
+				"haste":
+					u.cd_max = maxi(6, roundi(u.cd_max / (1.0 + v)))
+				"range":
+					u.range *= 1.0 + v
+				"regen":
+					u.regen += v
+				"skill":
+					u.skill_pow += v
+				"cdr":
+					u.cdr = clampf(u.cdr + v, 0.0, 0.6)
+				"shield":
+					u.shield_hp += u.max_hp * v
+				"boss_dmg":
+					u.boss_dmg += v
+	b.events.append({"kind": "tactic", "id": id})
+	b.resume()
+
+
+# ---------------- 원군 (챕터 3부터) ----------------
+## 원군으로 부를 대기실 병사 (힘이 센 순서)
+func best_reserve(n: int) -> Array:
+	var list: Array = reserve.duplicate()
+	list.sort_custom(func(a, b2): return D.STAR_MUL[a["star"]] * D.TIER_MUL[a["tier"]] * (1 + D.GRADES.find(D.ROLE_GRADE[a["role"]])) > D.STAR_MUL[b2["star"]] * D.TIER_MUL[b2["tier"]] * (1 + D.GRADES.find(D.ROLE_GRADE[b2["role"]])))
+	return list.slice(0, n).map(func(s): return s["id"])
+
+
+## 대기실 병사(최대 3명)를 마을 앞에 불러 전투를 잇는다. 돌려준 값: 전투 유닛들
+func reinforce(b, ids: Array) -> Array:
+	var out: Array = []
+	var picked: Array = ids.slice(0, D.REINFORCE_COUNT)
+	for i in picked.size():
+		var s := soldier(picked[i])
+		if s.is_empty() or in_army(picked[i]):
+			continue
+		var y: float = Battle.FIELD.size.y * (i + 1) / (picked.size() + 1)
+		var u = b.add_ally(s["role"], s["element"], s["tier"], s["name"], D.STAR_MUL[s["star"]], soldier_mods(s), Vector2(Battle.VILLAGE_X + 50.0, y))
+		u.pos = Vector2(Battle.VILLAGE_X + 6.0, y)
+		out.append([u, s["id"]])
+	b.events.append({"kind": "reinforce", "count": out.size()})
+	b.resume()
+	return out

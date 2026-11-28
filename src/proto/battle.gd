@@ -76,6 +76,14 @@ var combo_id := ""               # 고른 합동 기술 (D.COMBOS), 없으면 ""
 var no_rout := false             # 시험용: 아군이 없어도 전투를 끝내지 않는다
 var night_loss := 0.0             # 이번 밤 마을이 잃은 체력 (상한 ROUT_CAP)
 var had_allies := false           # 아군이 한 번이라도 있었나 (아군 없는 시험 전투는 약탈로 끝내지 않는다)
+## 전투를 멈추고 고르기를 기다린다: "reinforce" 원군 / "draft" 전술 뽑기 (화면·봇이 고른 뒤 resume)
+var pending := ""
+var reinforce_ok := false         # 이 밤 원군을 부를 수 있나 (챕터 3부터, 대기실에 병사가 있을 때)
+var reinforced := false
+var draft_every := 0              # 전술 뽑기: 처치 이만큼마다 (0 이면 없음)
+var draft_next := 0
+var boss_stage := false           # 최종 보스 밤: 전술 뽑기는 보스 체력 50% 에서 한 번
+var boss_draft_done := false
 var combo_pow_mul := 1.0          # 전술 강화: 합동 기술 피해 배율
 var combo_heal := 0.0             # 전술 강화: 합동 기술 때 모든 아군 회복
 var combo_cd_mul := 1.0          # 전술 강화: 합동 기술 재사용 배율
@@ -195,6 +203,8 @@ func add_enemy(kind: String, y: float, stat_override := {}) -> U:
 	u.armor = s.get("armor", 0.0)
 	u.heavy = s.get("heavy", false)
 	u.sneak = s.get("sneak", false)
+	if s.get("final", false):
+		u.name = "최종 보스 · " + u.name
 	if u.sneak:
 		u.speed *= D.SNEAK_SPEED
 	if s.has("summon"):
@@ -208,7 +218,7 @@ func add_enemy(kind: String, y: float, stat_override := {}) -> U:
 
 # ---------------- 한 프레임 ----------------
 func step() -> void:
-	if done:
+	if done or pending != "":
 		return
 	events.clear()
 	while not spawn_queue.is_empty() and spawn_queue[0][0] <= frame:
@@ -237,6 +247,11 @@ func step() -> void:
 	elif spawn_queue.is_empty() and _count("enemy") == 0:
 		done = true
 		result = "win"
+	elif had_allies and _count("ally") == 0 and not no_rout and reinforce_ok and not reinforced:
+		# 원군: 전투를 멈추고 대기실 병사를 고르게 한다 (한 밤에 한 번)
+		reinforced = true
+		pending = "reinforce"
+		events.append({"kind": "reinforce_call"})
 	elif had_allies and _count("ally") == 0 and not no_rout:
 		# 아군 전멸: 남은 도깨비(+ 아직 안 온 도깨비)가 약탈하고 물러간다. 한 밤 약탈은 상한까지
 		var loot := 0.0
@@ -252,7 +267,23 @@ func step() -> void:
 		done = true
 		result = "lose" if village_hp <= 0.0 else "hold"
 		village_hp = maxf(0.0, village_hp)
+	# 전술 뽑기: 처치 50마다 (최종 보스 밤은 보스 체력 50% 에서 한 번)
+	if not done and draft_every > 0:
+		if boss_stage:
+			if not boss_draft_done:
+				for u in units:
+					if u.alive and u.team == "enemy" and u.kind in D.BOSSES and u.hp <= u.max_hp * 0.5:
+						boss_draft_done = true
+						pending = "draft"
+		elif stats["kills"] >= draft_next:
+			draft_next += draft_every
+			pending = "draft"
 	frame += 1
+
+
+## 고르기가 끝나면 다시 돌린다
+func resume() -> void:
+	pending = ""
 
 
 func _count(team: String) -> int:

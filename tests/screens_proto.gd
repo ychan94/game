@@ -228,6 +228,7 @@ func _all() -> void:
 	k.battle.village_hp = 99999.0
 	k.state = "battle"
 	var got_wave := false
+	var got_draft := false
 	for i in 1500:
 		await physics_frame
 		if i == 240:
@@ -245,16 +246,24 @@ func _all() -> void:
 			k.hitstop = k.CUTIN_LEN
 			await _frames(40)
 			await _snap("p06d_kiln_cutin")
+		if k.battle.pending == "draft" and not got_draft:
+			# 전술 뽑기 화면 (한 번 찍고 첫 카드)
+			got_draft = true
+			run.roll_draft()
+			await _frames(3)
+			await _snap("p06e_tactic_draft")
+		_auto_pending(k, run)
 		if k.battle.done:
 			break
 	while not k.battle.done:
 		await physics_frame
+		_auto_pending(k, run)
 	await _frames(140)
 	await _snap("p07_kiln_night_end")
 	# 챕터 대장들
 	for c in [[1, "chief", "p07b_kiln_chief"], [2, "gumiho", "p07d_kiln_gumiho"], [5, "king", "p07e_kiln_king"]]:
 		run.chapter = c[0]
-		run.night = 5
+		run.night = 6
 		run.state = "prep"
 		k.fought = Vector2i(run.chapter, run.night)
 		k.battle = run.start_night()
@@ -263,21 +272,38 @@ func _all() -> void:
 		k.state = "battle"
 		while not k.battle.units.any(func(u): return u.kind == c[1]):
 			await physics_frame
+			_auto_pending(k, run)
 			if k.battle.done:
 				break
 		await _frames(90)
+		k.cutin = {}
+		await _frames(2)
 		await _snap(c[2])
-	# 챕터 1 클리어 화면
-	run.chapter = 1
-	run.night = 5
+	# 원군 고르기 (챕터 3, 대기실 병사)
+	run.chapter = 3
+	run.night = 2
 	run.state = "prep"
-	k.fought = Vector2i(1, 5)
+	k.fought = Vector2i(3, 2)
+	k.battle = run.start_night()
+	k.battle.pending = "reinforce"
+	k.cutin = {}
+	k.rf_pick = run.best_reserve(2)
+	k.state = "battle"
+	await _frames(4)
+	await _snap("p06f_reinforce")
+	k.rf_pick = []
+	# 챕터 1 클리어 화면 (최종 보스 밤)
+	run.chapter = 1
+	run.night = 6
+	run.state = "prep"
+	k.fought = Vector2i(1, 6)
 	var b = run.start_night()
 	b.units = b.units.filter(func(u): return u.team == "ally")
 	b.spawn_queue = []
 	b.step()
 	run.end_night(b)
 	k.battle = b
+	k.cutin = {}
 	k.state = "night_end"
 	k.end_t = 90
 	await _frames(5)
@@ -302,3 +328,16 @@ func _all() -> void:
 	await _snap("p07f_kiln_loot")
 
 	quit(0)
+
+
+
+## 찍는 동안 전투가 멈추지 않게: 전술 뽑기는 첫 카드, 원군은 추천 병사
+func _auto_pending(k, run) -> void:
+	if k.battle == null:
+		return
+	if k.battle.pending == "draft":
+		if run.draft_offer.is_empty():
+			run.roll_draft()
+		run.pick_tactic(run.draft_offer[0], k.battle)
+	elif k.battle.pending == "reinforce":
+		run.reinforce(k.battle, run.best_reserve(3))

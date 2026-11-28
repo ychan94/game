@@ -44,6 +44,12 @@ func play(seed_value: int, heat: int, max_chapter := 1) -> Dictionary:
 		var b = run.start_night()
 		while not b.done and b.frame < 60 * 90:
 			b.step()
+			# 봇도 고르기에 답한다 (2026-11-28 전술 뽑기·원군): 첫 카드 / 가장 센 대기실 병사 3명
+			if b.pending == "draft":
+				run.roll_draft()
+				run.pick_tactic(run.draft_offer[0], b)
+			elif b.pending == "reinforce":
+				run.reinforce(b, run.best_reserve(PD.REINFORCE_COUNT))
 		run.end_night(b)
 		hp_log.append(roundi(run.village_hp))
 	var st: String = "cleared" if run.state == "prep" or run.state == "won" else run.state
@@ -204,7 +210,7 @@ func test_chapters_advance() -> bool:
 	check(run.chapter == 2 and run.night == 1 and run.state == "prep" and run.chapter_cleared, "다섯째 밤 뒤 챕터 2, 아침 1")
 	# 2026-11-28 '완승 아니면 완패' 고치기: 챕터를 넘기면 마을을 다 고치지 않고 최대의 35% 만큼 고친다
 	check(absf(run.village_hp - minf(PD.VILLAGE_HP, 50.0 + PD.VILLAGE_HP * PD.CHAPTER_REPAIR)) < 0.01, "새 챕터는 마을을 %d%% 고친다 (%.0f)" % [roundi(PD.CHAPTER_REPAIR * 100.0), run.village_hp])
-	check(run.clay == clay0 + PD.CLAY_PER_NIGHT + PD.CLAY_PER_CHAPTER, "챕터 보너스 흙")
+	check(run.clay == clay0 + roundi(PD.CLAY_PER_NIGHT * PD.BOSS_REWARD_MUL) + PD.CLAY_PER_CHAPTER, "챕터 보너스 흙 (최종 보스 밤 흙은 1.5배)")
 	for c in range(1, PD.CHAPTERS.size()):
 		var a: Array = PD.wave_plan(1, true, c)
 		var z: Array = PD.wave_plan(1, true, c + 1)
@@ -214,7 +220,7 @@ func test_chapters_advance() -> bool:
 		var ch: Dictionary = PD.CHAPTERS[c]
 		check(z.any(func(e): return e[1] == ch["new"]), "챕터 %d 에 새 적 %s" % [c + 1, ch["new"]])
 		var last: Array = PD.wave_plan(PD.KILN_NIGHTS, true, c + 1)
-		check(last.any(func(e): return e[1] == ch["boss"]), "챕터 %d 다섯째 밤 대장 %s" % [c + 1, ch["boss"]])
+		check(last.any(func(e): return e[1] == ch["boss"]), "챕터 %d 마지막(여섯째) 밤 최종 보스 %s" % [c + 1, ch["boss"]])
 	run.chapter = PD.CHAPTERS.size()
 	run.night = PD.KILN_NIGHTS
 	var b2 = run.start_night()
@@ -404,9 +410,11 @@ func test_loot_tickets_and_equipment() -> bool:
 
 func test_waves_grow_and_chief_on_last_night() -> bool:
 	var p1: Array = PD.wave_plan(1, true)
-	var p5: Array = PD.wave_plan(PD.KILN_NIGHTS, true)
+	# 2026-11-28: 여섯째 밤은 최종 보스 밤(따로 짠 판)이라, '밤이 깊을수록 많다'는 보통 밤 중 마지막(다섯째)과 비교
+	var p5: Array = PD.wave_plan(PD.KILN_NIGHTS - 1, true)
+	var p6: Array = PD.wave_plan(PD.KILN_NIGHTS, true)
 	check(p5.size() > p1.size(), "밤이 깊을수록 적이 많다: %d → %d" % [p1.size(), p5.size()])
-	check(p5.any(func(e): return e[1] == "chief") and not p1.any(func(e): return e[1] == "chief"), "마지막 밤에만 도깨비 대장")
+	check(p6.any(func(e): return e[1] == "chief") and not p5.any(func(e): return e[1] == "chief") and not p1.any(func(e): return e[1] == "chief"), "마지막 밤에만 도깨비 대장")
 	return true
 
 
@@ -1040,4 +1048,115 @@ func test_meta_new_effects() -> bool:
 	run.end_night(b)
 	check(run.clay >= c0 + PD.CLAY_PER_NIGHT + 2, "흙 수레 +2")
 	check(run.pearls >= p0 + 8 / (PD.PEARL_PER_KILLS - 2), "진주 사냥꾼: %d마리마다 진주" % (PD.PEARL_PER_KILLS - 2))
+	return true
+
+
+
+## 챕터마다 밤 6번, 여섯째 밤은 최종 보스 (처음부터 나온다), 보상은 1.5배
+func test_final_boss_night() -> bool:
+	check(PD.KILN_NIGHTS == 6, "챕터마다 밤 6번")
+	for ch in range(1, PD.CHAPTERS.size() + 1):
+		var p5: Array = PD.wave_plan(5, true, ch)
+		var p6: Array = PD.boss_plan(ch)
+		var boss: String = PD.CHAPTERS[ch - 1]["boss"]
+		check(not p5.any(func(e): return e[1] == boss), "챕터 %d 다섯째 밤에는 보스가 없다" % ch)
+		var bs: Array = p6.filter(func(e): return e[1] == boss)
+		check(bs.size() == 1 and bs[0][2].get("final", false) and bs[0][0] <= 400, "챕터 %d 여섯째 밤: 최종 보스가 일찍 나온다" % ch)
+	# 보상 1.5배: 같은 밤을 보통 밤 / 보스 밤으로 넘긴다
+	var got := []
+	for nt in [3, PD.KILN_NIGHTS]:
+		var run = KilnRun.new(51)
+		run.night = nt
+		run.draw("spear", "fire")
+		run.fire()
+		var b = run.start_night()
+		b.spawn_queue = []
+		b.units = b.units.filter(func(u): return u.team == "ally")
+		b.stats["kills"] = 60
+		b.step()
+		run.end_night(b)
+		got.append(run.last_loot)
+	check(got[1]["tickets"] == roundi(got[0]["tickets"] * PD.BOSS_REWARD_MUL), "뽑기권 1.5배 (%d → %d)" % [got[0]["tickets"], got[1]["tickets"]])
+	check(got[1]["clay"] == roundi(got[0]["clay"] * PD.BOSS_REWARD_MUL), "흙 1.5배")
+	check(got[1]["pearls"] == roundi(got[0]["pearls"] * PD.BOSS_REWARD_MUL), "진주 1.5배")
+	return true
+
+
+## 전술 뽑기: 챕터 2부터, 처치 50마다 멈추고 카드 3장, 고르면 지금 병사에게 바로 + 다음 밤에도
+func test_tactic_draft() -> bool:
+	var r1 = KilnRun.new(52)
+	r1.draw("archer", "fire")
+	r1.fire()
+	check(r1.start_night().draft_every == 0, "챕터 1 에는 전술 뽑기 없음")
+	var run = KilnRun.new(53)
+	run.chapter = 2
+	run.draw("archer", "fire")
+	run.fire()
+	var b = run.start_night()
+	check(b.draft_every == PD.DRAFT_KILLS, "챕터 2: 처치 %d마다" % PD.DRAFT_KILLS)
+	b.spawn_queue = []
+	b.stats["kills"] = PD.DRAFT_KILLS
+	var u = b.units.filter(func(o): return o.team == "ally")[0]
+	u.max_hp = 1e6
+	u.hp = 1e6
+	b.add_enemy("goblin", 100.0).pos = Vector2(500, 100)
+	b.step()
+	check(b.pending == "draft", "50마리 → 전투가 멈추고 카드")
+	var f0: int = b.frame
+	b.step()
+	check(b.frame == f0, "고르기 전에는 전투가 멈춰 있다")
+	var offer: Array = run.roll_draft()
+	check(offer.size() == PD.DRAFT_CHOICES and offer.size() == {} .merged({offer[0]: 1, offer[1]: 1, offer[2]: 1}).size(), "서로 다른 카드 %d장" % PD.DRAFT_CHOICES)
+	var atk0: float = u.atk
+	run.pick_tactic("t_atk", b)
+	check(b.pending == "" and absf(u.atk - atk0 * 1.08) < 0.01, "고르면 지금 병사 공격력 +8%")
+	var s: Dictionary = run.army[0]
+	check(run.soldier_mods(s).get("atk", 0.0) >= 0.08, "다음 밤에도 남는다")
+	# 보스 밤: 보스 체력 50% 에서 한 번
+	run.night = PD.KILN_NIGHTS
+	var bb = run.start_night()
+	check(bb.boss_stage, "여섯째 밤은 보스 밤")
+	bb.spawn_queue = []
+	var boss = bb.add_enemy(PD.CHAPTERS[1]["boss"], 100.0)
+	boss.pos = Vector2(560, 100)
+	boss.hp = boss.max_hp * 0.49
+	bb.stats["kills"] = 999
+	bb.step()
+	check(bb.pending == "draft" and bb.boss_draft_done, "보스 체력 50% 이하 → 카드 (처치 수와 상관없이 한 번)")
+	return true
+
+
+## 원군: 챕터 3부터, 아군이 다 쓰러지면 멈추고 대기실 병사 3명을 불러 이어 싸운다 (한 밤에 한 번)
+func test_reinforcements() -> bool:
+	var run = KilnRun.new(54)
+	run.chapter = 3
+	run.draw("spear", "fire")
+	run.fire()
+	for i in 5:
+		run._add_soldier("archer", "water", "normal", 1, true)
+	var b = run.start_night()
+	check(b.reinforce_ok, "챕터 3 + 대기실 병사 → 원군 가능")
+	b.spawn_queue = []
+	var e = b.add_enemy("goblin", 100.0)
+	e.hp = 1e6
+	e.pos = Vector2(560, 100)
+	for u in b.units:
+		if u.team == "ally":
+			u.alive = false
+	b.step()
+	check(b.pending == "reinforce" and not b.done, "아군 전멸 → 마을이 무너지지 않고 원군 고르기")
+	var ids: Array = run.best_reserve(PD.REINFORCE_COUNT)
+	var got: Array = run.reinforce(b, ids)
+	check(got.size() == 3 and b._count("ally") == 3 and b.pending == "", "대기실 병사 3명이 나와 이어 싸운다")
+	for u in b.units:
+		if u.team == "ally":
+			u.alive = false
+	b.step()
+	check(b.done and b.result == "hold", "두 번째 전멸이면 (한 밤에 한 번) 약탈하고 물러간다")
+	var r2 = KilnRun.new(55)
+	r2.chapter = 2
+	r2._add_soldier("archer", "water", "normal", 1, true)
+	r2.draw("spear", "fire")
+	r2.fire()
+	check(not r2.start_night().reinforce_ok, "챕터 2 에는 원군 없음")
 	return true
